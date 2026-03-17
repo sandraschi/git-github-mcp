@@ -4,13 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "git-github-mcp"
-version = "0.1.0"
-description = "FastMCP 2.14.4 portmanteau server for Git and GitHub (gh CLI)"
+version = "0.3.0"
+description = "FastMCP 3.0+ portmanteau server for Git (local) and GitHub (gh CLI)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
-    "fastmcp>=2.14.4,<2.15.0",
+    "fastapi>=0.115.0",
+    "fastmcp>=3.1.0",
+    "uvicorn[standard]>=0.32.0",
+    "ruff>=0.15.2",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +28,6 @@ git-github-mcp = "git_github_mcp.__main__:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/git_github_mcp"]
-
 
 [tool.ruff]
 line-length = 100
