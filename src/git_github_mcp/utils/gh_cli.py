@@ -16,9 +16,13 @@ def run_gh(
             cwd=cwd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=timeout,
         )
-        return result.returncode == 0, result.stdout, result.stderr
+        out = result.stdout or ""
+        err = result.stderr or ""
+        return result.returncode == 0, out, err
     except subprocess.TimeoutExpired:
         return False, "", "gh command timed out"
     except FileNotFoundError:

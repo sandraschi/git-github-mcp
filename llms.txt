@@ -1,0 +1,16 @@
+# git-github-mcp
+> FastMCP 2.14.4 portmanteau server for Git and GitHub operations. Uses `gh` CLI for GitHub; avoids the 40-tool explosion. - **git_ops**: clone, status, add, commit, push, pull, branch, tag, stash - **g...
+
+This project includes automated llms.txt generation for AI accessibility.
+
+## Docs
+- [Readme](README.md): FastMCP 2.14.4 portmanteau server for Git and GitHub operations. Uses `gh` CLI for GitHub; avoids th...
+- [Changelog](CHANGELOG.md): - Initial release
+
+## Configuration
+- [Pyproject](pyproject.toml): Python project configuration and dependencies
+- [Package](web\package.json): Node.js project configuration and dependencies
+- [Config](.git\config): Application configuration files
+
+## Optional
+- [Changelog](CHANGELOG.md): Project changelog information

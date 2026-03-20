@@ -1,69 +1,32 @@
-import { useState, useEffect } from 'react'
-import { logger, type LogEntry } from './utils/logger'
-import { Layout } from './components/layout/Layout'
-import { HelpModal } from './components/modals/HelpModal'
-import { LoggerModal } from './components/modals/LoggerModal'
-import { Dashboard } from './pages/Dashboard'
-import { Repos } from './pages/Repos'
-import { Issues } from './pages/Issues'
-import { PRs } from './pages/PRs'
-import { Tools } from './pages/Tools'
-import { Glama } from './pages/Glama'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AppLayout } from '@/components/layout/app-layout';
+import { Dashboard } from '@/pages/dashboard';
+import { Repositories } from '@/pages/repos';
+import { Commits } from '@/pages/commits';
+import { Issues } from '@/pages/issues';
+import { PullRequests } from '@/pages/pull-requests';
+import { Chat } from '@/pages/chat';
+import { Settings } from '@/pages/settings';
+import { Lectures } from '@/pages/lectures';
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard')
-  const [showLogger, setShowLogger] = useState(false)
-  const [showHelp, setShowHelp] = useState(false)
-  const [logs, setLogs] = useState<string[]>([])
-
-  useEffect(() => {
-    const handleLog = (entry: LogEntry) => {
-      const ts = new Date(entry.timestamp).toLocaleTimeString()
-      const ctx = entry.context ? ` ${JSON.stringify(entry.context)}` : ''
-      setLogs((prev) => [...prev, `[${ts}] [${entry.level}] ${entry.message}${ctx}`])
-    }
-    const unsub = logger.on(handleLog)
-
-    const handleKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
-        e.preventDefault()
-        setShowLogger((s) => !s)
-      }
-      if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
-        setShowHelp(true)
-      }
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => {
-      unsub()
-      window.removeEventListener('keydown', handleKey)
-    }
-  }, [])
-
-  const pages: Record<string, React.ReactNode> = {
-    dashboard: <Dashboard />,
-    repos: <Repos />,
-    glama: <Glama />,
-    issues: <Issues />,
-    prs: <PRs />,
-    tools: <Tools />,
-  }
-
   return (
-    <>
-      <Layout
-        currentPage={currentPage}
-        onNavigate={setCurrentPage}
-        onShowLogger={() => setShowLogger(true)}
-        onShowHelp={() => setShowHelp(true)}
-      >
-        {pages[currentPage] || <Dashboard />}
-      </Layout>
-
-      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
-      <LoggerModal isOpen={showLogger} onClose={() => setShowLogger(false)} logs={logs} />
-    </>
-  )
+    <Router>
+      <AppLayout>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/repos" element={<Repositories />} />
+          <Route path="/commits" element={<Commits />} />
+          <Route path="/issues" element={<Issues />} />
+          <Route path="/prs" element={<PullRequests />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/lectures" element={<Lectures />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AppLayout>
+    </Router>
+  );
 }
 
-export default App
+export default App;

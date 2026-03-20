@@ -41,3 +41,4 @@ Desktop.ini
 *.log
 .tmp/
 temp/
+*.bak

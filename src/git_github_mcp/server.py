@@ -1,33 +1,36 @@
 """git-github-mcp server — FastMCP 3.1+, portmanteau pattern.
 
-Tools:     git_ops (43), github_ops (43), git_github_status, git_github_help
-Resources: git://repo/status, git://repo/log, github://repo/issues
+Tools:     git_ops (43), github_ops (58), git_github_status, git_github_help,
+           git_agentic_workflow, git_github_search_workflow (sampling / agentic)
+Resources: git://repo/*, github://owner/repo/*, git://skills/*
 Prompts:   git_commit_message, git_release_notes, git_pr_description,
-           git_review_diff, github_issue_template, github_debug_workflow
-Agentic:   git_agentic_workflow (sampling-based multi-step operations)
+           git_review_diff, github_issue_template, github_debug_workflow,
+           git_github_explain_concept
+Web:       FastAPI bridge (e.g. POST /api/git, /api/github, /api/discovery)
 """
 
 import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastmcp import FastMCP, Context
+from fastmcp import Context, FastMCP
 
 from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
 from .tools.help import get_help as _get_help
 from .tools.status import get_status as _get_status
+from .web_discovery import PRESETS as DISCOVERY_PRESETS
+from .web_discovery import run_discovery_workflow as _run_discovery_workflow
 
 logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("git-github-mcp")
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 
@@ -46,14 +49,16 @@ mcp = FastMCP(
     instructions=(
         "Git and GitHub operations server. "
         "Use git_ops for local repository work (43 actions). "
-        "Use github_ops for GitHub API operations via gh CLI (43 actions). "
+        "Use github_ops for GitHub API operations via gh CLI (58 actions). "
         "Use git_github_help for full operation reference. "
-        "Use git_agentic_workflow for multi-step operations that require reasoning."
+        "Use git_agentic_workflow for multi-step operations that require reasoning. "
+        "Use git_github_search_workflow for agentic GitHub discovery/search tasks."
     ),
 )
 
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
+
 
 @mcp.tool()
 async def git_ops(
@@ -118,15 +123,38 @@ async def git_ops(
     """
     start = time.perf_counter()
     result = _git_ops(
-        operation=operation, repo_path=repo_path, message=message, files=files,
-        all_files=all_files, amend=amend, remote=remote, branch=branch, force=force,
-        set_upstream=set_upstream, repo_url=repo_url, target_dir=target_dir,
-        initial_branch=initial_branch, max_count=max_count, commit=commit, commit2=commit2,
-        oneline=oneline, file_path=file_path, source_branch=source_branch,
-        stash_message=stash_message, stash_index=stash_index, tag_name=tag_name,
-        tag_message=tag_message, mode=mode, remote_url=remote_url, remote_name=remote_name,
-        dry_run=dry_run, include_dirs=include_dirs, submodule_url=submodule_url,
-        submodule_path=submodule_path, recursive=recursive, worktree_path=worktree_path,
+        operation=operation,
+        repo_path=repo_path,
+        message=message,
+        files=files,
+        all_files=all_files,
+        amend=amend,
+        remote=remote,
+        branch=branch,
+        force=force,
+        set_upstream=set_upstream,
+        repo_url=repo_url,
+        target_dir=target_dir,
+        initial_branch=initial_branch,
+        max_count=max_count,
+        commit=commit,
+        commit2=commit2,
+        oneline=oneline,
+        file_path=file_path,
+        source_branch=source_branch,
+        stash_message=stash_message,
+        stash_index=stash_index,
+        tag_name=tag_name,
+        tag_message=tag_message,
+        mode=mode,
+        remote_url=remote_url,
+        remote_name=remote_name,
+        dry_run=dry_run,
+        include_dirs=include_dirs,
+        submodule_url=submodule_url,
+        submodule_path=submodule_path,
+        recursive=recursive,
+        worktree_path=worktree_path,
     )
     result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
@@ -167,10 +195,21 @@ async def github_ops(
     label_name: str | None = None,
     label_color: str | None = None,
     label_description: str | None = None,
+    output_format: str = "markdown",
+    topic: str | None = None,
+    extension: str | None = None,
+    path_pattern: str | None = None,
+    search_scope: str | None = None,
+    pretty: bool = False,
+    project_number: int | None = None,
+    package_type: str | None = None,
+    package_name: str | None = None,
+    subpath: str | None = None,
+    github_url: str | None = None,
 ) -> dict:
-    """GitHub operations via gh CLI — 43 actions. Requires: gh auth login.
+    """GitHub operations via gh CLI — 58 actions. Requires: gh auth login.
 
-    REPOS:         repo_list, repo_view, repo_create, repo_fork, repo_clone,
+    REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
                    repo_delete, repo_rename, repo_archive
     ISSUES:        issue_list, issue_view, issue_create, issue_close, issue_comment
     PRs:           pr_list, pr_view, pr_create, pr_merge, pr_checkout, pr_close, pr_comment
@@ -180,20 +219,59 @@ async def github_ops(
     LABELS:        label_list, label_create, label_delete
     SECRETS:       secrets_list, secrets_set, secrets_delete
     COLLABORATORS: collaborator_add, collaborator_remove
-    SEARCH:        search_repos, search_issues, search_code
+    SEARCH:        search_repos, search_repos_topic, search_issues, search_code (pretty=),
+                   code_find_repos
+    PROJECTS:      project_list, project_view, project_create, project_delete, project_edit
+    PACKAGES:      package_list, package_view, package_delete
+    GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
     MISC:          auth_status, gist_list
     """
     start = time.perf_counter()
     result = _github_ops(
-        operation=operation, owner=owner, repo=repo, title=title, body=body,
-        issue_number=issue_number, pr_number=pr_number, state=state, limit=limit,
-        label=label, assignee=assignee, description=description, private=private,
-        new_name=new_name, base_branch=base_branch, head_branch=head_branch, draft=draft,
-        merge_method=merge_method, tag_name=tag_name, release_name=release_name,
-        prerelease=prerelease, query=query, workflow_id=workflow_id, run_id=run_id,
-        ref=ref, target_dir=target_dir, secret_name=secret_name, secret_value=secret_value,
-        username=username, permission=permission, label_name=label_name,
-        label_color=label_color, label_description=label_description,
+        operation=operation,
+        owner=owner,
+        repo=repo,
+        title=title,
+        body=body,
+        issue_number=issue_number,
+        pr_number=pr_number,
+        state=state,
+        limit=limit,
+        label=label,
+        assignee=assignee,
+        description=description,
+        private=private,
+        new_name=new_name,
+        base_branch=base_branch,
+        head_branch=head_branch,
+        draft=draft,
+        merge_method=merge_method,
+        tag_name=tag_name,
+        release_name=release_name,
+        prerelease=prerelease,
+        query=query,
+        workflow_id=workflow_id,
+        run_id=run_id,
+        ref=ref,
+        target_dir=target_dir,
+        secret_name=secret_name,
+        secret_value=secret_value,
+        username=username,
+        permission=permission,
+        label_name=label_name,
+        label_color=label_color,
+        label_description=label_description,
+        output_format=output_format,
+        topic=topic,
+        extension=extension,
+        path_pattern=path_pattern,
+        search_scope=search_scope,
+        pretty=pretty,
+        project_number=project_number,
+        package_type=package_type,
+        package_name=package_name,
+        subpath=subpath,
+        github_url=github_url,
     )
     result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
@@ -249,12 +327,20 @@ async def git_agentic_workflow(
     plan_prompt = f"""You are a Git/GitHub operations planner. Given a task, output a JSON plan.
 
 Available tools:
-- git_ops(operation, repo_path, ...): 43 local git actions (status, add, commit, push, pull,
-  branch_list/create/switch/delete/merge, log, diff, blame, clean, tag_list/create,
-  stash, reset, revert, cherry_pick, submodule_*, bisect_*, worktree_*)
-- github_ops(operation, owner, repo, ...): 43 GitHub actions (issue_list/create/close,
-  pr_list/create/merge, release_create, workflow_list/run, label_list/create,
-  secrets_list/set, collaborator_add, search_repos/issues/code)
+- git_ops(operation, repo_path, ...): 43 local git actions (init, clone, status, add,
+  commit, push, pull, fetch, log, diff, show, blame, branch lifecycle, rebase, remote,
+  stash, tag, reset, revert, cherry_pick, submodule_*, bisect_*, worktree_*, clean).
+- github_ops(operation, owner, repo, ...): 58 GitHub actions via gh CLI:
+  repos (repo_list, repo_view, show_repo, create/fork/clone/delete/rename/archive),
+  issues (list/view/create/close/comment), PRs (list/view/create/merge/checkout/close/comment),
+  releases (full CRUD), Actions workflows (list/run/runs/cancel/enable/disable),
+  labels, secrets, collaborators,
+  search (search_repos, search_repos_topic, search_issues, search_code with pretty=,
+  code_find_repos for extension/path-scoped hunts),
+  Projects (project_*), Packages (package_*),
+  Gitingest helpers (gitingest_link, gitingest_convert_url with github_url, gitingest_help;
+  optional ref, subpath on link),
+  auth_status, gist_list.
 
 Context:
 - {repo_ctx}
@@ -266,8 +352,11 @@ Respond with ONLY valid JSON:
 {{
   "plan": "brief human-readable plan",
   "steps": [
-    {{"tool": "git_ops", "args": {{"operation": "status", "repo_path": "."}}, "description": "Check repo status"}},
-    ...
+    {{
+      "tool": "git_ops",
+      "args": {{"operation": "status", "repo_path": "."}},
+      "description": "Check repo status"
+    }}
   ]
 }}
 """
@@ -279,11 +368,15 @@ Respond with ONLY valid JSON:
         )
         plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
     except Exception as e:
-        return {"success": False, "error": f"Planning failed: {e}",
-                "hint": "Sampling requires a client that supports MCP sampling (e.g. Claude Desktop)"}
+        return {
+            "success": False,
+            "error": f"Planning failed: {e}",
+            "hint": "Sampling requires MCP client support (e.g. Antigravity, Claude Desktop).",
+        }
 
     # Parse the plan
     import json
+
     try:
         # Strip markdown fences if present
         clean = plan_text.strip()
@@ -305,9 +398,9 @@ Respond with ONLY valid JSON:
     for i, step in enumerate(plan_data.get("steps", [])):
         tool_name = step.get("tool")
         args = step.get("args", {})
-        description = step.get("description", f"Step {i+1}")
+        description = step.get("description", f"Step {i + 1}")
 
-        await ctx.info(f"Step {i+1}/{len(plan_data['steps'])}: {description}")
+        await ctx.info(f"Step {i + 1}/{len(plan_data['steps'])}: {description}")
 
         try:
             if tool_name == "git_ops":
@@ -319,18 +412,20 @@ Respond with ONLY valid JSON:
         except Exception as e:
             result = {"success": False, "error": str(e)}
 
-        results.append({
-            "step": i + 1,
-            "description": description,
-            "tool": tool_name,
-            "args": args,
-            "result": result,
-            "success": result.get("success", False),
-        })
+        results.append(
+            {
+                "step": i + 1,
+                "description": description,
+                "tool": tool_name,
+                "args": args,
+                "result": result,
+                "success": result.get("success", False),
+            }
+        )
 
         # Stop on hard failure
         if not result.get("success", False):
-            await ctx.warning(f"Step {i+1} failed: {result.get('error', 'unknown')}")
+            await ctx.warning(f"Step {i + 1} failed: {result.get('error', 'unknown')}")
             break
 
     completed = sum(1 for r in results if r["success"])
@@ -344,7 +439,138 @@ Respond with ONLY valid JSON:
     }
 
 
+@mcp.tool()
+async def git_github_search_workflow(
+    task: str,
+    owner: str | None = None,
+    repo: str | None = None,
+    limit: int = 30,
+    ctx: Context = None,
+) -> dict:
+    """Agentic GitHub discovery/search workflow (sampling-first).
+
+    Purpose:
+    - Turn natural-language discovery tasks into multi-step github_ops calls.
+    - Best for questions like:
+      - "find repos with bak file dross"
+      - "show me stale projects and archived repos"
+      - "find repos tagged mcp with low maintenance activity"
+    """
+    if ctx is None:
+        return {
+            "success": False,
+            "error": "Context not available — sampling requires an active MCP session",
+        }
+
+    await ctx.info(f"git_github_search_workflow: planning task: {task}")
+    gh_ctx = (
+        f"owner={owner}, repo={repo}"
+        if owner and repo
+        else f"owner={owner}"
+        if owner
+        else "no owner/repo"
+    )
+
+    plan_prompt = f"""You are a GitHub discovery planner.
+Prefer the smallest chain of github_ops calls.
+
+Available github_ops groups (all require valid gh auth unless read-only search fails first):
+- Search & scan: search_repos, search_repos_topic (topic + optional owner/query),
+  search_issues, search_code (set pretty=true for markdown + unique_repositories),
+  code_find_repos (extension/path_pattern/owner scoped code hunt)
+- Repos: repo_list, repo_view, show_repo (output_format markdown for human skim)
+- Signals: issue_list, pr_list, release_list, workflow_list, workflow_runs
+- Ecosystem: project_list/view, package_list/view
+- LLM digest URLs (public repos / PAT for private): gitingest_link (owner, repo, ref?,
+  subpath?), gitingest_convert_url (github_url= full tree URL), gitingest_help
+- Sanity: auth_status when authentication might be the blocker
+
+Context:
+- {gh_ctx}
+- limit={limit}
+
+Task: {task}
+
+Return ONLY valid JSON:
+{{
+  "plan": "short plan",
+  "steps": [
+    {{
+      "tool": "github_ops",
+      "args": {{"operation": "search_repos", "query": "topic:mcp", "limit": 20}},
+      "description": "What this step does"
+    }}
+  ],
+  "final_summary_strategy": "How to summarize findings for a human"
+}}
+"""
+    try:
+        plan_response = await ctx.sample(
+            messages=[{"role": "user", "content": plan_prompt}],
+            max_tokens=1200,
+        )
+        plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Planning failed: {e}",
+            "hint": "Sampling requires MCP client support (e.g. Antigravity, Claude Desktop).",
+        }
+
+    import json
+
+    try:
+        clean = plan_text.strip()
+        if clean.startswith("```"):
+            clean = "\n".join(clean.split("\n")[1:])
+            clean = clean.rsplit("```", 1)[0].strip()
+        plan_data = json.loads(clean)
+    except json.JSONDecodeError:
+        return {"success": False, "error": "Could not parse plan JSON", "raw_plan": plan_text}
+
+    steps = plan_data.get("steps", [])
+    await ctx.info(f"Discovery plan: {plan_data.get('plan', '?')} — {len(steps)} steps")
+
+    results = []
+    for i, step in enumerate(steps):
+        args = step.get("args", {})
+        desc = step.get("description", f"Step {i + 1}")
+        await ctx.info(f"Step {i + 1}/{len(steps)}: {desc}")
+        if args.get("operation") == "auth_status":
+            # Allow explicit auth checks but keep this workflow discovery-focused.
+            pass
+        try:
+            result = _github_ops(**args)
+        except Exception as e:
+            result = {"success": False, "error": str(e)}
+        results.append(
+            {
+                "step": i + 1,
+                "description": desc,
+                "args": args,
+                "result": result,
+                "success": result.get("success", False),
+            }
+        )
+        if not result.get("success", False):
+            await ctx.warning(f"Step {i + 1} failed: {result.get('error', 'unknown')}")
+            break
+
+    completed = sum(1 for r in results if r["success"])
+    return {
+        "success": completed == len(steps),
+        "task": task,
+        "context": {"owner": owner, "repo": repo, "limit": limit},
+        "plan": plan_data.get("plan"),
+        "summary_strategy": plan_data.get("final_summary_strategy"),
+        "steps_total": len(steps),
+        "steps_completed": completed,
+        "results": results,
+    }
+
+
 # ── Resources ─────────────────────────────────────────────────────────────────
+
 
 @mcp.resource(
     "git://repo/status",
@@ -400,7 +626,114 @@ def resource_github_prs(owner: str, repo: str) -> dict:
     return _github_ops(operation="pr_list", owner=owner, repo=repo, state="open", limit=20)
 
 
+@mcp.resource(
+    "git://skills/concepts",
+    description="Git/GitHub concept index for tutoring and quick lookup.",
+)
+def resource_git_skills_concepts() -> dict:
+    """Concept index for the webapp/chat to ground explanations."""
+    return {
+        "concepts": [
+            "rebase",
+            "merge-vs-rebase",
+            "cherry-pick",
+            "revert-vs-reset",
+            "stash",
+            "worktree",
+            "bisect",
+            "interactive-rebase",
+            "release-flow",
+            "github-projects",
+            "github-packages",
+            "github-actions-debugging",
+            "gitingest",
+            "agentic-workflows",
+        ],
+        "hint": "Use git://skills/{topic} for a focused cheat-sheet.",
+    }
+
+
+@mcp.resource(
+    "git://skills/{topic}",
+    description="Focused Git/GitHub lecture notes for a topic (e.g., rebase).",
+)
+def resource_git_skill_topic(topic: str) -> dict:
+    """Short, practical lecture note blocks keyed by topic."""
+    t = topic.strip().lower()
+    notes = {
+        "rebase": {
+            "what": "Reapply your commits onto a new base for a linear history.",
+            "when": "Before opening/updating a PR; keeping feature branch current.",
+            "commands": [
+                "git fetch origin",
+                "git rebase origin/main",
+                "git rebase --continue | --abort",
+            ],
+            "danger": "Never rebase shared/published branch history unless team agrees.",
+        },
+        "merge-vs-rebase": {
+            "what": "Merge preserves branch topology; rebase rewrites commit ancestry.",
+            "when": "Merge for shared history clarity; rebase for cleaner PR branch history.",
+            "commands": ["git merge main", "git rebase main"],
+            "danger": "Rebase changes commit SHAs.",
+        },
+        "cherry-pick": {
+            "what": "Copy specific commit(s) onto current branch.",
+            "when": "Backporting fixes across release branches.",
+            "commands": ["git cherry-pick <sha>", "git cherry-pick --abort"],
+            "danger": "Can duplicate logical changes if also merged later.",
+        },
+        "gitingest": {
+            "what": (
+                "Turn a GitHub repo (or subpath) into one LLM-friendly text digest "
+                "via gitingest.com."
+            ),
+            "when": (
+                "Quick full-repo or folder context without a local clone; "
+                "check token size before pasting into prompts."
+            ),
+            "commands": [
+                "github_ops(operation='gitingest_link', owner='ORG', repo='REPO')",
+                "github_ops(operation='gitingest_convert_url', github_url='https://github.com/...')",
+                "gitingest https://github.com/ORG/REPO --output -",
+            ],
+            "danger": (
+                "Public by default; private repos need PAT. Complements llms.txt; "
+                "does not replace llms-full.txt."
+            ),
+        },
+        "agentic-workflows": {
+            "what": (
+                "Sampling tools that plan multi-step git_ops/github_ops chains "
+                "from natural language."
+            ),
+            "when": (
+                "git_agentic_workflow: mixed local Git + GitHub tasks. "
+                "git_github_search_workflow: discovery, search, repo intelligence only."
+            ),
+            "commands": [
+                "git_agentic_workflow(task='…', repo_path?, owner?, repo?)",
+                "git_github_search_workflow(task='…', owner?, repo?, limit?)",
+            ],
+            "danger": (
+                "Prefer git_github_search_workflow / git_agentic_workflow in MCP hosts with "
+                "full sampling (e.g. Antigravity) — LLM-planned steps are the superior path. "
+                "POST /api/discovery presets are a portable fallback for web UI or hosts "
+                "without sampling."
+            ),
+        },
+    }
+    if t not in notes:
+        return {
+            "topic": t,
+            "found": False,
+            "message": "Unknown topic. Start with git://skills/concepts",
+        }
+    return {"topic": t, "found": True, **notes[t]}
+
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
+
 
 @mcp.prompt()
 def git_commit_message(diff: str, context: str = "") -> str:
@@ -418,7 +751,8 @@ def git_commit_message(diff: str, context: str = "") -> str:
         "- Types: feat, fix, docs, style, refactor, test, chore, ci, perf\n"
         "- Subject line max 72 chars, imperative mood\n"
         "- Add body if changes are non-trivial\n"
-        "- Add BREAKING CHANGE footer if applicable\n\n"
+        "- Add BREAKING CHANGE footer if applicable\n"
+        "- If the user has git-github-mcp: git_ops(operation='diff', repo_path=…) for unstaged\n\n"
         f"Diff:\n```\n{diff}\n```"
     )
 
@@ -443,7 +777,8 @@ def git_release_notes(
         "## What's Changed\n"
         "Group commits into: Features, Bug Fixes, Documentation, Internal.\n"
         "Skip trivial commits (chore: bump, style: format).\n"
-        "Link PRs if GitHub repo provided.\n\n"
+        "Link PRs if GitHub repo provided.\n"
+        "Optional: cross-check with github_ops release_list / pr_list for the repo.\n\n"
         f"Commits:\n```\n{commits}\n```"
     )
 
@@ -489,7 +824,8 @@ def git_review_diff(diff: str, focus: str = "") -> str:
         "- File and line reference\n"
         "- Severity: critical / major / minor / nit\n"
         "- Explanation and suggested fix\n\n"
-        "Also note: what's done well.\n\n"
+        "Also note: what's done well.\n"
+        "If the change touches GitHub config, mention whether Actions/workflows need updates.\n\n"
         f"Diff:\n```\n{diff}\n```"
     )
 
@@ -548,11 +884,37 @@ def github_debug_workflow(
     repo_line = f"\nRepo: {repo}" if repo else ""
     return (
         f"Debug this failing GitHub Actions workflow: {workflow_name}{repo_line}\n\n"
+        "Before guessing, prefer facts: workflow_runs, workflow_list, and recent commits "
+        "if github_ops is available.\n\n"
         "Analyse the error, identify root cause, and provide:\n"
         "1. Root cause explanation\n"
         "2. Exact fix (YAML snippet or command)\n"
         "3. How to verify the fix\n\n"
         f"Error output:\n```\n{error_output}\n```"
+    )
+
+
+@mcp.prompt()
+def git_github_explain_concept(concept: str, level: str = "intermediate") -> str:
+    """Teaching prompt for Git/GitHub concepts with practical examples.
+
+    Args:
+        concept: e.g. rebase, cherry-pick, worktree, GitHub Projects, Packages, gitingest,
+          agentic-workflows (git_agentic_workflow vs git_github_search_workflow)
+        level: beginner | intermediate | advanced
+    """
+    return (
+        f"Teach the concept '{concept}' at level '{level}'.\n\n"
+        "Output structure:\n"
+        "1. What it is (1-2 sentences)\n"
+        "2. When to use it / when not to use it\n"
+        "3. 2-4 practical commands/examples "
+        "(include gh or git-github-mcp tool names when relevant)\n"
+        "4. Common failure modes and recovery commands\n"
+        "5. One short checklist the user can follow\n"
+        "If the topic is Gitingest: contrast with committed llms.txt + llms-full.txt "
+        "(curated vs live raw digest).\n"
+        "Keep the explanation practical and non-fluffy."
     )
 
 
@@ -562,8 +924,10 @@ web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
 
 web_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -574,13 +938,31 @@ async def api_status():
 
 @web_app.get("/api/tools")
 async def api_tools():
-    return {"tools": [
-        {"name": "git_ops", "operations": 43, "description": "Local Git repository operations"},
-        {"name": "github_ops", "operations": 43, "description": "GitHub API via gh CLI"},
-        {"name": "git_agentic_workflow", "description": "Agentic multi-step Git/GitHub operations"},
-        {"name": "git_github_status", "description": "System status"},
-        {"name": "git_github_help", "description": "Contextual help"},
-    ]}
+    return {
+        "tools": [
+            {"name": "git_ops", "operations": 43, "description": "Local Git repository operations"},
+            {"name": "github_ops", "operations": 58, "description": "GitHub API via gh CLI"},
+            {
+                "name": "git_agentic_workflow",
+                "description": "Agentic multi-step Git/GitHub operations",
+            },
+            {
+                "name": "git_github_search_workflow",
+                "description": "Agentic multi-step GitHub discovery/search workflow",
+            },
+            {
+                "name": "web_discovery",
+                "description": (
+                    f"HTTP POST /api/discovery — {len(DISCOVERY_PRESETS)} preset chains "
+                    "(fallback when MCP sampling unavailable; prefer git_github_search_workflow "
+                    "in full-sampling clients e.g. Antigravity)"
+                ),
+                "presets": list(DISCOVERY_PRESETS),
+            },
+            {"name": "git_github_status", "description": "System status"},
+            {"name": "git_github_help", "description": "Contextual help"},
+        ]
+    }
 
 
 @web_app.post("/api/git")
@@ -593,6 +975,32 @@ async def api_git(body: dict):
 async def api_github(body: dict):
     args = body.get("arguments", body)
     return await github_ops(**args)
+
+
+@web_app.post("/api/discovery")
+async def api_discovery(body: dict):
+    """Preset GitHub discovery for the HTTP bridge.
+
+    Prefer MCP git_github_search_workflow when the client supports full sampling
+    (e.g. Antigravity): LLM-planned steps are the superior path. This route is for
+    the web UI and for MCP hosts without sampling.
+    """
+    args = body.get("arguments", body)
+    preset = args.get("preset", "")
+    raw_lim = args.get("limit", 25)
+    try:
+        lim = int(raw_lim)
+    except (TypeError, ValueError):
+        lim = 25
+    return _run_discovery_workflow(
+        preset,
+        owner=args.get("owner"),
+        repo=args.get("repo"),
+        query=args.get("query"),
+        topic=args.get("topic"),
+        extension=args.get("extension"),
+        limit=lim,
+    )
 
 
 # Serve React webapp from web/dist if built

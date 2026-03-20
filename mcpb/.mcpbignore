@@ -1,0 +1,18 @@
+# MCPB pack exclusions (relative to mcpb/)
+.git/
+pack.ps1
+.gitignore
+node_modules/
+dist/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.log
+.env
+.env.*
+tests/
+docs/

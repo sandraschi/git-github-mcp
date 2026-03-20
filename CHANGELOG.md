@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.4.0 (2026-03-20)
+
+### Agentic discovery + skills
+- Added `git_github_search_workflow` tool for sampling-driven multi-step discovery/search plans using `github_ops`
+- Added resources:
+  - `git://skills/concepts` (topic index)
+  - `git://skills/{topic}` (focused lecture notes, starting with `rebase`, `merge-vs-rebase`, `cherry-pick`)
+- Added prompt `git_github_explain_concept(concept, level)` for tutor-style explanations
+
+### Webapp lectures and lookup
+- Added `/lectures` page with searchable Git/GitHub mini-lectures, commands, and pitfalls
+- Added sidebar navigation entry for Lectures
+- Extended command chat examples with `github find-bak <owner>` and `github show <owner> <repo>`
+
+### Gitingest (LLM digest URLs)
+- **github_ops:** `gitingest_link`, `gitingest_convert_url`, `gitingest_help` — [Gitingest](https://gitingest.com) URLs + docs vs `llms.txt` / `llms-full.txt`
+- New `utils/gitingest_urls.py`
+- Skills: `git://skills/concepts` includes `gitingest`; `git://skills/gitingest` lecture notes
+
+### github_ops: 43 → 58 actions (includes Gitingest trio above)
+- **show_repo** — same metadata as `repo_view` plus **`content`** as Markdown, HTML, or JSON (`output_format`)
+- **search_repos_topic** — discover repos by GitHub **topic** (repo tag); optional `owner` scopes `user:…`, optional `query` adds search terms
+- **code_find_repos** — builds a code-search query from `extension`, `path_pattern`, `search_scope`, `owner` (`user:`), and/or `query`; returns **`markdown`** table + **`unique_repositories`**
+- **search_code** — `pretty=True` adds **`markdown`** + **`unique_repositories`**
+- **Projects** — `project_list`, `project_view`, `project_create`, `project_delete`, `project_edit` (`gh project`; may need `gh auth refresh -s project`)
+- **Packages** — `package_list`, `package_view`, `package_delete` via `gh api` (`read:packages` / `write:packages`)
+
+### Prompts, planner strings, and Cursor skill
+- Refreshed MCP **prompt** copy (commit, release notes, PR, review, issue, Actions debug, explain) to reference current tools and grounded workflows
+- Updated **sampling planner** prompts for `git_agentic_workflow` and `git_github_search_workflow` (58-action surface, Gitingest, signals)
+- Skills: `git://skills/agentic-workflows`; expanded `gitingest` notes
+- **`.cursor/skills/github-expert/SKILL.md`** — use git-github-mcp as the default execution layer when enabled
+- **`mcpb/manifest.json`**: version 0.4.0, 6 tools, 7 prompts, 8 resources, accurate descriptions
+
+### Other
+- New `utils/github_format.py` for repo cards and code-search tables
+- Tests: `test_github_format.py`, `test_github_ops.py`
+
 ## 0.3.0 (2026-03-17)
 
 ### git_ops: 30 → 43 actions

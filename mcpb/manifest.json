@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.3",
   "name": "git-github-mcp",
-  "version": "0.3.0",
-  "description": "FastMCP 3.1+ portmanteau server for Git (local) and GitHub (gh CLI). Two tools cover 86 actions, plus 6 prompts, 6 resources, and an agentic sampling workflow.",
+  "version": "0.4.0",
+  "description": "FastMCP 3.1+ portmanteau server: git_ops (43) + github_ops (58) = 101 actions, git_github_status/help, two sampling agentic workflows, 7 prompts, 8 resources (incl. skills), optional FastAPI web bridge.",
   "author": {
     "name": "Sandra Schi",
     "url": "https://github.com/sandraschi"
@@ -20,7 +20,8 @@
     "portmanteau",
     "gh-cli",
     "fastmcp",
-    "agentic"
+    "agentic",
+    "gitingest"
   ],
   "server": {
     "type": "python",
@@ -41,77 +42,64 @@
   "tools": [
     {
       "name": "git_ops",
-      "description": "Local Git operations — 43 actions: init, clone, add, commit, push, pull, fetch, status, log, diff, show, blame, branch_list/create/switch/delete/merge, rebase, remote_list/add/remove, stash/pop/list/drop, tag_list/create/delete, reset, revert, cherry_pick, clean, submodule_add/update/sync/status, bisect_start/bad/good/reset, worktree_add/list/remove"
+      "description": "Local Git — 43 actions: init, clone, status, add, commit, push, pull, fetch, log, diff, show, blame, branches, rebase, remotes, stash, tags, reset, revert, cherry_pick, clean, submodule_*, bisect_*, worktree_*"
     },
     {
       "name": "github_ops",
-      "description": "GitHub operations via gh CLI — 43 actions: repo_list/view/create/fork/clone/delete/rename/archive, issue_list/view/create/close/comment, pr_list/view/create/merge/checkout/close/comment, release_list/view/create/delete/update, workflow_list/run/runs/cancel/disable/enable, label_list/create/delete, secrets_list/set/delete, collaborator_add/remove, search_repos/issues/code, auth_status, gist_list"
-    },
-    {
-      "name": "git_agentic_workflow",
-      "description": "Agentic multi-step Git/GitHub workflow using LLM sampling. Describe a task in natural language; the tool plans and executes the required git_ops/github_ops steps automatically."
-    },
-    {
-      "name": "git_github_help",
-      "description": "Contextual help for all git-github-mcp tools (level: basic/intermediate/advanced, topic: git_ops/github_ops)"
+      "description": "GitHub via gh CLI — 58 actions: repos (incl. show_repo), issues, PRs, releases, Actions workflows, labels, secrets, collaborators, search (repos, topic, issues, code, code_find_repos), Projects, Packages, Gitingest (gitingest_link/convert_url/help), auth_status, gist_list"
     },
     {
       "name": "git_github_status",
-      "description": "System status: git and gh CLI availability, versions, and auth state"
+      "description": "System status: git and gh CLI availability, versions, auth state"
+    },
+    {
+      "name": "git_github_help",
+      "description": "Contextual help for operations (level: basic/intermediate/advanced; topic: git_ops|github_ops)"
+    },
+    {
+      "name": "git_agentic_workflow",
+      "description": "Sampling: plan and execute multi-step git_ops + github_ops from natural language (requires MCP sampling)"
+    },
+    {
+      "name": "git_github_search_workflow",
+      "description": "Sampling: GitHub discovery/search only — planned github_ops chain (requires MCP sampling)"
     }
   ],
   "prompts": [
     {
       "name": "git_commit_message",
       "description": "Generate a conventional commit message from a staged diff",
-      "arguments": [
-        "diff",
-        "context"
-      ]
+      "arguments": ["diff", "context"]
     },
     {
       "name": "git_release_notes",
       "description": "Generate release notes from a commit log",
-      "arguments": [
-        "commits",
-        "version",
-        "repo"
-      ]
+      "arguments": ["commits", "version", "repo"]
     },
     {
       "name": "git_pr_description",
       "description": "Generate a pull request description from branch and commits",
-      "arguments": [
-        "branch",
-        "commits",
-        "diff_stat"
-      ]
+      "arguments": ["branch", "commits", "diff_stat"]
     },
     {
       "name": "git_review_diff",
       "description": "Code review prompt for a git diff",
-      "arguments": [
-        "diff",
-        "focus"
-      ]
+      "arguments": ["diff", "focus"]
     },
     {
       "name": "github_issue_template",
-      "description": "Generate a well-structured GitHub issue body (types: bug, feature, docs, question)",
-      "arguments": [
-        "title",
-        "type",
-        "context"
-      ]
+      "description": "Generate a GitHub issue body (types: bug, feature, docs, question)",
+      "arguments": ["title", "type", "context"]
     },
     {
       "name": "github_debug_workflow",
-      "description": "Debug a failing GitHub Actions workflow from its error output",
-      "arguments": [
-        "workflow_name",
-        "error_output",
-        "repo"
-      ]
+      "description": "Debug a failing GitHub Actions workflow from error output",
+      "arguments": ["workflow_name", "error_output", "repo"]
+    },
+    {
+      "name": "git_github_explain_concept",
+      "description": "Teach a Git/GitHub concept with examples (e.g. gitingest, agentic-workflows)",
+      "arguments": ["concept", "level"]
     }
   ],
   "resources": [
@@ -138,14 +126,18 @@
     {
       "uri": "github://{owner}/{repo}/prs",
       "description": "Open pull requests for a GitHub repository"
+    },
+    {
+      "uri": "git://skills/concepts",
+      "description": "Git/GitHub concept index for tutoring"
+    },
+    {
+      "uri": "git://skills/{topic}",
+      "description": "Focused lecture notes (e.g. rebase, gitingest, agentic-workflows)"
     }
   ],
   "compatibility": {
-    "platforms": [
-      "darwin",
-      "win32",
-      "linux"
-    ],
+    "platforms": ["darwin", "win32", "linux"],
     "runtimes": {
       "python": ">=3.12"
     },

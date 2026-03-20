@@ -1,159 +1,128 @@
-import { useState } from 'react'
-import { FileText, Plus } from 'lucide-react'
-import { api } from '../api/client'
+import { useEffect, useState, useCallback } from 'react';
+import { CircleDot, Plus, X, Loader2, RefreshCw } from 'lucide-react';
+import { githubOps } from '@/lib/api';
 
 interface Issue {
-  number: number
-  title: string
-  state: string
-  url?: string
+  number: number; title: string; state: string; url: string;
+  author: { login: string }; labels: { name: string; color: string }[];
+  createdAt: string;
 }
 
 export function Issues() {
-  const [owner, setOwner] = useState('')
-  const [repo, setRepo] = useState('')
-  const [issues, setIssues] = useState<Issue[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [owner, setOwner] = useState('sandraschi');
+  const [repo, setRepo] = useState('git-github-mcp');
+  const [state, setState] = useState<'open' | 'closed'>('open');
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newBody, setNewBody] = useState('');
 
-  const [createOwner, setCreateOwner] = useState('')
-  const [createRepo, setCreateRepo] = useState('')
-  const [createTitle, setCreateTitle] = useState('')
-  const [createBody, setCreateBody] = useState('')
-  const [creating, setCreating] = useState(false)
+  const fetch = useCallback(() => {
+    setLoading(true); setError(null);
+    (githubOps('issue_list', { owner, repo, state, limit: 30 }) as Promise<{ success: boolean; data?: { issues: Issue[] }; error?: string }>)
+      .then(d => {
+        if (d.success) setIssues(d.data?.issues ?? []);
+        else setError(d.error ?? 'Failed');
+      })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [owner, repo, state]);
 
-  const handleList = () => {
-    if (!owner || !repo) return
-    setLoading(true)
-    setError(null)
-    api.github.issues(owner, repo).then((res) => {
-      setLoading(false)
-      const data = res as { success: boolean; result?: { issues: Issue[] }; error?: string }
-      if (data.success && data.result?.issues) {
-        setIssues(data.result.issues)
-      } else {
-        setError(data.error || 'Failed')
-      }
-    })
-  }
+  useEffect(fetch, [fetch]);
 
-  const handleCreate = () => {
-    if (!createOwner || !createRepo || !createTitle) return
-    setCreating(true)
-    api.github.ops({
-      operation: 'create_issue',
-      owner: createOwner,
-      repo: createRepo,
-      title: createTitle,
-      body: createBody || undefined,
-    }).then((res) => {
-      setCreating(false)
-      if (res.success) {
-        setCreateTitle('')
-        setCreateBody('')
-        if (createOwner && createRepo) {
-          setOwner(createOwner)
-          setRepo(createRepo)
-          api.github.issues(createOwner, createRepo).then((r) => {
-            const d = r as { success: boolean; result?: { issues: Issue[] } }
-            if (d.success && d.result?.issues) setIssues(d.result.issues)
-          })
-        }
-      } else {
-        setError((res as { error?: string }).error || 'Failed')
-      }
-    })
-  }
+  const createIssue = async () => {
+    if (!newTitle.trim()) return;
+    setCreating(false);
+    await githubOps('issue_create', { owner, repo, title: newTitle, body: newBody });
+    setNewTitle(''); setNewBody(''); fetch();
+  };
 
   return (
-    <div className="space-y-8">
-      <div className="p-6 rounded-xl bg-[#12121a] border border-[#1e1e2e]">
-        <h3 className="font-semibold text-slate-200 mb-4">List Issues</h3>
-        <div className="flex flex-wrap gap-3">
-          <input
-            placeholder="owner"
-            value={owner}
-            onChange={(e) => setOwner(e.target.value)}
-            className="px-4 py-2 rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 outline-none w-32"
-          />
-          <input
-            placeholder="repo"
-            value={repo}
-            onChange={(e) => setRepo(e.target.value)}
-            className="px-4 py-2 rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 outline-none w-40"
-          />
-          <button
-            onClick={handleList}
-            disabled={loading}
-            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 transition-colors font-medium"
-          >
-            {loading ? 'Loading...' : 'List'}
+    <div className="space-y-4 max-w-4xl">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Issues</h1>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setCreating(c => !c)} className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
+            style={{ background: creating ? 'var(--bg-3)' : 'var(--green)', color: creating ? 'var(--text-muted)' : '#000', border: '1px solid var(--green-dim)' }}>
+            {creating ? <X size={12} /> : <Plus size={12} />} {creating ? 'Cancel' : 'New Issue'}
+          </button>
+          <button onClick={fetch} className="p-1.5 rounded" style={{ border: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
-      <div className="p-6 rounded-xl bg-[#12121a] border border-[#1e1e2e]">
-        <h3 className="font-semibold text-slate-200 mb-4 flex items-center gap-2">
-          <Plus size={18} /> Create Issue
-        </h3>
-        <div className="space-y-3">
-          <div className="flex gap-3">
-            <input
-              placeholder="owner"
-              value={createOwner}
-              onChange={(e) => setCreateOwner(e.target.value)}
-              className="px-4 py-2 rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 outline-none w-32"
-            />
-            <input
-              placeholder="repo"
-              value={createRepo}
-              onChange={(e) => setCreateRepo(e.target.value)}
-              className="px-4 py-2 rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 outline-none w-40"
-            />
-          </div>
-          <input
-            placeholder="Title"
-            value={createTitle}
-            onChange={(e) => setCreateTitle(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 outline-none"
-          />
-          <textarea
-            placeholder="Body (optional)"
-            value={createBody}
-            onChange={(e) => setCreateBody(e.target.value)}
-            rows={3}
-            className="w-full px-4 py-2 rounded-lg bg-[#0a0a0f] border border-[#1e1e2e] text-slate-200 placeholder-slate-500 focus:border-indigo-500/50 outline-none resize-none"
-          />
-          <button
-            onClick={handleCreate}
-            disabled={creating}
-            className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50 transition-colors font-medium"
-          >
-            {creating ? 'Creating...' : 'Create Issue'}
+      {/* Repo selector */}
+      <div className="flex items-center gap-2">
+        <input className="mono text-xs px-3 py-1.5 rounded outline-none w-36" style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+          value={owner} onChange={e => setOwner(e.target.value)} placeholder="owner" />
+        <span style={{ color: 'var(--text-dim)' }}>/</span>
+        <input className="mono text-xs px-3 py-1.5 rounded outline-none flex-1" style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--text)' }}
+          value={repo} onChange={e => setRepo(e.target.value)} placeholder="repo" />
+        {(['open', 'closed'] as const).map(s => (
+          <button key={s} onClick={() => setState(s)}
+            className="px-3 py-1.5 rounded text-xs transition-colors"
+            style={{ background: state === s ? 'var(--bg-3)' : 'transparent', color: state === s ? 'var(--text)' : 'var(--text-dim)', border: `1px solid ${state === s ? 'var(--border-2)' : 'var(--border)'}` }}>
+            {s}
           </button>
-        </div>
-      </div>
-
-      {error && <div className="text-red-400">{error}</div>}
-
-      <div className="space-y-3">
-        {issues.map((issue) => (
-          <a
-            key={issue.number}
-            href={issue.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-4 p-4 rounded-xl bg-[#12121a] border border-[#1e1e2e] hover:border-indigo-500/30 transition-colors group"
-          >
-            <FileText className="w-5 h-5 text-slate-500 shrink-0" />
-            <span className="text-slate-400 text-sm w-12">#{issue.number}</span>
-            <span className="flex-1 font-medium text-slate-200 truncate">{issue.title}</span>
-            <span className={`text-xs px-2 py-0.5 rounded ${issue.state === 'open' ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-400'}`}>
-              {issue.state}
-            </span>
-          </a>
         ))}
       </div>
+
+      {/* Create form */}
+      {creating && (
+        <div className="rounded p-4 space-y-3" style={{ background: 'var(--bg-2)', border: '1px solid var(--border-2)' }}>
+          <input className="w-full bg-transparent outline-none text-sm" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 6, color: 'var(--text)' }}
+            value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Issue title..." />
+          <textarea className="w-full bg-transparent outline-none text-xs mono resize-none" rows={3}
+            style={{ color: 'var(--text-muted)' }}
+            value={newBody} onChange={e => setNewBody(e.target.value)} placeholder="Description (optional)..." />
+          <button onClick={createIssue} className="px-4 py-1.5 rounded text-xs font-bold"
+            style={{ background: 'var(--green)', color: '#000' }}>
+            Submit Issue
+          </button>
+        </div>
+      )}
+
+      {/* Issue list */}
+      {loading ? (
+        <div className="flex justify-center py-12"><Loader2 className="animate-spin" size={20} style={{ color: 'var(--green)' }} /></div>
+      ) : error ? (
+        <div className="p-6 text-center mono text-sm rounded" style={{ background: 'var(--bg-2)', border: '1px solid var(--border)', color: 'var(--amber)' }}>
+          {error} — ensure gh is authed
+        </div>
+      ) : (
+        <div className="rounded overflow-hidden" style={{ border: '1px solid var(--border)' }}>
+          {issues.length === 0 ? (
+            <div className="p-8 text-center text-sm" style={{ color: 'var(--text-dim)' }}>No {state} issues</div>
+          ) : issues.map((iss, i) => (
+            <div key={iss.number} className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
+              style={{ borderBottom: i < issues.length - 1 ? '1px solid var(--border)' : 'none' }}>
+              <CircleDot size={14} className="mt-0.5 shrink-0" style={{ color: iss.state === 'open' ? 'var(--green)' : 'var(--purple)' }} />
+              <div className="flex-1 min-w-0">
+                <a href={iss.url} target="_blank" rel="noreferrer"
+                  className="text-sm font-medium hover:underline truncate block" style={{ color: 'var(--text)' }}>
+                  {iss.title}
+                </a>
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                  <span className="mono text-xs" style={{ color: 'var(--text-dim)' }}>#{iss.number}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-dim)' }}>{iss.author?.login}</span>
+                  {iss.labels?.map(l => (
+                    <span key={l.name} className="mono text-xs px-1.5 py-0.5 rounded"
+                      style={{ background: `#${l.color}22`, color: `#${l.color}`, border: `1px solid #${l.color}44` }}>
+                      {l.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <span className="mono text-xs shrink-0" style={{ color: 'var(--text-dim)' }}>
+                {new Date(iss.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
-  )
+  );
 }
