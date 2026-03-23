@@ -42,3 +42,5 @@ Desktop.ini
 .tmp/
 temp/
 *.bak
+# Rust / Zed IDE — rust-analyzer may create target/ at repo root
+target/
