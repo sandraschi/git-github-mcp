@@ -15,8 +15,11 @@ def test_build_gitingest_url_strips_git_suffix() -> None:
 
 
 def test_build_gitingest_url_ref_and_subpath() -> None:
-    u = build_gitingest_url("sandraschi", "git-github-mcp", ref="main", subpath="src/git_github_mcp")
-    assert u == "https://gitingest.com/sandraschi/git-github-mcp/tree/main/src/git_github_mcp"
+    u = build_gitingest_url(
+        "sandraschi", "git-github-mcp", ref="main", subpath="src/git_github_mcp"
+    )
+    expected = "https://gitingest.com/sandraschi/git-github-mcp/tree/main/src/git_github_mcp"
+    assert u == expected
 
 
 def test_github_url_to_gitingest_repo() -> None:
@@ -26,9 +29,7 @@ def test_github_url_to_gitingest_repo() -> None:
 
 
 def test_github_url_to_gitingest_tree() -> None:
-    u, err = github_url_to_gitingest(
-        "https://github.com/foo/bar/tree/main/docs"
-    )
+    u, err = github_url_to_gitingest("https://github.com/foo/bar/tree/main/docs")
     assert err is None
     assert u == "https://gitingest.com/foo/bar/tree/main/docs"
 

@@ -2,8 +2,8 @@
 
 import asyncio
 
-from .transport import run_server, run_server_async
 from .server import mcp
+from .transport import run_server
 
 
 def main() -> None:

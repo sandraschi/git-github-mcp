@@ -1,0 +1,30 @@
+{
+  "name": "git-github-mcp",
+  "version": "0.3.0",
+  "description": "Hardened FastMCP 3.1.1+ substrate for Git/GitHub with v1.20 non-interactive safety.",
+  "homepage": "https://github.com/sandraschi/git-github-mcp",
+  "repository": "https://github.com/sandraschi/git-github-mcp",
+  "author": "sandraschi",
+  "license": "MIT",
+  "mcp": {
+    "version": "3.1.1",
+    "runtime": "python",
+    "tools": [
+      {
+        "name": "git_ops",
+        "description": "Local Git operations with high-fidelity status parsing.",
+        "capabilities": ["status", "commit", "push", "pull", "clone"]
+      },
+      {
+        "name": "github_ops",
+        "description": "GitHub CLI operations with non-interactive safety.",
+        "capabilities": ["pr_list", "issue_list", "repo_create"]
+      }
+    ]
+  },
+  "webapp": {
+    "frontend_port": 10703,
+    "backend_port": 10702,
+    "theme": "Fleet v1.20 Glassmorphism"
+  }
+}

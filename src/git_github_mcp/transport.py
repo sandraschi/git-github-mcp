@@ -7,7 +7,7 @@ Provides unified transport configuration for STDIO, HTTP Streamable, and legacy 
 Environment Variables:
     MCP_TRANSPORT: Transport mode (stdio, http, sse). Default: stdio
     MCP_HOST: Bind address for HTTP/SSE. Default: 127.0.0.1
-    MCP_PORT: Port for HTTP/SSE. Default: 8000
+    MCP_PORT: Port for HTTP/SSE. Default: 10702 (fleet 10700+; set MCP_PORT to override)
     MCP_PATH: HTTP endpoint path. Default: /mcp
 
 CLI Arguments:
@@ -85,10 +85,10 @@ Examples:
   python -m {server_name.replace("-", "_")} --stdio
 
   # HTTP mode (web apps)
-  python -m {server_name.replace("-", "_")} --http --port 8080
+  python -m {server_name.replace("-", "_")} --http --port 10702
 
   # Via environment
-  MCP_TRANSPORT=http MCP_PORT=8080 python -m {server_name.replace("-", "_")}
+  MCP_TRANSPORT=http MCP_PORT=10702 python -m {server_name.replace("-", "_")}
 """,
     )
 

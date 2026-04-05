@@ -1,6 +1,7 @@
 """Build [Gitingest](https://gitingest.com) URLs from GitHub coordinates.
 
-Rule of thumb (from upstream): replace ``hub`` with ``ingest`` in ``github.com`` → ``gitingest.com``.
+Rule of thumb (from upstream): replace ``hub`` with ``ingest`` in ``github.com``
+→ ``gitingest.com``.
 """
 
 from __future__ import annotations
@@ -80,10 +81,11 @@ def github_url_to_gitingest(url: str) -> tuple[str | None, str | None]:
 
 GITINGEST_HELP_MARKDOWN = """## Gitingest + fleet LLM docs
 
-**What it is:** [Gitingest](https://gitingest.com) turns a **public GitHub repo** (or a **subpath** on a branch)
-into a **single prompt-friendly text digest**: file tree, size stats, token estimate, and concatenated sources.
+**What it is:** [Gitingest](https://gitingest.com) turns a **public GitHub repo**
+(or a **subpath** on a branch) into a **single prompt-friendly text digest**:
+file tree, size stats, token estimate, and concatenated sources.
 
-**URL trick:** replace **`hub`** with **`ingest`** in **`github.com`** → **`gitingest.com`**  
+**URL trick:** replace **`hub`** with **`ingest`** in **`github.com`** → **`gitingest.com`**
 Example: `https://github.com/owner/repo` → `https://gitingest.com/owner/repo`
 
 **Good for:**
@@ -97,12 +99,12 @@ Example: `https://github.com/owner/repo` → `https://gitingest.com/owner/repo`
 | **Source** | Live GitHub tree | **Committed** at repo root |
 | **Stability** | Changes with every push | Versioned with the repo; explicit updates |
 | **Shape** | Auto digest of files | **Curated** index + deep corpus for tools/ports/env |
-| **Best use** | Ad-hoc ingest, exploration | **Discovery**, MCP tool lists, long-lived agent context |
+| **Best use** | Ad-hoc ingest, exploration | **Discovery**, MCP tools, long-lived context |
 
-Use **both**: keep **`llms.txt`** as the stable front door; use **Gitingest** when you need the **raw codebase
-text** in one shot or a **path-scoped** slice.
+Use **both**: keep **`llms.txt`** as the stable front door; use **Gitingest** when you need
+the **raw codebase text** in one shot or a **path-scoped** slice.
 
-**Private repos:** need a GitHub PAT in Gitingest / `gitingest` CLI ([upstream](https://github.com/coderamp-labs/gitingest)).
+**Private repos:** need a PAT in Gitingest / `gitingest` CLI ([upstream](https://github.com/coderamp-labs/gitingest)).
 
-**CLI (optional):** `pipx install gitingest` then `gitingest https://github.com/owner/repo --output -`
+**CLI (optional):** `pipx install gitingest` then `gitingest <repo_url> --output -`
 """

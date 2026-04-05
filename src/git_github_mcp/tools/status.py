@@ -3,7 +3,7 @@
 import platform
 import subprocess
 
-from ..utils.response import success_response, error_response
+from ..utils.response import error_response, success_response
 
 
 def get_status(level: str = "basic") -> dict:
@@ -32,6 +32,7 @@ def get_status(level: str = "basic") -> dict:
 
     git_ok = result["git"].get("available", False)
     gh_ok = result["gh"].get("available", False)
+    gh_auth_ok = result["gh"].get("auth") == "ok"
     if not git_ok:
         return error_response(
             "status",
@@ -42,14 +43,40 @@ def get_status(level: str = "basic") -> dict:
         return error_response(
             "status",
             "gh CLI not found",
-            recovery_options=["Install gh: https://cli.github.com/", "Run gh auth login"],
+            recovery_options=[
+                "Install gh: https://cli.github.com/",
+                "Then run gh auth login in a terminal (same user as the MCP process)",
+            ],
+        )
+
+    if not gh_auth_ok:
+        return success_response(
+            result,
+            "status",
+            message=(
+                "Git OK; gh is installed but not authenticated — github_ops and "
+                "GitHub-backed web UI calls will fail until you log in."
+            ),
+            recommendations=[
+                "Run in a terminal: gh auth login",
+                "Verify: gh auth status",
+                "Optional: github_ops(operation='auth_status') for raw gh output",
+            ],
+            next_steps=[
+                "gh auth login",
+                "gh auth status",
+                "git_ops still works for local Git without gh auth",
+            ],
         )
 
     return success_response(
         result,
         "status",
-        message="git and gh available",
-        next_steps=["mcp_help() for usage", "git_ops(operation='status') for repo status"],
+        message="git and gh available; gh reports logged in",
+        next_steps=[
+            "git_ops(operation='status') for repo status",
+            "github_ops(operation='repo_list', owner='YOUR_USER', limit=10)",
+        ],
     )
 
 

@@ -1,17 +1,17 @@
 # git-github-mcp
 
-FastMCP 3.1+ portmanteau server for Git and GitHub operations. Two tools cover the full workflow — no 40-tool explosion.
+FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. v1.20 non-interactive safety enforced for reliable AI orchestration.
 
 ## Tools
 
 | Tool | Actions | Description |
 |------|---------|-------------|
-| `git_ops` | 43 | Local Git operations via subprocess |
+| `git_ops` | 43 | Local Git operations; **v1.20 High-Fidelity Status** parsing |
 | `github_ops` | 58 | GitHub operations via `gh` CLI (+ Gitingest URL helpers, no `gh`) |
 | `git_agentic_workflow` | agentic | Sampling: natural-language Git **+** GitHub multi-step plans |
 | `git_github_search_workflow` | agentic | Sampling: discovery / search chains on GitHub data only |
-| `git_github_help` | — | Contextual help (level: basic/intermediate/advanced) |
-| `git_github_status` | — | Git and gh CLI availability, versions, auth state |
+| `git_github_help` |  | Contextual help (level: basic/intermediate/advanced) |
+| `git_github_status` |  | Git and gh CLI availability, versions, auth state |
 
 ### MCP prompts
 
@@ -25,11 +25,11 @@ FastMCP 3.1+ portmanteau server for Git and GitHub operations. Two tools cover t
 | `github_debug_workflow` | Actions failure triage (pair with `workflow_runs` when possible) |
 | `git_github_explain_concept` | Tutor mode (e.g. rebase, **gitingest**, **agentic-workflows**) |
 
-### git_ops — 43 actions
+### git_ops  43 actions
 
 | Group | Operations |
 |-------|-----------|
-| CORE | init, clone, add, commit, push, pull, fetch, status |
+| CORE | init, clone, add, commit, push, pull, fetch, **status (porcelain-v1)** |
 | INSPECT | log, diff, show, blame |
 | BRANCH | branch_list, branch_create, branch_switch, branch_delete, branch_merge, rebase |
 | REMOTE | remote_list, remote_add, remote_remove |
@@ -41,7 +41,7 @@ FastMCP 3.1+ portmanteau server for Git and GitHub operations. Two tools cover t
 | BISECT | bisect_start, bisect_bad, bisect_good, bisect_reset |
 | WORKTREE | worktree_add, worktree_list, worktree_remove |
 
-### github_ops — 58 actions
+### github_ops  58 actions
 
 | Group | Operations |
 |-------|-----------|
@@ -63,15 +63,15 @@ FastMCP 3.1+ portmanteau server for Git and GitHub operations. Two tools cover t
 
 ### Gitingest ([gitingest.com](https://gitingest.com))
 
-Turn a **public GitHub repo** (or a **branch subpath**) into one **LLM-friendly digest** (file tree + concatenated sources + token stats). Upstream rule: replace **`hub`** with **`ingest`** in **`github.com`** → **`gitingest.com`**.
+Turn a **public GitHub repo** (or a **branch subpath**) into one **LLM-friendly digest** (file tree + concatenated sources + token stats). Upstream rule: replace **`hub`** with **`ingest`** in **`github.com`**  **`gitingest.com`**.
 
 | Operation | Purpose |
 |-----------|---------|
 | `gitingest_help` | Markdown explainer: what Gitingest is for, vs **`llms.txt` / `llms-full.txt`**, links |
 | `gitingest_link` | Build `gitingest_url` from `owner`, `repo`, optional `ref`, optional `subpath` |
-| `gitingest_convert_url` | Paste a `https://github.com/...` URL → `gitingest_url` |
+| `gitingest_convert_url` | Paste a `https://github.com/...` URL  `gitingest_url` |
 
-**Relation to `llms.txt`:** Gitingest is **live** and **raw**; fleet **`llms.txt` + `llms-full.txt`** are **curated, versioned** entry points. Use both — see [mcp-central-docs `integrations/llms-txt-manifest.md`](https://github.com/sandraschi/mcp-central-docs/blob/master/integrations/llms-txt-manifest.md) (Gitingest section).
+**Relation to `llms.txt`:** Gitingest is **live** and **raw**; fleet **`llms.txt` + `llms-full.txt`** are **curated, versioned** entry points. Use both  see [mcp-central-docs `integrations/llms-txt-manifest.md`](https://github.com/sandraschi/mcp-central-docs/blob/master/integrations/llms-txt-manifest.md) (Gitingest section).
 
 ### Agentic search workflow
 
@@ -87,7 +87,37 @@ Examples:
 
 - Python 3.12+
 - Git
-- [gh CLI](https://cli.github.com/) — must be authenticated: `gh auth login`
+- [GitHub CLI (`gh`)](https://cli.github.com/)  see [GitHub CLI authentication](#github-cli-authentication-gh) below
+
+## GitHub CLI authentication (`gh`)
+
+### When it is required
+
+| Area | Needs `gh` + login? |
+|------|---------------------|
+| **`git_ops`** (local Git only) | No |
+| **`github_ops`** (issues, PRs, `gh api`, etc.) | **Yes**  every call shells out to `gh`; without auth you get errors from the CLI |
+| **Gitingest helpers** (`gitingest_link`, `gitingest_convert_url`, `gitingest_help`) | **No**  URL building only (reading public repos in a browser is separate) |
+| **`git_agentic_workflow` / `git_github_search_workflow`** | **Yes**, whenever the plan touches GitHub (not for pure `git_ops` plans) |
+| **Web dashboard** (repos, issues, PRs, discovery calling GitHub) | **Yes**  same backend as `github_ops` |
+
+### How and where you authenticate
+
+1. Install `gh` and ensure it is on `PATH` (same environment you use to run the MCP server or `uv run git-github-mcp`).
+2. In a **normal terminal** (PowerShell or cmd), run:
+   ```powershell
+   gh auth login
+   ```
+   Choose **GitHub.com**, **HTTPS**, then **Login with a web browser** or paste a **personal access token** when prompted.
+3. **Verify** in that terminal:
+   ```powershell
+   gh auth status
+   ```
+   Or from an MCP client, call tool **`git_github_status`** and inspect `result.gh.auth` (`ok` vs `not logged in`).
+
+**Where credentials live:** `gh` stores the token in the OS-backed store and config under your user profile (on Windows, typically under `%LOCALAPPDATA%\GitHub CLI\`). The MCP process uses **your** `gh` when it is started as you (Cursor terminal, `uv run`, etc.).
+
+**Extra scopes:** Some `github_ops` actions (e.g. Projects) may require `gh auth refresh -s project` after login.
 
 ## Install
 
@@ -124,7 +154,11 @@ python -m git_github_mcp
 
 ## Webapp
 
-Dark React/Tailwind UI for repos, issues, PRs and tool runner. The **Chat** page includes a **Discovery workflow** side panel: preset `github_ops` chains via `POST /api/discovery` when the host has no sampling. **Preferred** in full-sampling MCP clients (e.g. Antigravity): tool **`git_github_search_workflow`** for LLM-planned discovery (superior to fixed presets).
+**Fleet v1.20 Standard:** Premium React/Tailwind UI with glassmorphism, HSL theme tokens, and real-time health indicators. The **Dashboard** aggregates local Git status (staged/unstaged) and GitHub fleet telemetry.
+
+**Ports (fleet):** backend **10702**, Vite frontend **10703** (see `mcp-central-docs/operations/WEBAPP_PORTS.md`). The web UI talks to the API via `VITE_API_URL` (defaults to `http://localhost:10702`).
+
+**GitHub:** Complete [`gh auth login`](#github-cli-authentication-gh) before expecting repos/PRs/issues to load.
 
 ```powershell
 cd web
@@ -132,7 +166,7 @@ npm install
 .\start.ps1
 ```
 
-Open http://localhost:11900
+`web/start.ps1` clears both ports, starts the FastAPI backend and Vite, then **opens the default browser** to `http://localhost:10703` as the last step.
 
 ## MCPB Package
 

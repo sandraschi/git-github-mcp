@@ -1,6 +1,5 @@
 """SOTA dialogic tool return patterns."""
 
-import time
 from typing import Any
 
 

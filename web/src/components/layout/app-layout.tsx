@@ -21,88 +21,93 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex h-full" style={{ background: 'var(--bg)' }}>
+    <div className="flex h-screen bg-background text-foreground selection:bg-gh-green/30">
       {/* Sidebar */}
       <aside
-        className="flex flex-col transition-all duration-200 shrink-0"
-        style={{
-          width: collapsed ? 52 : 200,
-          background: 'var(--bg-2)',
-          borderRight: '1px solid var(--border)',
-        }}
+        className={`flex flex-col transition-all duration-300 ease-in-out border-r border-border bg-card/50 backdrop-blur-xl z-20 ${
+          collapsed ? 'w-16' : 'w-64'
+        }`}
       >
-        {/* Logo */}
-        <div
-          className="flex items-center gap-2 px-3 py-4 cursor-pointer select-none"
-          onClick={() => setCollapsed(c => !c)}
-          style={{ borderBottom: '1px solid var(--border)' }}
+        {/* Logo Section */}
+        <div 
+          className="h-16 flex items-center px-4 border-b border-border cursor-pointer hover:bg-white/5 transition-colors group"
+          onClick={() => setCollapsed(!collapsed)}
         >
-          <div
-            className="shrink-0 flex items-center justify-center rounded"
-            style={{
-              width: 28, height: 28,
-              background: 'var(--green-glow)',
-              border: '1px solid var(--green-dim)',
-            }}
-          >
-            <Terminal size={14} style={{ color: 'var(--green)' }} />
+          <div className="w-8 h-8 rounded-lg bg-gh-green/10 border border-gh-green/20 flex items-center justify-center group-hover:border-gh-green/40 transition-all">
+            <Terminal className="w-4 h-4 text-gh-green shadow-[0_0_10px_rgba(34,197,94,0.3)]" />
           </div>
           {!collapsed && (
-            <span className="text-sm font-bold tracking-tight truncate" style={{ color: 'var(--green)', fontFamily: 'var(--font-mono)' }}>
-              git·hub·mcp
-            </span>
+            <div className="ml-3 flex flex-col overflow-hidden">
+              <span className="font-heading font-black text-sm tracking-tighter text-gh-green uppercase truncate">
+                git·hub·mcp
+              </span>
+              <span className="text-[10px] text-muted-foreground font-mono leading-none">v1.20.0 · ARC-AGI</span>
+            </div>
           )}
-          <ChevronRight
-            size={12}
-            className="ml-auto shrink-0 transition-transform duration-200"
-            style={{
-              color: 'var(--text-dim)',
-              transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-            }}
+          <ChevronRight 
+            className={`ml-auto w-4 h-4 text-muted-foreground transition-transform duration-300 ${
+              collapsed ? '' : 'rotate-180'
+            }`} 
           />
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-2 flex flex-col gap-0.5 px-1.5">
+        {/* Navigation */}
+        <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
           {NAV.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               end={to === '/'}
               className={({ isActive }) =>
-                `flex items-center gap-2.5 px-2 py-2 rounded text-sm transition-all duration-150 ${
-                  isActive
-                    ? 'text-white'
-                    : 'hover:text-white'
+                `flex items-center h-10 px-3 rounded-md transition-all duration-200 group relative ${
+                  isActive 
+                    ? 'bg-gh-green/10 text-gh-green border border-gh-green/20' 
+                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent'
                 }`
               }
-              style={({ isActive }) => ({
-                background: isActive ? 'var(--bg-3)' : 'transparent',
-                color: isActive ? 'var(--text)' : 'var(--text-muted)',
-                border: isActive ? '1px solid var(--border)' : '1px solid transparent',
-              })}
             >
-              {({ isActive }) => (
-                <>
-                  <Icon size={15} style={{ color: isActive ? 'var(--green)' : undefined, flexShrink: 0 }} className="shrink-0" />
-                  {!collapsed && <span className="truncate">{label}</span>}
-                </>
+              <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+              {!collapsed && (
+                <span className="ml-3 text-sm font-medium truncate">{label}</span>
+              )}
+              {collapsed && (
+                <div className="absolute left-14 bg-popover text-popover-foreground px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity border border-border shadow-xl z-50">
+                  {label}
+                </div>
               )}
             </NavLink>
           ))}
         </nav>
 
-        {/* Version tag */}
-        {!collapsed && (
-          <div className="px-3 py-3" style={{ borderTop: '1px solid var(--border)' }}>
-            <span className="mono text-xs" style={{ color: 'var(--text-dim)' }}>v0.2.0 · FastMCP 3.0</span>
-          </div>
-        )}
+        {/* Footer */}
+        <div className="p-4 border-t border-border bg-black/20">
+          {!collapsed ? (
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-gh-green animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">System Online</span>
+              </div>
+              <span className="text-[9px] font-mono text-muted-foreground/60">Node: Vienna·Goliath v1.20</span>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <div className="w-2 h-2 rounded-full bg-gh-green animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+            </div>
+          )}
+        </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 overflow-auto p-6 fade-up">
-        {children}
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
+        {/* Topbar background glow */}
+        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-gh-green/5 to-transparent pointer-events-none" />
+        
+        {/* Page Content */}
+        <div className="flex-1 overflow-auto relative z-10 p-6 md:p-8 custom-scrollbar">
+          <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {children}
+          </div>
+        </div>
       </main>
     </div>
   );

@@ -5,7 +5,14 @@ $BackendPort = 10702
 $FrontendPort = 10703
 $RepoRoot = $PSScriptRoot | Split-Path -Parent
 
-Write-Host "git-github-mcp v0.2.0 startup" -ForegroundColor Green
+Write-Host "git-github-mcp v0.3.0 startup" -ForegroundColor Green
+Write-Host "  v1.20 Hardened CLI Safety: Enforced" -ForegroundColor Green
+Write-Host "  High-Fidelity status parsing: Active" -ForegroundColor Green
+Write-Host ""
+Write-Host "  GitHub API features need the GitHub CLI logged in." -ForegroundColor Yellow
+Write-Host "  If you have not yet: run  gh auth login  in a terminal, then  gh auth status" -ForegroundColor Yellow
+Write-Host "  (Stored under your user profile / OS credential store — same user as this script.)" -ForegroundColor DarkGray
+Write-Host ""
 
 # Kill zombies on both ports
 foreach ($port in @($BackendPort, $FrontendPort)) {
@@ -44,7 +51,7 @@ Write-Host "  Frontend http://localhost:$FrontendPort" -ForegroundColor Green
 Write-Host ""
 Write-Host "  Press Ctrl+C to stop" -ForegroundColor Gray
 
-# Open browser
+# Last step: open webapp in default browser
 Start-Process "http://localhost:$FrontendPort"
 
 # Wait

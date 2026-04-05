@@ -1,11 +1,10 @@
 """GitHub operations portmanteau via gh CLI."""
 
 import json
-from pathlib import Path
 from typing import Any
 
 from ..utils.gh_cli import run_gh
-from ..utils.response import success_response, error_response
+from ..utils.response import error_response, success_response
 
 
 def github_ops(
@@ -29,7 +28,9 @@ def github_ops(
             suggested_fixes=["github_ops(operation='list_issues', owner='...', repo='...')"],
         )
 
-    if operation in ("create_issue", "list_issues", "create_pr", "list_prs") and not (owner and repo):
+    if operation in ("create_issue", "list_issues", "create_pr", "list_prs") and not (
+        owner and repo
+    ):
         return error_response(
             operation,
             "owner and repo required",
@@ -58,11 +59,16 @@ def github_ops(
 
     if operation == "list_issues":
         args = [
-            "issue", "list",
-            "--repo", f"{owner}/{repo}",
-            "--state", state,
-            "--limit", str(limit),
-            "--json", "number,title,state,url",
+            "issue",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--state",
+            state,
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,state,url",
         ]
         ok, out, err = run_gh(args)
         if not ok:
@@ -74,7 +80,9 @@ def github_ops(
         return success_response(
             {"issues": data, "count": len(data)},
             operation,
-            next_steps=[f"github_ops(operation='create_issue', owner='{owner}', repo='{repo}', title='...')"],
+            next_steps=[
+                f"github_ops(operation='create_issue', owner='{owner}', repo='{repo}', title='...')"
+            ],
         )
 
     if operation == "create_pr":
@@ -99,11 +107,16 @@ def github_ops(
 
     if operation == "list_prs":
         args = [
-            "pr", "list",
-            "--repo", f"{owner}/{repo}",
-            "--state", state,
-            "--limit", str(limit),
-            "--json", "number,title,state,url",
+            "pr",
+            "list",
+            "--repo",
+            f"{owner}/{repo}",
+            "--state",
+            state,
+            "--limit",
+            str(limit),
+            "--json",
+            "number,title,state,url",
         ]
         ok, out, err = run_gh(args)
         if not ok:
@@ -121,9 +134,13 @@ def github_ops(
         if not query:
             return error_response(operation, "query required for search")
         args = [
-            "search", "repos", query,
-            "--limit", str(limit),
-            "--json", "name,fullName,description,url",
+            "search",
+            "repos",
+            query,
+            "--limit",
+            str(limit),
+            "--json",
+            "name,fullName,description,url",
         ]
         ok, out, err = run_gh(args)
         if not ok:

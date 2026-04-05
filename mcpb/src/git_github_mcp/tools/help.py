@@ -55,25 +55,29 @@ def _basic_help(topic: str | None) -> str:
     """Basic help - quick reference."""
     lines = ["# git-github-mcp - Quick Reference", ""]
     if topic in (None, "git_ops"):
-        lines.extend([
-            "## git_ops",
-            "Operations: clone, status, add, commit, push, pull, branch, tag, stash",
-            "- clone: repo_url required",
-            "- status: repo_path optional (default: cwd)",
-            "- add: files or all_files=True",
-            "- commit: message required",
-            "- push/pull: remote, branch optional",
-            "",
-        ])
+        lines.extend(
+            [
+                "## git_ops",
+                "Operations: clone, status, add, commit, push, pull, branch, tag, stash",
+                "- clone: repo_url required",
+                "- status: repo_path optional (default: cwd)",
+                "- add: files or all_files=True",
+                "- commit: message required",
+                "- push/pull: remote, branch optional",
+                "",
+            ]
+        )
     if topic in (None, "github_ops"):
-        lines.extend([
-            "## github_ops",
-            "Operations: create_issue, list_issues, create_pr, list_prs, search",
-            "- Requires gh auth login",
-            "- create_issue, list_issues, create_pr, list_prs: owner and repo required",
-            "- search: query required",
-            "",
-        ])
+        lines.extend(
+            [
+                "## github_ops",
+                "Operations: create_issue, list_issues, create_pr, list_prs, search",
+                "- Requires gh auth login",
+                "- create_issue, list_issues, create_pr, list_prs: owner and repo required",
+                "- search: query required",
+                "",
+            ]
+        )
     lines.append("Use mcp_help(level='intermediate') for full parameter list.")
     return "\n".join(lines)
 
@@ -82,37 +86,41 @@ def _intermediate_help(topic: str | None) -> str:
     """Intermediate help - full operation list."""
     lines = ["# git-github-mcp - Operation Reference", ""]
     if topic in (None, "git_ops"):
-        lines.extend([
-            "## git_ops",
-            "",
-            "| Operation | Required | Optional |",
-            "|-----------|----------|----------|",
-            "| clone | repo_url | target_dir |",
-            "| status | - | repo_path |",
-            "| add | files or all_files | repo_path |",
-            "| commit | message | repo_path, all_files |",
-            "| push | - | repo_path, remote, branch, force |",
-            "| pull | - | repo_path, remote, branch |",
-            "| branch | - | repo_path |",
-            "| tag | - | repo_path |",
-            "| stash | - | repo_path |",
-            "",
-        ])
+        lines.extend(
+            [
+                "## git_ops",
+                "",
+                "| Operation | Required | Optional |",
+                "|-----------|----------|----------|",
+                "| clone | repo_url | target_dir |",
+                "| status | - | repo_path |",
+                "| add | files or all_files | repo_path |",
+                "| commit | message | repo_path, all_files |",
+                "| push | - | repo_path, remote, branch, force |",
+                "| pull | - | repo_path, remote, branch |",
+                "| branch | - | repo_path |",
+                "| tag | - | repo_path |",
+                "| stash | - | repo_path |",
+                "",
+            ]
+        )
     if topic in (None, "github_ops"):
-        lines.extend([
-            "## github_ops",
-            "",
-            "| Operation | Required | Optional |",
-            "|-----------|----------|----------|",
-            "| create_issue | owner, repo, title | body |",
-            "| list_issues | owner, repo | state, limit |",
-            "| create_pr | owner, repo, title | body |",
-            "| list_prs | owner, repo | state, limit |",
-            "| search | query | limit |",
-            "",
-            "Parameters: state=open|closed|all, limit=10",
-            "",
-        ])
+        lines.extend(
+            [
+                "## github_ops",
+                "",
+                "| Operation | Required | Optional |",
+                "|-----------|----------|----------|",
+                "| create_issue | owner, repo, title | body |",
+                "| list_issues | owner, repo | state, limit |",
+                "| create_pr | owner, repo, title | body |",
+                "| list_prs | owner, repo | state, limit |",
+                "| search | query | limit |",
+                "",
+                "Parameters: state=open|closed|all, limit=10",
+                "",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -120,32 +128,36 @@ def _advanced_help(topic: str | None) -> str:
     """Advanced help - examples and recovery."""
     lines = ["# git-github-mcp - Advanced Usage", ""]
     if topic in (None, "git_ops"):
-        lines.extend([
-            "## git_ops - Examples",
-            "",
-            "```",
-            "git_ops(operation='clone', repo_url='https://github.com/owner/repo.git')",
-            "git_ops(operation='status', repo_path='D:/Dev/repos/my-repo')",
-            "git_ops(operation='add', repo_path='.', files=['src/main.py'], all_files=False)",
-            "git_ops(operation='commit', repo_path='.', message='Fix bug')",
-            "git_ops(operation='push', repo_path='.', remote='origin', branch='main')",
-            "```",
-            "",
-            "Recovery: If push fails, run gh auth login. Use force=True for force push.",
-            "",
-        ])
+        lines.extend(
+            [
+                "## git_ops - Examples",
+                "",
+                "```",
+                "git_ops(operation='clone', repo_url='https://github.com/owner/repo.git')",
+                "git_ops(operation='status', repo_path='D:/Dev/repos/my-repo')",
+                "git_ops(operation='add', repo_path='.', files=['src/main.py'], all_files=False)",
+                "git_ops(operation='commit', repo_path='.', message='Fix bug')",
+                "git_ops(operation='push', repo_path='.', remote='origin', branch='main')",
+                "```",
+                "",
+                "Recovery: If push fails, run gh auth login. Use force=True for force push.",
+                "",
+            ]
+        )
     if topic in (None, "github_ops"):
-        lines.extend([
-            "## github_ops - Examples",
-            "",
-            "```",
-            "github_ops(operation='list_issues', owner='sandraschi', repo='git-github-mcp')",
-            "github_ops(operation='create_issue', owner='x', repo='y', title='Bug', body='...')",
-            "github_ops(operation='list_prs', owner='x', repo='y', state='open', limit=5)",
-            "github_ops(operation='search', query='mcp server language:python', limit=10)",
-            "```",
-            "",
-            "Recovery: Run gh auth login if operations fail. Set GITHUB_TOKEN if needed.",
-            "",
-        ])
+        lines.extend(
+            [
+                "## github_ops - Examples",
+                "",
+                "```",
+                "github_ops(operation='list_issues', owner='sandraschi', repo='git-github-mcp')",
+                "github_ops(operation='create_issue', owner='x', repo='y', title='Bug', body='...')",
+                "github_ops(operation='list_prs', owner='x', repo='y', state='open', limit=5)",
+                "github_ops(operation='search', query='mcp server language:python', limit=10)",
+                "```",
+                "",
+                "Recovery: Run gh auth login if operations fail. Set GITHUB_TOKEN if needed.",
+                "",
+            ]
+        )
     return "\n".join(lines)

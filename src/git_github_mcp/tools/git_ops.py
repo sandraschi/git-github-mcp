@@ -1,10 +1,11 @@
 """Git operations portmanteau — full local Git workflow via subprocess."""
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
 
-from ..utils.response import success_response, error_response
+from ..utils.response import error_response, success_response
 
 ACTION_TYPE = (
     # Core
@@ -66,6 +67,10 @@ ACTION_TYPE = (
 
 def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str, str]:
     try:
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
+
         r = subprocess.run(
             ["git"] + args,
             cwd=path,
@@ -74,6 +79,7 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
+            env=env,
         )
         return r.returncode == 0, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
@@ -222,36 +228,73 @@ def git_ops(
         ok, out, err = _run_git(repo, ["status", "--porcelain"])
         if not ok:
             return _err("status", err or "status failed")
-        changes: dict[str, list[str]] = {
-            "modified": [],
-            "added": [],
-            "deleted": [],
-            "renamed": [],
-            "untracked": [],
-        }
-        for line in out.strip().splitlines() if out.strip() else []:
-            code, fname = line[:2], line[3:]
-            if code[1] == "?":
-                changes["untracked"].append(fname)
-            else:
-                if "M" in code:
-                    changes["modified"].append(fname)
-                if "A" in code:
-                    changes["added"].append(fname)
-                if "D" in code:
-                    changes["deleted"].append(fname)
-                if "R" in code:
-                    changes["renamed"].append(fname)
+
+        staged: list[dict[str, str]] = []
+        unstaged: list[dict[str, str]] = []
+        untracked: list[str] = []
+        unmerged: list[dict[str, str]] = []
+
+        # High-fidelity Porcelain parsing (v1.20)
+        # XY | Path
+        # X = Index (Staged), Y = Worktree (Unstaged)
+        for line in out.splitlines():
+            if not line or len(line) < 4:
+                continue
+
+            x, y = line[0], line[1]
+            path_str = line[3:].strip()
+
+            # Untracked (??)
+            if x == "?" and y == "?":
+                untracked.append(path_str)
+                continue
+
+            # Unmerged (DD, AU, UD, UA, DU, AA, UU)
+            if x in "ADU" and y in "ADU":
+                state = "unmerged"
+                unmerged.append({"file": path_str, "state": state, "code": f"{x}{y}"})
+                continue
+
+            # Staged changes (X is not space)
+            if x != " ":
+                state = "modified"
+                if x == "A":
+                    state = "added"
+                if x == "D":
+                    state = "deleted"
+                if x == "R":
+                    state = "renamed"
+                if x == "C":
+                    state = "copied"
+                staged.append({"file": path_str, "state": state, "code": x})
+
+            # Unstaged changes (Y is not space)
+            if y != " ":
+                state = "modified"
+                if y == "D":
+                    state = "deleted"
+                if y == "A":
+                    state = "added"  # Intent-to-add
+                unstaged.append({"file": path_str, "state": state, "code": y})
+
         _, branch_out, _ = _run_git(repo, ["branch", "--show-current"])
         _, remote_out, _ = _run_git(repo, ["remote", "get-url", "origin"])
+
         return _ok(
             "status",
             {
                 "branch": branch_out.strip(),
                 "remote_url": remote_out.strip(),
-                "changes": changes,
-                "has_changes": any(v for v in changes.values()),
-                "total_changes": sum(len(v) for v in changes.values()),
+                "staged": staged,
+                "unstaged": unstaged,
+                "untracked": untracked,
+                "unmerged": unmerged,
+                "staged_count": len(staged),
+                "unstaged_count": len(unstaged),
+                "untracked_count": len(untracked),
+                "unmerged_count": len(unmerged),
+                "has_changes": bool(staged or unstaged or untracked or unmerged),
+                "total_changes": len(staged) + len(unstaged) + len(untracked) + len(unmerged),
             },
         )
 
@@ -336,7 +379,7 @@ def git_ops(
         if not ok:
             return _err("log", err or "log failed")
         if oneline:
-            entries = [{"line": l} for l in out.strip().splitlines() if l]
+            entries = [{"line": line_} for line_ in out.strip().splitlines() if line_]
         else:
             entries = []
             for line in out.strip().splitlines():

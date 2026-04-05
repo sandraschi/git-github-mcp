@@ -9,6 +9,7 @@ Prompts:   git_commit_message, git_release_notes, git_pr_description,
 Web:       FastAPI bridge (e.g. POST /api/git, /api/github, /api/discovery)
 """
 
+import asyncio
 import logging
 import os
 import time
@@ -120,9 +121,12 @@ async def git_ops(
     SUBMODULE: submodule_add, submodule_update, submodule_sync, submodule_status
     BISECT:    bisect_start, bisect_bad, bisect_good, bisect_reset
     WORKTREE:  worktree_add, worktree_list, worktree_remove
+
+    Non-blocking: subprocess runs in thread pool, never freezes MCP server.
     """
     start = time.perf_counter()
-    result = _git_ops(
+    result = await asyncio.to_thread(
+        _git_ops,
         operation=operation,
         repo_path=repo_path,
         message=message,
@@ -225,9 +229,12 @@ async def github_ops(
     PACKAGES:      package_list, package_view, package_delete
     GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
     MISC:          auth_status, gist_list
+
+    Non-blocking: subprocess runs in thread pool, never freezes MCP server.
     """
     start = time.perf_counter()
-    result = _github_ops(
+    result = await asyncio.to_thread(
+        _github_ops,
         operation=operation,
         owner=owner,
         repo=repo,
@@ -279,8 +286,19 @@ async def github_ops(
 
 @mcp.tool()
 async def git_github_status(level: str = "basic") -> dict:
-    """System status: git and gh CLI availability, versions, auth state."""
-    return _get_status(level=level)
+    """System status: git and gh CLI availability, versions, and GitHub login state.
+
+    Use this to confirm **GitHub CLI authentication** before relying on `github_ops` or the
+    web dashboard. Checks `gh --version` and `gh auth status` (same credentials as your
+    interactive terminal if the MCP server runs as your user).
+
+    Returns:
+        result.git / result.gh (version, available). When gh is installed, result.gh.auth
+        is either 'ok' or 'not logged in'. If auth is missing, the response is still
+        success=True with a clear message and recovery steps (install is different from
+        not-logged-in — see error vs message).
+    """
+    return await asyncio.to_thread(_get_status, level=level)
 
 
 @mcp.tool()
@@ -320,7 +338,6 @@ async def git_agentic_workflow(
 
     await ctx.info(f"git_agentic_workflow: planning task: {task}")
 
-    # Build context string for the planner
     repo_ctx = f"repo_path={repo_path}" if repo_path else "repo_path=. (cwd)"
     gh_ctx = f"owner={owner}, repo={repo}" if owner and repo else "no GitHub repo specified"
 
@@ -330,8 +347,7 @@ Available tools:
 - git_ops(operation, repo_path, ...): 43 local git actions (init, clone, status, add,
   commit, push, pull, fetch, log, diff, show, blame, branch lifecycle, rebase, remote,
   stash, tag, reset, revert, cherry_pick, submodule_*, bisect_*, worktree_*, clean).
-- github_ops(operation, owner, repo, ...): 58 GitHub actions via gh CLI:
-  repos (repo_list, repo_view, show_repo, create/fork/clone/delete/rename/archive),
+- github_ops(operation, owner, repo, ...): 58 GitHub actions via gh CLI:\n  repos (repo_list, repo_view, show_repo, create/fork/clone/delete/rename/archive),
   issues (list/view/create/close/comment), PRs (list/view/create/merge/checkout/close/comment),
   releases (full CRUD), Actions workflows (list/run/runs/cancel/enable/disable),
   labels, secrets, collaborators,
@@ -374,11 +390,9 @@ Respond with ONLY valid JSON:
             "hint": "Sampling requires MCP client support (e.g. Antigravity, Claude Desktop).",
         }
 
-    # Parse the plan
     import json
 
     try:
-        # Strip markdown fences if present
         clean = plan_text.strip()
         if clean.startswith("```"):
             clean = "\n".join(clean.split("\n")[1:])
@@ -393,7 +407,6 @@ Respond with ONLY valid JSON:
 
     await ctx.info(f"Plan: {plan_data.get('plan', '?')} — {len(plan_data.get('steps', []))} steps")
 
-    # Execute steps
     results = []
     for i, step in enumerate(plan_data.get("steps", [])):
         tool_name = step.get("tool")
@@ -404,9 +417,9 @@ Respond with ONLY valid JSON:
 
         try:
             if tool_name == "git_ops":
-                result = _git_ops(**args)
+                result = await asyncio.to_thread(_git_ops, **args)
             elif tool_name == "github_ops":
-                result = _github_ops(**args)
+                result = await asyncio.to_thread(_github_ops, **args)
             else:
                 result = {"success": False, "error": f"Unknown tool: {tool_name}"}
         except Exception as e:
@@ -423,7 +436,6 @@ Respond with ONLY valid JSON:
             }
         )
 
-        # Stop on hard failure
         if not result.get("success", False):
             await ctx.warning(f"Step {i + 1} failed: {result.get('error', 'unknown')}")
             break
@@ -536,11 +548,8 @@ Return ONLY valid JSON:
         args = step.get("args", {})
         desc = step.get("description", f"Step {i + 1}")
         await ctx.info(f"Step {i + 1}/{len(steps)}: {desc}")
-        if args.get("operation") == "auth_status":
-            # Allow explicit auth checks but keep this workflow discovery-focused.
-            pass
         try:
-            result = _github_ops(**args)
+            result = await asyncio.to_thread(_github_ops, **args)
         except Exception as e:
             result = {"success": False, "error": str(e)}
         results.append(
@@ -933,7 +942,7 @@ web_app.add_middleware(
 
 @web_app.get("/api/status")
 async def api_status():
-    return _get_status(level="basic")
+    return await asyncio.to_thread(_get_status, level="basic")
 
 
 @web_app.get("/api/tools")
@@ -992,7 +1001,8 @@ async def api_discovery(body: dict):
         lim = int(raw_lim)
     except (TypeError, ValueError):
         lim = 25
-    return _run_discovery_workflow(
+    return await asyncio.to_thread(
+        _run_discovery_workflow,
         preset,
         owner=args.get("owner"),
         repo=args.get("repo"),

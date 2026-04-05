@@ -3,8 +3,6 @@
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from git_github_mcp.tools.git_ops import git_ops
 
 

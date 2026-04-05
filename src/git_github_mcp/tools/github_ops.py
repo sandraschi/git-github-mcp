@@ -18,7 +18,7 @@ from ..utils.gitingest_urls import (
     build_gitingest_url,
     github_url_to_gitingest,
 )
-from ..utils.response import success_response, error_response
+from ..utils.response import error_response, success_response
 
 ACTION_TYPE = (
     # Repos
@@ -904,10 +904,16 @@ def github_ops(
         if not built:
             return _err(
                 "code_find_repos",
-                "Provide query, or extension/path_pattern, or owner/search_scope to build a code search",
+                (
+                    "Provide query, or extension/path_pattern, or owner/search_scope "
+                    "to build a code search"
+                ),
                 recovery_options=[
                     "github_ops(operation='code_find_repos', owner='YOU', extension='bak')",
-                    "github_ops(operation='search_code', query='extension:bak user:YOU', pretty=True)",
+                    (
+                        "github_ops(operation='search_code', query='extension:bak user:YOU', "
+                        "pretty=True)"
+                    ),
                 ],
             )
         ok, out, err = run_gh(
@@ -936,7 +942,10 @@ def github_ops(
                 "markdown": md,
                 "unique_repositories": uniq,
             },
-            message="Code search — see `markdown` for a skimmable table; `unique_repositories` lists affected repos",
+            message=(
+                "Code search — see `markdown` for a skimmable table; "
+                "`unique_repositories` lists affected repos"
+            ),
         )
 
     # ── GitHub Projects (gh project) ─────────────────────────────────────────

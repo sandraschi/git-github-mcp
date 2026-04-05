@@ -3,7 +3,7 @@
 import platform
 import subprocess
 
-from ..utils.response import success_response, error_response
+from ..utils.response import error_response, success_response
 
 
 def get_status(level: str = "basic") -> dict:

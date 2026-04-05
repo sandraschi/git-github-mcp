@@ -3,6 +3,7 @@ Web interface and static file serving for Git-Github MCP.
 """
 
 from pathlib import Path
+
 from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,7 +33,10 @@ def setup_webapp(app):
             if index_path.exists():
                 return FileResponse(index_path)
             return HTMLResponse(
-                content="<h1>Frontend not built</h1><p>Run <code>npm run build</code> in web folder</p>",
+                content=(
+                    "<h1>Frontend not built</h1>"
+                    "<p>Run <code>npm run build</code> in web folder</p>"
+                ),
                 status_code=404,
             )
     else:
@@ -40,5 +44,8 @@ def setup_webapp(app):
         @app.get("/", response_class=HTMLResponse)
         async def dev_hint():
             return HTMLResponse(
-                content="<h1>Static files missing</h1><p>Expected <code>web/dist</code> but it does not exist.</p>"
+                content=(
+                    "<h1>Static files missing</h1>"
+                    "<p>Expected <code>web/dist</code> but it does not exist.</p>"
+                )
             )

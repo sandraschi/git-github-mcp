@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from ..utils.response import success_response, error_response
+from ..utils.response import error_response, success_response
 
 
 def _run_git(repo_path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str, str]:
@@ -39,14 +39,21 @@ def git_ops(
 ) -> dict[str, Any]:
     """Git operations: clone, status, add, commit, push, pull, branch, tag, stash."""
     ops = {
-        "clone", "status", "add", "commit", "push", "pull",
-        "branch", "tag", "stash",
+        "clone",
+        "status",
+        "add",
+        "commit",
+        "push",
+        "pull",
+        "branch",
+        "tag",
+        "stash",
     }
     if operation not in ops:
         return error_response(
             operation,
             f"Unknown operation. Use one of: {', '.join(sorted(ops))}",
-            suggested_fixes=[f"git_ops(operation='status')"],
+            suggested_fixes=["git_ops(operation='status')"],
         )
 
     if operation == "clone":

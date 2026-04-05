@@ -1,29 +1,68 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg:          #0a0c0e;
-  --bg-2:        #0f1215;
-  --bg-3:        #141820;
-  --border:      #1e2530;
-  --border-2:    #263040;
-  --text:        #e2e8f0;
-  --text-muted:  #64748b;
-  --text-dim:    #334155;
-  --green:       #22c55e;
-  --green-dim:   #15803d;
-  --green-glow:  rgba(34,197,94,0.15);
-  --blue:        #3b82f6;
-  --blue-dim:    #1d4ed8;
-  --amber:       #f59e0b;
-  --red:         #ef4444;
-  --purple:      #a855f7;
-  --cyan:        #06b6d4;
-  --font-mono:   'JetBrains Mono', 'Fira Code', monospace;
-  --font-ui:     'Syne', system-ui, sans-serif;
+  --background: 224 71% 4%;
+  --foreground: 213 31% 91%;
+  
+  --muted: 223 47% 11%;
+  --muted-foreground: 215 20.2% 65.1%;
+  
+  --accent: 216 34% 17%;
+  --accent-foreground: 210 40% 98%;
+  
+  --popover: 224 71% 4%;
+  --popover-foreground: 215 20.2% 65.1%;
+  
+  --border: 216 34% 17%;
+  --input: 216 34% 17%;
+  
+  --card: 224 71% 4%;
+  --card-foreground: 213 31% 91%;
+  
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 1.2%;
+  
+  --secondary: 222.2 47.4% 11.2%;
+  --secondary-foreground: 210 40% 98%;
+  
+  --destructive: 0 63% 31%;
+  --destructive-foreground: 210 40% 98%;
+  
+  --ring: 216 34% 17%;
+  
+  --radius: 0.5rem;
+
+  --gh-green: 142 71% 45%;
+  --gh-blue: 217 91% 60%;
+  
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Orbitron', sans-serif;
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground font-ui; }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-black/40 backdrop-blur-md border border-white/10;
+  }
+  .glass-dark {
+    @apply bg-black/60 backdrop-blur-xl border border-white/5;
+  }
+  .text-glow-green {
+    text-shadow: 0 0 10px hsl(var(--gh-green) / 0.5);
+  }
+  .border-glow-green {
+    @apply border-gh-green/30;
+    box-shadow: 0 0 15px -3px hsl(var(--gh-green) / 0.2);
+  }
 }
 
 * { box-sizing: border-box; }

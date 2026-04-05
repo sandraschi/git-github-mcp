@@ -1,10 +1,10 @@
 # git-github-mcp
-> FastMCP 2.14.4 portmanteau server for Git and GitHub operations. Uses `gh` CLI for GitHub; avoids the 40-tool explosion. - **git_ops**: clone, status, add, commit, push, pull, branch, tag, stash - **g...
+> FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety enforced. - **git_ops**: clone, status (high-fidelity), add, commit, push, pull, branch, tag, stash - **github_ops**: repo_list, repo_create, pr_list, issue_list.
 
 This project includes automated llms.txt generation for AI accessibility.
 
 ## Docs
-- [Readme](README.md): FastMCP 2.14.4 portmanteau server for Git and GitHub operations. Uses `gh` CLI for GitHub; avoids th...
+- [Readme](README.md): FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety.
 - [Changelog](CHANGELOG.md): - Initial release
 
 ## Configuration

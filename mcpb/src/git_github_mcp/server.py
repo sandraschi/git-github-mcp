@@ -5,7 +5,7 @@ import time
 from contextlib import asynccontextmanager
 from typing import Literal
 
-from fastmcp import FastMCP, Context
+from fastmcp import Context, FastMCP
 
 from .tools.git_ops import git_ops as _run_git_ops
 from .tools.github_ops import github_ops as _run_github_ops
@@ -33,7 +33,9 @@ mcp = FastMCP(
 
 @mcp.tool()
 async def git_ops(
-    operation: Literal["clone", "status", "add", "commit", "push", "pull", "branch", "tag", "stash"],
+    operation: Literal[
+        "clone", "status", "add", "commit", "push", "pull", "branch", "tag", "stash"
+    ],
     repo_path: str | None = None,
     message: str | None = None,
     files: list[str] | None = None,
@@ -232,7 +234,9 @@ async def github_ops(
 
 
 @mcp.tool()
-async def mcp_help(level: str = "basic", topic: str | None = None, ctx: Context | None = None) -> dict:
+async def mcp_help(
+    level: str = "basic", topic: str | None = None, ctx: Context | None = None
+) -> dict:
     """Contextual help for git-github-mcp tools.
 
     SUPPORTED OPERATIONS:
