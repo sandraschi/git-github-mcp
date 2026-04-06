@@ -27,6 +27,7 @@ ACTION_TYPE = (
     "branch_create",
     "branch_switch",
     "branch_delete",
+    "branch_rename",
     "branch_merge",
     "rebase",
     # Remote
@@ -153,11 +154,11 @@ def git_ops(
     # worktree
     worktree_path: str | None = None,
 ) -> dict[str, Any]:
-    """Git local operations — 43 actions.
+    """Git local operations — 44 actions.
 
     CORE:      init, clone, add, commit, push, pull, fetch, status
     INSPECT:   log, diff, show, blame
-    BRANCH:    branch_list, branch_create, branch_switch, branch_delete, branch_merge, rebase
+    BRANCH:    branch_list, branch_create, branch_switch, branch_delete, branch_rename, branch_merge, rebase
     REMOTE:    remote_list, remote_add, remote_remove
     STASH:     stash, stash_pop, stash_list, stash_drop
     TAG:       tag_list, tag_create, tag_delete
@@ -471,6 +472,11 @@ def git_ops(
         if not branch:
             return _err("branch_delete", "branch required")
         return _simple(repo, "branch_delete", ["branch", "-D" if force else "-d", branch])
+
+    if operation == "branch_rename":
+        if not branch or not source_branch:
+            return _err("branch_rename", "branch (old name) and source_branch (new name) required")
+        return _simple(repo, "branch_rename", ["branch", "-m", branch, source_branch])
 
     if operation == "branch_merge":
         if not source_branch:
