@@ -475,13 +475,7 @@ async def git_github_search_workflow(
         }
 
     await ctx.info(f"git_github_search_workflow: planning task: {task}")
-    gh_ctx = (
-        f"owner={owner}, repo={repo}"
-        if owner and repo
-        else f"owner={owner}"
-        if owner
-        else "no owner/repo"
-    )
+    gh_ctx = f"owner={owner}, repo={repo}" if owner and repo else f"owner={owner}" if owner else "no owner/repo"
 
     plan_prompt = f"""You are a GitHub discovery planner.
 Prefer the smallest chain of github_ops calls.
@@ -693,13 +687,9 @@ def resource_git_skill_topic(topic: str) -> dict:
             "danger": "Can duplicate logical changes if also merged later.",
         },
         "gitingest": {
-            "what": (
-                "Turn a GitHub repo (or subpath) into one LLM-friendly text digest "
-                "via gitingest.com."
-            ),
+            "what": ("Turn a GitHub repo (or subpath) into one LLM-friendly text digest via gitingest.com."),
             "when": (
-                "Quick full-repo or folder context without a local clone; "
-                "check token size before pasting into prompts."
+                "Quick full-repo or folder context without a local clone; check token size before pasting into prompts."
             ),
             "commands": [
                 "github_ops(operation='gitingest_link', owner='ORG', repo='REPO')",
@@ -707,15 +697,11 @@ def resource_git_skill_topic(topic: str) -> dict:
                 "gitingest https://github.com/ORG/REPO --output -",
             ],
             "danger": (
-                "Public by default; private repos need PAT. Complements llms.txt; "
-                "does not replace llms-full.txt."
+                "Public by default; private repos need PAT. Complements llms.txt; does not replace llms-full.txt."
             ),
         },
         "agentic-workflows": {
-            "what": (
-                "Sampling tools that plan multi-step git_ops/github_ops chains "
-                "from natural language."
-            ),
+            "what": ("Sampling tools that plan multi-step git_ops/github_ops chains from natural language."),
             "when": (
                 "git_agentic_workflow: mixed local Git + GitHub tasks. "
                 "git_github_search_workflow: discovery, search, repo intelligence only."
@@ -868,8 +854,7 @@ def github_issue_template(
             "Sections: Current Documentation, What's Missing or Wrong, Suggested Content."
         ),
         "question": (
-            "Write a GitHub issue body for a question/discussion.\n"
-            "Sections: Question, What I've Tried, Relevant Code."
+            "Write a GitHub issue body for a question/discussion.\nSections: Question, What I've Tried, Relevant Code."
         ),
     }
     template = templates.get(type, templates["bug"])

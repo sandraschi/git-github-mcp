@@ -214,9 +214,7 @@ def github_ops(
         return _ok("auth_status", {"output": (out + err).strip(), "authenticated": ok})
 
     if operation == "gist_list":
-        ok, out, err = run_gh(
-            ["gist", "list", "--limit", str(limit), "--json", "id,description,public,updatedAt"]
-        )
+        ok, out, err = run_gh(["gist", "list", "--limit", str(limit), "--json", "id,description,public,updatedAt"])
         if not ok:
             return _err("gist_list", err or "gist list failed")
         return _ok("gist_list", {"gists": _j(out), "count": len(_j(out))})
@@ -440,9 +438,7 @@ def github_ops(
     if operation == "issue_comment":
         if not slug or not issue_number or not body:
             return _err("issue_comment", "owner, repo, issue_number, body required")
-        ok, out, err = run_gh(
-            ["issue", "comment", str(issue_number), "--repo", slug, "--body", body]
-        )
+        ok, out, err = run_gh(["issue", "comment", str(issue_number), "--repo", slug, "--body", body])
         if not ok:
             return _err("issue_comment", err or "comment failed")
         return _ok("issue_comment", {"url": out.strip()}, message="Comment added")
@@ -512,17 +508,11 @@ def github_ops(
     if operation == "pr_merge":
         if not slug or not pr_number:
             return _err("pr_merge", "owner, repo, pr_number required")
-        method_flag = {"merge": "--merge", "squash": "--squash", "rebase": "--rebase"}.get(
-            merge_method, "--merge"
-        )
-        ok, out, err = run_gh(
-            ["pr", "merge", str(pr_number), "--repo", slug, method_flag, "--auto"]
-        )
+        method_flag = {"merge": "--merge", "squash": "--squash", "rebase": "--rebase"}.get(merge_method, "--merge")
+        ok, out, err = run_gh(["pr", "merge", str(pr_number), "--repo", slug, method_flag, "--auto"])
         if not ok:
             return _err("pr_merge", err or "merge failed")
-        return _ok(
-            "pr_merge", {"pr_number": pr_number, "method": merge_method}, message="PR merged"
-        )
+        return _ok("pr_merge", {"pr_number": pr_number, "method": merge_method}, message="PR merged")
 
     if operation == "pr_checkout":
         if not pr_number:
@@ -606,9 +596,7 @@ def github_ops(
         ok, out, err = run_gh(args)
         if not ok:
             return _err("release_create", err or "release create failed")
-        return _ok(
-            "release_create", {"url": out.strip(), "tag": tag_name}, message="Release created"
-        )
+        return _ok("release_create", {"url": out.strip(), "tag": tag_name}, message="Release created")
 
     if operation == "release_delete":
         if not slug or not tag_name:
@@ -631,9 +619,7 @@ def github_ops(
         ok, out, err = run_gh(args)
         if not ok:
             return _err("release_update", err or "release update failed")
-        return _ok(
-            "release_update", {"tag": tag_name, "output": out.strip()}, message="Release updated"
-        )
+        return _ok("release_update", {"tag": tag_name, "output": out.strip()}, message="Release updated")
 
     # ── Workflows ─────────────────────────────────────────────────────────────
     if operation == "workflow_list":
@@ -745,9 +731,7 @@ def github_ops(
     if operation == "secrets_set":
         if not slug or not secret_name or not secret_value:
             return _err("secrets_set", "owner, repo, secret_name, secret_value required")
-        ok, out, err = run_gh(
-            ["secret", "set", secret_name, "--repo", slug, "--body", secret_value]
-        )
+        ok, out, err = run_gh(["secret", "set", secret_name, "--repo", slug, "--body", secret_value])
         if not ok:
             return _err("secrets_set", err or "secret set failed")
         return _ok("secrets_set", {"name": secret_name}, message=f"Secret '{secret_name}' set")
@@ -758,9 +742,7 @@ def github_ops(
         ok, out, err = run_gh(["secret", "delete", secret_name, "--repo", slug])
         if not ok:
             return _err("secrets_delete", err or "secret delete failed")
-        return _ok(
-            "secrets_delete", {"name": secret_name}, message=f"Secret '{secret_name}' deleted"
-        )
+        return _ok("secrets_delete", {"name": secret_name}, message=f"Secret '{secret_name}' deleted")
 
     # ── Collaborators ─────────────────────────────────────────────────────────
     if operation == "collaborator_add":
@@ -791,9 +773,7 @@ def github_ops(
     if operation == "collaborator_remove":
         if not slug or not username:
             return _err("collaborator_remove", "owner, repo, username required")
-        ok, out, err = run_gh(
-            ["api", f"repos/{slug}/collaborators/{username}", "--method", "DELETE"]
-        )
+        ok, out, err = run_gh(["api", f"repos/{slug}/collaborators/{username}", "--method", "DELETE"])
         if not ok:
             return _err("collaborator_remove", err or "collaborator remove failed")
         return _ok(
@@ -904,16 +884,10 @@ def github_ops(
         if not built:
             return _err(
                 "code_find_repos",
-                (
-                    "Provide query, or extension/path_pattern, or owner/search_scope "
-                    "to build a code search"
-                ),
+                ("Provide query, or extension/path_pattern, or owner/search_scope to build a code search"),
                 recovery_options=[
                     "github_ops(operation='code_find_repos', owner='YOU', extension='bak')",
-                    (
-                        "github_ops(operation='search_code', query='extension:bak user:YOU', "
-                        "pretty=True)"
-                    ),
+                    ("github_ops(operation='search_code', query='extension:bak user:YOU', pretty=True)"),
                 ],
             )
         ok, out, err = run_gh(
@@ -942,19 +916,14 @@ def github_ops(
                 "markdown": md,
                 "unique_repositories": uniq,
             },
-            message=(
-                "Code search — see `markdown` for a skimmable table; "
-                "`unique_repositories` lists affected repos"
-            ),
+            message=("Code search — see `markdown` for a skimmable table; `unique_repositories` lists affected repos"),
         )
 
     # ── GitHub Projects (gh project) ─────────────────────────────────────────
     if operation == "project_list":
         if not owner:
             return _err("project_list", "owner required (GitHub user or org, or @me)")
-        ok, out, err = run_gh(
-            ["project", "list", "--owner", owner, "--limit", str(limit), "--format", "json"]
-        )
+        ok, out, err = run_gh(["project", "list", "--owner", owner, "--limit", str(limit), "--format", "json"])
         if not ok:
             ok, out, err = run_gh(["project", "list", "--owner", owner, "--limit", str(limit)])
             if not ok:
@@ -977,9 +946,7 @@ def github_ops(
     if operation == "project_view":
         if not owner or project_number is None:
             return _err("project_view", "owner and project_number required")
-        ok, out, err = run_gh(
-            ["project", "view", str(project_number), "--owner", owner, "--format", "json"]
-        )
+        ok, out, err = run_gh(["project", "view", str(project_number), "--owner", owner, "--format", "json"])
         if not ok:
             ok, out, err = run_gh(["project", "view", str(project_number), "--owner", owner])
             if not ok:
@@ -988,9 +955,7 @@ def github_ops(
                 "project_view",
                 {"raw": out.strip(), "project_number": project_number, "owner": owner},
             )
-        return _ok(
-            "project_view", _j(out) if isinstance(_j(out), (dict, list)) else {"raw": out.strip()}
-        )
+        return _ok("project_view", _j(out) if isinstance(_j(out), (dict, list)) else {"raw": out.strip()})
 
     if operation == "project_create":
         if not owner or not title:
@@ -1026,9 +991,7 @@ def github_ops(
     if operation == "project_edit":
         if not owner or project_number is None or not title:
             return _err("project_edit", "owner, project_number, and title (new title) required")
-        ok, out, err = run_gh(
-            ["project", "edit", str(project_number), "--owner", owner, "--title", title]
-        )
+        ok, out, err = run_gh(["project", "edit", str(project_number), "--owner", owner, "--title", title])
         if not ok:
             return _err("project_edit", err or "project edit failed")
         return _ok(
@@ -1048,9 +1011,7 @@ def github_ops(
             )
         pt = package_type.strip().lower()
         if pt not in _pkg_types:
-            return _err(
-                "package_list", f"package_type must be one of: {', '.join(sorted(_pkg_types))}"
-            )
+            return _err("package_list", f"package_type must be one of: {', '.join(sorted(_pkg_types))}")
         if owner:
             path = f"orgs/{owner}/packages?package_type={pt}&per_page=100"
         else:
@@ -1077,9 +1038,7 @@ def github_ops(
             return _err("package_view", "package_type and package_name required")
         pt = package_type.strip().lower()
         if pt not in _pkg_types:
-            return _err(
-                "package_view", f"package_type must be one of: {', '.join(sorted(_pkg_types))}"
-            )
+            return _err("package_view", f"package_type must be one of: {', '.join(sorted(_pkg_types))}")
         pkg = package_name.strip()
         if owner:
             path = f"orgs/{owner}/packages/{pt}/{pkg}"
@@ -1095,9 +1054,7 @@ def github_ops(
             return _err("package_delete", "package_type and package_name required")
         pt = package_type.strip().lower()
         if pt not in _pkg_types:
-            return _err(
-                "package_delete", f"package_type must be one of: {', '.join(sorted(_pkg_types))}"
-            )
+            return _err("package_delete", f"package_type must be one of: {', '.join(sorted(_pkg_types))}")
         pkg = package_name.strip()
         if owner:
             path = f"orgs/{owner}/packages/{pt}/{pkg}"

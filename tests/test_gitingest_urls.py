@@ -15,9 +15,7 @@ def test_build_gitingest_url_strips_git_suffix() -> None:
 
 
 def test_build_gitingest_url_ref_and_subpath() -> None:
-    u = build_gitingest_url(
-        "sandraschi", "git-github-mcp", ref="main", subpath="src/git_github_mcp"
-    )
+    u = build_gitingest_url("sandraschi", "git-github-mcp", ref="main", subpath="src/git_github_mcp")
     expected = "https://gitingest.com/sandraschi/git-github-mcp/tree/main/src/git_github_mcp"
     assert u == expected
 

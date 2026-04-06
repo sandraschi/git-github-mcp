@@ -91,9 +91,7 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
         return False, "", str(e)
 
 
-def _ok(
-    op: str, data: dict, msg: str | None = None, next_steps: list[str] | None = None
-) -> dict[str, Any]:
+def _ok(op: str, data: dict, msg: str | None = None, next_steps: list[str] | None = None) -> dict[str, Any]:
     return success_response(data, op, message=msg, next_steps=next_steps or [])
 
 
@@ -524,11 +522,7 @@ def git_ops(
     if operation == "tag_create":
         if not tag_name:
             return _err("tag_create", "tag_name required")
-        cmd = (
-            ["tag", "-a", tag_name, "-m", tag_message or tag_name]
-            if tag_message
-            else ["tag", tag_name]
-        )
+        cmd = ["tag", "-a", tag_name, "-m", tag_message or tag_name] if tag_message else ["tag", tag_name]
         if commit:
             cmd.append(commit)
         return _simple(repo, "tag_create", cmd)

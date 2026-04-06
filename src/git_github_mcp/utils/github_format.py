@@ -63,15 +63,9 @@ def format_repo_card(data: dict[str, Any], fmt: str) -> str:
 
     if fmt_l == "html":
         lines = [
-            (
-                '<article class="gh-repo-card" '
-                'style="font-family:system-ui,sans-serif;max-width:48rem;">'
-            ),
+            ('<article class="gh-repo-card" style="font-family:system-ui,sans-serif;max-width:48rem;">'),
             f'<h1 style="margin:0 0 0.5rem;">{html.escape(name)}</h1>',
-            (
-                f'<p style="color:#444;margin:0 0 1rem;">'
-                f'{html.escape(desc) if desc else "<em>No description</em>"}</p>'
-            ),
+            (f'<p style="color:#444;margin:0 0 1rem;">{html.escape(desc) if desc else "<em>No description</em>"}</p>'),
             '<ul style="list-style:none;padding:0;margin:0 0 1rem;color:#333;">',
         ]
         if stars is not None:
@@ -79,9 +73,7 @@ def format_repo_card(data: dict[str, Any], fmt: str) -> str:
         if forks is not None:
             lines.append(f"<li><strong>Forks</strong>: {html.escape(str(forks))}</li>")
         if issue_count is not None:
-            lines.append(
-                f"<li><strong>Open issues (total)</strong>: {html.escape(str(issue_count))}</li>"
-            )
+            lines.append(f"<li><strong>Open issues (total)</strong>: {html.escape(str(issue_count))}</li>")
         if branch:
             lines.append(f"<li><strong>Default branch</strong>: {html.escape(branch)}</li>")
         vis = "private" if priv else "public"
