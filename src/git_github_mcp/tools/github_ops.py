@@ -457,7 +457,8 @@ def github_ops(
             "--limit",
             str(limit),
             "--json",
-            "number,title,state,url,author,headRefName,baseRefName,isDraft,createdAt",
+            # comments + updatedAt help spot PRs that sat without discussion (maintainer triage)
+            "number,title,state,url,author,headRefName,baseRefName,isDraft,createdAt,updatedAt,comments",
         ]
         ok, out, err = run_gh(args)
         if not ok:

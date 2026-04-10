@@ -1,9 +1,9 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0"]
 build-backend = "hatchling.build"
 
 [project]
-name = "git-github-mcp"
+name = "schip-mcp-git-github"
 version = "0.4.0"
 description = "FastMCP 3.2.1+ hardened substrate for Git (local) and GitHub (gh CLI)"
 readme = "README.md"
@@ -40,3 +40,12 @@ ignore = ["S101", "B008"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+fallback-version = "0.4.0"

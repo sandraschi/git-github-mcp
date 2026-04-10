@@ -6,6 +6,8 @@ interface PR {
   number: number; title: string; state: string; url: string;
   author: { login: string }; headRefName: string; baseRefName: string;
   isDraft: boolean; createdAt: string;
+  updatedAt?: string;
+  comments?: number;
 }
 
 export function PullRequests() {
@@ -128,6 +130,9 @@ export function PullRequests() {
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="mono text-xs" style={{ color: 'var(--text-dim)' }}>#{pr.number}</span>
                   <span className="text-xs" style={{ color: 'var(--text-dim)' }}>{pr.author?.login}</span>
+                  {typeof pr.comments === 'number' && (
+                    <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{pr.comments} comments</span>
+                  )}
                   <span className="mono text-xs flex items-center gap-1" style={{ color: 'var(--cyan)' }}>
                     <Circle size={6} fill="currentColor" />{pr.headRefName}
                   </span>
@@ -135,9 +140,14 @@ export function PullRequests() {
                   <span className="mono text-xs" style={{ color: 'var(--text-muted)' }}>{pr.baseRefName}</span>
                 </div>
               </div>
-              <span className="mono text-xs shrink-0" style={{ color: 'var(--text-dim)' }}>
-                {new Date(pr.createdAt).toLocaleDateString()}
-              </span>
+              <div className="mono text-xs shrink-0 text-right" style={{ color: 'var(--text-dim)' }}>
+                <div>{new Date(pr.createdAt).toLocaleDateString()}</div>
+                {pr.updatedAt && (
+                  <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    upd {new Date(pr.updatedAt).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

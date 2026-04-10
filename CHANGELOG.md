@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+- **`github_ops(pr_list)`:** JSON now includes **`comments`** and **`updatedAt`** for easier maintainer triage (spot stale PR threads).
+- **Web:** `tailwind.config.js` defines **`fontFamily.ui`** / **`mono`** / **`heading`** so `@apply font-ui` in `index.css` builds (Vite production build fixed).
+
+### Added
+- **README:** Maintainer section — weekly PR list + `pr_comment` acknowledgment template, GitHub Watch reminder, **`/inbox`** web route + supervisor heartbeat note, link to **mcp-central-docs** `patterns/GITHUB_MAINTAINER_HEARTBEAT.md`.
+- **Web (`web/`):** Route **`/inbox`** — **Pull requests & Issues** (tabs), optional **fleet** multi-repo list (persisted in `localStorage`), stale activity hints; sidebar nav **PRs & Issues**. Standalone **`/prs`** and **`/issues`** show comment/updated dates where applicable.
+- **`llms.txt`:** Maintainer fleet triage blurb + fleet doc pointer.
+
 ## [0.4.0] - 2026-04-06
 
 ### Added

@@ -1,5 +1,9 @@
 # git-github-mcp
-> FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety enforced. - **git_ops**: clone, status (high-fidelity), add, commit, push, pull, branch, tag, stash - **github_ops**: repo_list, repo_create, pr_list, issue_list.
+> FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety enforced. - **git_ops**: clone, status (high-fidelity), add, commit, push, pull, branch, tag, stash - **github_ops**: repo_list, repo_create, pr_list, issue_list, pr_comment, etc.
+
+## Maintainer fleet triage
+- **Web:** route **`/inbox`** — PRs & Issues tabs, optional **fleet** mode (many `owner/repo` lines), same data as `github_ops`.
+- **Schedule:** A **supervisor** (robofang, OpenManus, OpenClaw, …) should run daily/weekly `pr_list` / `issue_list` across your repo list; MCP has no cron. Fleet doc: **mcp-central-docs** `patterns/GITHUB_MAINTAINER_HEARTBEAT.md`.
 
 This project includes automated llms.txt generation for AI accessibility.
 

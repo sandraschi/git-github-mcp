@@ -10,7 +10,8 @@ import {
     Settings,
     ChevronLeft,
     ChevronRight,
-    Github
+    Github,
+    Inbox,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +27,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         { label: 'Dashboard', icon: LayoutDashboard, href: '/' },
         { label: 'Repositories', icon: GitBranch, href: '/repos' },
         { label: 'Commits', icon: GitCommit, href: '/commits' },
+        { label: 'PRs & Issues', icon: Inbox, href: '/inbox' },
         { label: 'Chat', icon: MessageSquare, href: '/chat' },
         { label: 'Settings', icon: Settings, href: '/settings' },
     ];

@@ -6,6 +6,7 @@ interface Issue {
   number: number; title: string; state: string; url: string;
   author: { login: string }; labels: { name: string; color: string }[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export function Issues() {
@@ -116,9 +117,14 @@ export function Issues() {
                   ))}
                 </div>
               </div>
-              <span className="mono text-xs shrink-0" style={{ color: 'var(--text-dim)' }}>
-                {new Date(iss.createdAt).toLocaleDateString()}
-              </span>
+              <div className="mono text-xs shrink-0 text-right" style={{ color: 'var(--text-dim)' }}>
+                <div>{new Date(iss.createdAt).toLocaleDateString()}</div>
+                {iss.updatedAt && (
+                  <div className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    upd {new Date(iss.updatedAt).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

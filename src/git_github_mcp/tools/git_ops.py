@@ -1,11 +1,40 @@
 """Git operations portmanteau — full local Git workflow via subprocess."""
 
 import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from ..utils.response import error_response, success_response
+
+# Prevent hidden console windows on Windows from blocking the process
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+
+def _resolve_git_exe() -> str:
+    """Return path to the real git.exe binary, avoiding the cmd wrapper.
+
+    C:\\Program Files\\Git\\cmd\\git.EXE is a shell wrapper that blocks when
+    spawned from a consoleless process (e.g. Claude Desktop stdio MCP).
+    The actual binary is in bin\\git.exe — use that directly.
+    """
+    git_path = shutil.which("git")
+    if git_path:
+        p = os.path.normpath(git_path)
+        if "cmd" in p.lower():
+            real = os.path.normpath(os.path.join(os.path.dirname(p), "..", "bin", "git.exe"))
+            if os.path.isfile(real):
+                return real
+        return git_path
+    fallback = r"C:\Program Files\Git\bin\git.exe"
+    if os.path.isfile(fallback):
+        return fallback
+    return "git"  # last resort
+
+
+_GIT_EXE = _resolve_git_exe()
 
 ACTION_TYPE = (
     # Core
@@ -70,10 +99,17 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
     try:
         env = os.environ.copy()
         env["GIT_TERMINAL_PROMPT"] = "0"
-        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes"
+        env["GIT_ASKPASS"] = "echo"
+        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
+        env["GCM_INTERACTIVE"] = "never"
+        env["GCM_CREDENTIAL_STORE"] = "wincred"  # Windows native; "cache" doesn't exist on Windows
+        env["NO_COLOR"] = "1"
+        env["TERM"] = "dumb"
+        env["GIT_CONFIG_NOSYSTEM"] = "1"
+        env["GIT_CONFIG_GLOBAL"] = r"D:\Dev\repos\git-github-mcp\minimal.gitconfig"
 
         r = subprocess.run(
-            ["git"] + args,
+            [_GIT_EXE] + args,
             cwd=path,
             capture_output=True,
             text=True,
@@ -81,6 +117,7 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
             errors="replace",
             timeout=timeout,
             env=env,
+            creationflags=_NO_WINDOW,
         )
         return r.returncode == 0, r.stdout, r.stderr
     except subprocess.TimeoutExpired:
