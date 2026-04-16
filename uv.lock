@@ -691,6 +691,20 @@ wheels = [
 ]
 
 [[package]]
+name = "prefab-ui"
+version = "0.19.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "cyclopts" },
+    { name = "pydantic" },
+    { name = "rich" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d8/79/039ade4eb3bdd23d5850b448f125b93aef3487c30d86adad5ceb9f5929de/prefab_ui-0.19.1.tar.gz", hash = "sha256:344b8c65e8c97d7f9684152c2fd014e8427f7239f633e9a2c3c8fe125a9ce1f4", size = 4082891, upload-time = "2026-04-14T16:26:58.835Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e4/be/6721c2e4ac5a974d5cab7a5994111996e7d74c6239fb946e21af1799df59/prefab_ui-0.19.1-py3-none-any.whl", hash = "sha256:9cf937ae2a2eab98d05f47699ac5be66b14f061f9d99d83b71dd77bc2b6d6b3f", size = 1849329, upload-time = "2026-04-14T16:27:00.618Z" },
+]
+
+[[package]]
 name = "py-key-value-aio"
 version = "0.4.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1132,6 +1146,7 @@ source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
     { name = "fastmcp" },
+    { name = "prefab-ui" },
     { name = "ruff" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -1147,6 +1162,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fastmcp", specifier = ">=3.2.0" },
+    { name = "prefab-ui", specifier = ">=0.14.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "ruff", specifier = ">=0.15.2" },

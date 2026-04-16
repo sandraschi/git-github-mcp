@@ -918,7 +918,12 @@ web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
 
 web_app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:10703",
+        "http://127.0.0.1:10703",
+        "http://localhost:10702",
+        "http://127.0.0.1:10702",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

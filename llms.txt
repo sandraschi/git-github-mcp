@@ -1,5 +1,11 @@
-# git-github-mcp
-> FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety enforced. - **git_ops**: clone, status (high-fidelity), add, commit, push, pull, branch, tag, stash - **github_ops**: repo_list, repo_create, pr_list, issue_list, pr_comment, etc.
+# git-github-mcp: Industrial Git/GitHub substrate
+> [Agentic Revolution Manifesto](https://github.com/sandraschi/mcp-central-docs/blob/master/manifesto/AGENTIC_REVOLUTION.md) | [SOTA v14.x Standard]
+> FastMCP 3.2+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety enforced. High-fidelity telemetry for commits, PRs, issues, and repo management.
+
+## Architecture
+- **Backend (Port 10702)**: Python/FastAPI wrapper for Git/GitHub CLI.
+- **Frontend (Port 10703)**: Vite-based dashboard for fleet telemetry and industrial triage.
+- **Discovery**: Automatic `gh.exe` detection across standard Windows paths.
 
 ## Maintainer fleet triage
 - **Web:** route **`/inbox`** — PRs & Issues tabs, optional **fleet** mode (many `owner/repo` lines), same data as `github_ops`.
