@@ -1,3 +1,13 @@
+﻿Param([switch]$Headless)
+
+# --- SOTA Headless Standard ---
+if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
+    Start-Process pwsh -ArgumentList '-NoProfile', '-File', $PSCommandPath, '-Headless' -WindowStyle Hidden
+    exit
+}
+$WindowStyle = if ($Headless) { 'Hidden' } else { 'Normal' }
+# ------------------------------
+
 # git-github-mcp start script
 # Backend FastAPI on 10702, Frontend Vite on 10703
 
@@ -11,7 +21,7 @@ Write-Host "  High-Fidelity status parsing: Active" -ForegroundColor Green
 Write-Host ""
 Write-Host "  GitHub API features need the GitHub CLI logged in." -ForegroundColor Yellow
 Write-Host "  If you have not yet: run  gh auth login  in a terminal, then  gh auth status" -ForegroundColor Yellow
-Write-Host "  (Stored under your user profile / OS credential store — same user as this script.)" -ForegroundColor DarkGray
+Write-Host "  (Stored under your user profile / OS credential store â€” same user as this script.)" -ForegroundColor DarkGray
 Write-Host ""
 
 # Kill zombies on both ports
@@ -56,3 +66,4 @@ Start-Process "http://localhost:$FrontendPort"
 
 # Wait
 try { Wait-Process -Id $frontendJob.Id } catch { }
+

@@ -1,8 +1,10 @@
 # Git & GitHub CLI MCP Server (v0.4.1)
 
+[![FastMCP Version](https://img.shields.io/badge/FastMCP-3.2.0-blue?style=flat-square&logo=python&logoColor=white)](https://github.com/sandraschi/fastmcp) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) [![Linted with Biome](https://img.shields.io/badge/Linted_with-Biome-60a5fa?style=flat-square&logo=biome&logoColor=white)](https://biomejs.dev/) [![Built with Just](https://img.shields.io/badge/Built_with-Just-000000?style=flat-square&logo=gnu-bash&logoColor=white)](https://github.com/casey/just)
+
 **Industrial-grade Git and GitHub orchestration** for the Agentic Revolution. Built for developers who need their AI implementation engines to interact with repositories without environment friction.
 
-**Stack:** v0.4.1  FastMCP 3.2+  Python 3.12+  Windows 10/11  GitHub CLI (gh)  
+**Stack:** v0.4.1  FastMCP 3.2.0+  Python 3.12+  Windows 10/11  GitHub CLI (gh)  
 
 **Industrial Disclosure:** This server is part of the **[Agentic Revolution Manifesto](https://github.com/sandraschi/mcp-central-docs/blob/master/manifesto/AGENTIC_REVOLUTION.md)**. All tools are designed for machine-native consumption, providing high-fidelity telemetry and crash-resistant automation for the 135+ repository Alsergrund fleet.
 
@@ -83,6 +85,17 @@ Silence reads as indifference. You do not need a bot on day one: use **`github_o
 6. **Fleet doc (mcp-central-docs):** **[GITHUB_MAINTAINER_HEARTBEAT.md](https://github.com/sandraschi/mcp-central-docs/blob/master/patterns/GITHUB_MAINTAINER_HEARTBEAT.md)** — where the schedule lives, robofang council hook, prompt sketch.
 
 This does not replace a fair review — it reduces “I wasted hours in the void” as the default story.
+
+
+## 🛡️ Industrial Quality Stack
+
+This project adheres to **SOTA 14.1** industrial standards for high-fidelity agentic orchestration:
+
+- **Python (Core)**: [Ruff](https://astral.sh/ruff) for linting and formatting. Zero-tolerance for `print` statements in core handlers (`T201`).
+- **Webapp (UI)**: [Biome](https://biomejs.dev/) for sub-millisecond linting. Strict `noConsoleLog` enforcement.
+- **Protocol Compliance**: Hardened `stdout/stderr` isolation to ensure crash-resistant JSON-RPC communication.
+- **Automation**: [Justfile](./justfile) recipes for all fleet operations (`just lint`, `just fix`, `just dev`).
+- **Security**: Automated audits via `bandit` and `safety`.
 
 ## License
 

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "schip-mcp-git-github"
 version = "0.4.0"
-description = "FastMCP 3.2.1+ hardened substrate for Git (local) and GitHub (gh CLI)"
+description = "FastMCP 3.2.0+ hardened substrate for Git (local) and GitHub (gh CLI)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
