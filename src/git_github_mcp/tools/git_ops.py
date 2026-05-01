@@ -1,7 +1,7 @@
 """Git operations portmanteau — full local Git workflow via subprocess."""
 
+import asyncio
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -9,32 +9,11 @@ from typing import Any
 
 from ..utils.response import error_response, success_response
 
-# Prevent hidden console windows on Windows from blocking the process
-_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+_NO_WINDOW = 0x08000000 | 0x01000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB
 
-
-def _resolve_git_exe() -> str:
-    """Return path to the real git.exe binary, avoiding the cmd wrapper.
-
-    C:\\Program Files\\Git\\cmd\\git.EXE is a shell wrapper that blocks when
-    spawned from a consoleless process (e.g. Claude Desktop stdio MCP).
-    The actual binary is in bin\\git.exe — use that directly.
-    """
-    git_path = shutil.which("git")
-    if git_path:
-        p = os.path.normpath(git_path)
-        if "cmd" in p.lower():
-            real = os.path.normpath(os.path.join(os.path.dirname(p), "..", "bin", "git.exe"))
-            if os.path.isfile(real):
-                return real
-        return git_path
-    fallback = r"C:\Program Files\Git\bin\git.exe"
-    if os.path.isfile(fallback):
-        return fallback
-    return "git"  # last resort
-
-
-_GIT_EXE = _resolve_git_exe()
+# Hardcode real git.exe — bin\git.exe is the actual binary; cmd\git.exe is a shell wrapper
+# that can deadlock when spawned from a consoleless process (e.g. MCP stdio).
+_GIT_EXE = r"C:\Program Files\Git\bin\git.exe"
 
 ACTION_TYPE = (
     # Core
@@ -96,32 +75,68 @@ ACTION_TYPE = (
 
 
 def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str, str]:
-    try:
-        env = os.environ.copy()
-        env["GIT_TERMINAL_PROMPT"] = "0"
-        env["GIT_ASKPASS"] = "echo"
-        env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
-        env["GCM_INTERACTIVE"] = "never"
-        env["GCM_CREDENTIAL_STORE"] = "wincred"  # Windows native; "cache" doesn't exist on Windows
-        env["NO_COLOR"] = "1"
-        env["TERM"] = "dumb"
-        env["GIT_CONFIG_NOSYSTEM"] = "1"
-        env["GIT_CONFIG_GLOBAL"] = r"D:\Dev\repos\git-github-mcp\minimal.gitconfig"
+    """Run git via list-based exec with CREATE_NO_WINDOW — no shell=True, no cmd.exe wrapper.
 
-        r = subprocess.run(
-            [_GIT_EXE] + args,
-            cwd=path,
+    shell=True spawns cmd.exe which can deadlock when the parent process has no console
+    (e.g. MCP stdio transport under Claude Desktop / Electron). Using the real binary path
+    directly with creationflags avoids both the scoop shim and the console hang.
+    """
+    import subprocess as sp
+
+    cmd = [_GIT_EXE, "-C", str(path), *args]
+    try:
+        r = sp.run(  # noqa: S603 — list-based, no shell
+            cmd,
             capture_output=True,
             text=True,
             encoding="utf-8",
             errors="replace",
             timeout=timeout,
-            env=env,
+            env=_git_env(),
             creationflags=_NO_WINDOW,
         )
-        return r.returncode == 0, r.stdout, r.stderr
+        out = r.stdout or ""
+        err = r.stderr or ""
+        return r.returncode == 0, out, err
     except subprocess.TimeoutExpired:
         return False, "", f"git timed out after {timeout}s"
+    except FileNotFoundError:
+        return False, "", f"git not found at {_GIT_EXE}"
+    except Exception as e:
+        return False, "", str(e)
+
+
+def _git_env() -> dict:
+    """Build env for git subprocess — identical to github_ops' _no_prompt_env."""
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_ASKPASS"] = "echo"
+    env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
+    env["GCM_INTERACTIVE"] = "never"
+    env["GCM_CREDENTIAL_STORE"] = "wincred"
+    env["NO_COLOR"] = "1"
+    env["TERM"] = "dumb"
+    return env
+
+
+async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str, str]:
+    """Async git subprocess using asyncio.create_subprocess_exec — no thread pool."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            _GIT_EXE, *args,
+            cwd=path,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=_git_env(),
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            out = stdout.decode("utf-8", errors="replace") if stdout else ""
+            err = stderr.decode("utf-8", errors="replace") if stderr else ""
+            return proc.returncode == 0, out, err
+        except TimeoutError:
+            proc.kill()
+            return False, "", f"git timed out after {timeout}s"
     except FileNotFoundError:
         return False, "", "git not found in PATH"
     except Exception as e:
@@ -138,6 +153,14 @@ def _err(op: str, msg: str, **kw) -> dict[str, Any]:
 
 def _simple(repo: Path, op: str, args: list[str], timeout: int = 60) -> dict[str, Any]:
     ok, out, err = _run_git(repo, args, timeout)
+    if not ok:
+        return _err(op, (err or out).strip() or f"{op} failed")
+    return _ok(op, {"output": out.strip()})
+
+
+async def _simple_async(repo: Path, op: str, args: list[str], timeout: int = 60) -> dict[str, Any]:
+    """Async version — uses asyncio.create_subprocess_exec directly."""
+    ok, out, err = await _run_git_async(repo, args, timeout)
     if not ok:
         return _err(op, (err or out).strip() or f"{op} failed")
     return _ok(op, {"output": out.strip()})
@@ -346,7 +369,7 @@ def git_ops(
             )
         if not files:
             return _err("add", "Provide files list or set all_files=True")
-        ok, _, err = _run_git(repo, ["add"] + files)
+        ok, _, err = _run_git(repo, ["add", *files])
         if not ok:
             return _err("add", err or "add failed")
         return _ok(
@@ -441,7 +464,7 @@ def git_ops(
         elif commit:
             cmd.append(commit)
         if files:
-            cmd += ["--"] + files
+            cmd.extend(["--", *files])
         ok, out, err = _run_git(repo, cmd)
         if not ok:
             return _err("diff", err or "diff failed")
@@ -592,7 +615,7 @@ def git_ops(
         if include_dirs:
             cmd.append("-d")
         if dry_run:
-            cmd_dry = cmd + ["--dry-run"]
+            cmd_dry = [*cmd, "--dry-run"]
             ok, out, err = _run_git(repo, cmd_dry)
             if not ok:
                 return _err("clean", err or "clean dry-run failed")
