@@ -1,4 +1,4 @@
-"""git-github-mcp server — FastMCP 3.1+, portmanteau pattern.
+﻿"""git-github-mcp server — FastMCP 3.1+, portmanteau pattern.
 
 Tools:     git_ops (43), github_ops (58), git_github_status, git_github_help,
            git_agentic_workflow, git_github_search_workflow (sampling / agentic)
@@ -20,6 +20,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
+from fastmcp.server import create_proxy
 
 from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
@@ -33,7 +34,7 @@ logger = logging.getLogger("git-github-mcp")
 
 VERSION = "0.4.0"
 WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
-WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
+WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
 
 
 @asynccontextmanager
@@ -49,119 +50,234 @@ mcp = FastMCP(
     lifespan=server_lifespan,
     instructions=(
         "Git and GitHub operations server. "
-        "Use git_ops for local repository work (43 actions). "
-        "Use github_ops for GitHub API operations via gh CLI (58 actions). "
+        "Use git_core for status/log/diff/commit/push/pull/fetch (11 ops). "
+        "Use git_branch for branches/merge/rebase/stash/tag (14 ops). "
+        "Use git_admin for remote/reset/clean/submodule/bisect (16 ops). "
+        "Use git_blame for file blame (1 op). "
         "Use git_github_help for full operation reference. "
         "Use git_agentic_workflow for multi-step operations that require reasoning. "
         "Use git_github_search_workflow for agentic GitHub discovery/search tasks."
     ),
 )
 
+_bridge_proxies = []
+bridge_urls = os.getenv("MCP_BRIDGE_URLS", "")
+if bridge_urls:
+    for url in bridge_urls.split(","):
+        url = url.strip()
+        if url:
+            try:
+                mcp.add_provider(create_proxy(url))
+                _bridge_proxies.append(url)
+            except Exception:
+                pass
+
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
 
 
+CORE_OPS = {"init", "clone", "add", "commit", "push", "pull", "fetch", "status", "log", "diff", "show"}
+BRANCH_OPS = {"branch_list", "branch_create", "branch_switch", "branch_delete", "branch_rename",
+              "branch_merge", "rebase", "stash", "stash_pop", "stash_list", "stash_drop",
+              "tag_list", "tag_create", "tag_delete"}
+ADMIN_OPS = {"remote_list", "remote_add", "remote_remove", "reset", "revert", "cherry_pick",
+             "clean", "submodule_add", "submodule_update", "submodule_sync", "submodule_status",
+             "bisect_start", "bisect_bad", "bisect_good", "bisect_reset",
+             "worktree_add", "worktree_list", "worktree_remove"}
+BLAME_OPS = {"blame"}
+
+
+async def _run_git_tool(operation: str, repo_path: str | None = None,
+                        message: str | None = None, files: list[str] | None = None,
+                        all_files: bool = False, amend: bool = False,
+                        remote: str = "origin", branch: str | None = None,
+                        force: bool = False, set_upstream: bool = False,
+                        repo_url: str | None = None, target_dir: str | None = None,
+                        initial_branch: str = "main", depth: int | None = None,
+                        max_count: int = 20,
+                        commit: str | None = None, commit2: str | None = None,
+                        oneline: bool = False, file_path: str | None = None,
+                        source_branch: str | None = None,
+                        stash_message: str | None = None, stash_index: int = 0,
+                        tag_name: str | None = None, tag_message: str | None = None,
+                        mode: str = "mixed", remote_url: str | None = None,
+                        remote_name: str | None = None, dry_run: bool = False,
+                        include_dirs: bool = False, submodule_url: str | None = None,
+                        submodule_path: str | None = None, recursive: bool = False,
+                        worktree_path: str | None = None) -> dict:
+    """Run git_ops (async) with an operation-aware timeout to catch hangs before the MCP client does."""
+    # Network ops (clone, push, pull, fetch) can be slow on large repos; local ops keep 25s.
+    _NETWORK_OPS = {"clone", "push", "pull", "fetch"}
+    _wall_timeout = 180 if operation in _NETWORK_OPS else 25
+    start = time.perf_counter()
+    try:
+        result = await asyncio.wait_for(
+            _git_ops(
+                operation=operation, repo_path=repo_path, message=message,
+                files=files, all_files=all_files, amend=amend, remote=remote,
+                branch=branch, force=force, set_upstream=set_upstream,
+                repo_url=repo_url, target_dir=target_dir, initial_branch=initial_branch,
+                depth=depth, max_count=max_count, commit=commit, commit2=commit2, oneline=oneline,
+                file_path=file_path, source_branch=source_branch,
+                stash_message=stash_message, stash_index=stash_index,
+                tag_name=tag_name, tag_message=tag_message, mode=mode,
+                remote_url=remote_url, remote_name=remote_name, dry_run=dry_run,
+                include_dirs=include_dirs, submodule_url=submodule_url,
+                submodule_path=submodule_path, recursive=recursive,
+                worktree_path=worktree_path,
+            ),
+            timeout=_wall_timeout,
+        )
+    except TimeoutError:
+        from .utils.response import error_response
+        result = error_response(
+            operation=operation,
+            error=f"Git subprocess did not respond in {_wall_timeout}s",
+            recovery_options=[
+                "Restart the git-github-mcp server",
+                "Connect via HTTP: http://127.0.0.1:10702/mcp",
+                "Check that git works: git status"
+            ],
+            suggested_fixes=[
+                "Use git_core via the REST API at http://127.0.0.1:10702/api/git",
+                "Set MCP_TRANSPORT=http and connect to port 10702"
+            ],
+        )
+    except Exception as exc:
+        from .utils.response import error_response
+        result = error_response(
+            operation=operation,
+            error=str(exc),
+            recovery_options=["Check server logs", "Restart the MCP server"],
+        )
+    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
+    return result
+
+
 @mcp.tool()
-async def git_ops(
+async def git_core(
     operation: str,
     repo_path: str | None = None,
-    # add / commit
     message: str | None = None,
     files: list[str] | None = None,
     all_files: bool = False,
     amend: bool = False,
-    # push / pull / fetch
     remote: str = "origin",
     branch: str | None = None,
     force: bool = False,
     set_upstream: bool = False,
-    # clone / init
     repo_url: str | None = None,
     target_dir: str | None = None,
     initial_branch: str = "main",
-    # log / diff / show / blame
+    depth: int | None = None,
     max_count: int = 20,
     commit: str | None = None,
     commit2: str | None = None,
     oneline: bool = False,
     file_path: str | None = None,
-    # branch
+) -> dict:
+    """Git core operations — status, log, diff, show, init, clone, add, commit, push, pull, fetch.
+
+    Core workflow tools. For branch/tag/stash operations use git_branch.
+    For remote/reset/clean/submodule/bisect/worktree use git_admin.
+    """
+    if operation not in CORE_OPS:
+        from .utils.response import error_response
+        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(CORE_OPS)}",
+                              recovery_options=["Use one of the listed operations"],)
+    return await _run_git_tool(
+        operation=operation, repo_path=repo_path, message=message, files=files,
+        all_files=all_files, amend=amend, remote=remote, branch=branch, force=force,
+        set_upstream=set_upstream, repo_url=repo_url, target_dir=target_dir,
+        initial_branch=initial_branch, depth=depth, max_count=max_count, commit=commit,
+        commit2=commit2, oneline=oneline, file_path=file_path,
+    )
+
+
+@mcp.tool()
+async def git_branch(
+    operation: str,
+    repo_path: str | None = None,
+    branch: str | None = None,
     source_branch: str | None = None,
-    # stash
+    message: str | None = None,
+    force: bool = False,
     stash_message: str | None = None,
     stash_index: int = 0,
-    # tag
     tag_name: str | None = None,
     tag_message: str | None = None,
-    # reset
-    mode: str = "mixed",
-    # remote
+) -> dict:
+    """Git branch operations — branch lifecycle, merge, rebase, stash, tag.
+
+    For core operations (status, log, commit, push) use git_core.
+    For admin operations (remote, reset, clean, submodule) use git_admin.
+    """
+    if operation not in BRANCH_OPS:
+        from .utils.response import error_response
+        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(BRANCH_OPS)}",
+                              recovery_options=["Use one of the listed operations"],)
+    return await _run_git_tool(
+        operation=operation, repo_path=repo_path, branch=branch, source_branch=source_branch,
+        message=message, force=force, stash_message=stash_message, stash_index=stash_index,
+        tag_name=tag_name, tag_message=tag_message,
+    )
+
+
+@mcp.tool()
+async def git_admin(
+    operation: str,
+    repo_path: str | None = None,
+    remote: str = "origin",
     remote_url: str | None = None,
     remote_name: str | None = None,
-    # clean
+    mode: str = "mixed",
+    commit: str | None = None,
+    force: bool = False,
     dry_run: bool = False,
     include_dirs: bool = False,
-    # submodule
     submodule_url: str | None = None,
     submodule_path: str | None = None,
     recursive: bool = False,
-    # worktree
     worktree_path: str | None = None,
 ) -> dict:
-    """Local Git operations — 43 actions.
+    """Git admin operations — remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree.
 
-    CORE:      init, clone, add, commit, push, pull, fetch, status
-    INSPECT:   log, diff, show, blame
-    BRANCH:    branch_list, branch_create, branch_switch, branch_delete, branch_merge, rebase
-    REMOTE:    remote_list, remote_add, remote_remove
-    STASH:     stash, stash_pop, stash_list, stash_drop
-    TAG:       tag_list, tag_create, tag_delete
-    UNDO:      reset, revert, cherry_pick
-    CLEANUP:   clean
-    SUBMODULE: submodule_add, submodule_update, submodule_sync, submodule_status
-    BISECT:    bisect_start, bisect_bad, bisect_good, bisect_reset
-    WORKTREE:  worktree_add, worktree_list, worktree_remove
-
-    Non-blocking: subprocess runs in thread pool, never freezes MCP server.
+    For core operations (status, log, commit, push) use git_core.
+    For branch operations use git_branch.
     """
-    start = time.perf_counter()
-    result = await asyncio.to_thread(
-        _git_ops,
-        operation=operation,
-        repo_path=repo_path,
-        message=message,
-        files=files,
-        all_files=all_files,
-        amend=amend,
-        remote=remote,
-        branch=branch,
-        force=force,
-        set_upstream=set_upstream,
-        repo_url=repo_url,
-        target_dir=target_dir,
-        initial_branch=initial_branch,
-        max_count=max_count,
-        commit=commit,
-        commit2=commit2,
-        oneline=oneline,
-        file_path=file_path,
-        source_branch=source_branch,
-        stash_message=stash_message,
-        stash_index=stash_index,
-        tag_name=tag_name,
-        tag_message=tag_message,
-        mode=mode,
-        remote_url=remote_url,
-        remote_name=remote_name,
-        dry_run=dry_run,
-        include_dirs=include_dirs,
-        submodule_url=submodule_url,
-        submodule_path=submodule_path,
-        recursive=recursive,
-        worktree_path=worktree_path,
+    if operation not in ADMIN_OPS:
+        from .utils.response import error_response
+        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(ADMIN_OPS)}",
+                              recovery_options=["Use one of the listed operations"],)
+    return await _run_git_tool(
+        operation=operation, repo_path=repo_path, remote=remote, remote_url=remote_url,
+        remote_name=remote_name, mode=mode, commit=commit, force=force, dry_run=dry_run,
+        include_dirs=include_dirs, submodule_url=submodule_url, submodule_path=submodule_path,
+        recursive=recursive, worktree_path=worktree_path,
     )
-    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
-    return result
+
+
+@mcp.tool()
+async def git_blame(
+    repo_path: str | None = None,
+    file_path: str | None = None,
+    commit: str | None = None,
+) -> dict:
+    """Git blame — show blame info for a file.
+
+    Args:
+        repo_path: Repository path (default: current directory).
+        file_path: File to blame.
+        commit: Starting commit (default: HEAD).
+    """
+    if not file_path:
+        from .utils.response import error_response
+        return error_response("blame", "file_path is required for git blame",
+                              recovery_options=["Provide a file_path parameter"],
+                              suggested_fixes=['git_blame(file_path="src/main.py")'],)
+    return await _run_git_tool(
+        operation="blame", repo_path=repo_path, file_path=file_path, commit=commit,
+    )
 
 
 @mcp.tool()
@@ -347,7 +463,8 @@ Available tools:
 - git_ops(operation, repo_path, ...): 43 local git actions (init, clone, status, add,
   commit, push, pull, fetch, log, diff, show, blame, branch lifecycle, rebase, remote,
   stash, tag, reset, revert, cherry_pick, submodule_*, bisect_*, worktree_*, clean).
-- github_ops(operation, owner, repo, ...): 58 GitHub actions via gh CLI:\n  repos (repo_list, repo_view, show_repo, create/fork/clone/delete/rename/archive),
+- github_ops(operation, owner, repo, ...): 58 GitHub actions via gh CLI:
+  repos (list/view/create/fork/clone/delete/rename/archive),
   issues (list/view/create/close/comment), PRs (list/view/create/merge/checkout/close/comment),
   releases (full CRUD), Actions workflows (list/run/runs/cancel/enable/disable),
   labels, secrets, collaborators,
@@ -417,13 +534,15 @@ Respond with ONLY valid JSON:
 
         try:
             if tool_name == "git_ops":
-                result = await asyncio.to_thread(_git_ops, **args)
+                result = await _git_ops(**args)
             elif tool_name == "github_ops":
                 result = await asyncio.to_thread(_github_ops, **args)
             else:
-                result = {"success": False, "error": f"Unknown tool: {tool_name}"}
+                from .utils.response import error_response
+                result = error_response(tool_name or "unknown", f"Unknown tool: {tool_name}")
         except Exception as e:
-            result = {"success": False, "error": str(e)}
+            from .utils.response import error_response
+            result = error_response(tool_name or "unknown", str(e))
 
         results.append(
             {
@@ -532,7 +651,10 @@ Return ONLY valid JSON:
             clean = clean.rsplit("```", 1)[0].strip()
         plan_data = json.loads(clean)
     except json.JSONDecodeError:
-        return {"success": False, "error": "Could not parse plan JSON", "raw_plan": plan_text}
+        from .utils.response import error_response
+        return error_response("plan", "Could not parse plan JSON from LLM",
+                              recovery_options=["Try again with a more specific task"],
+                              suggested_fixes=["Shorten your task description"])
 
     steps = plan_data.get("steps", [])
     await ctx.info(f"Discovery plan: {plan_data.get('plan', '?')} — {len(steps)} steps")
@@ -545,7 +667,8 @@ Return ONLY valid JSON:
         try:
             result = await asyncio.to_thread(_github_ops, **args)
         except Exception as e:
-            result = {"success": False, "error": str(e)}
+            from .utils.response import error_response
+            result = error_response(args.get("operation", "unknown"), str(e))
         results.append(
             {
                 "step": i + 1,
@@ -579,36 +702,36 @@ Return ONLY valid JSON:
     "git://repo/status",
     description="Current git status of the default repo (cwd). Shows branch, changes, remote URL.",
 )
-def resource_git_status() -> dict:
+async def resource_git_status() -> dict:
     """Live git status of the current working directory."""
-    return _git_ops(operation="status", repo_path=None)
+    return await _git_ops(operation="status", repo_path=None)
 
 
 @mcp.resource(
     "git://repo/log",
     description="Recent git commit log (last 20 commits) for the current repo.",
 )
-def resource_git_log() -> dict:
+async def resource_git_log() -> dict:
     """Recent commit history of the current working directory."""
-    return _git_ops(operation="log", repo_path=None, max_count=20, oneline=True)
+    return await _git_ops(operation="log", repo_path=None, max_count=20, oneline=True)
 
 
 @mcp.resource(
     "git://{repo_path}/status",
     description="Git status for a specific repo path.",
 )
-def resource_repo_status(repo_path: str) -> dict:
+async def resource_repo_status(repo_path: str) -> dict:
     """Live git status for a given repo path."""
-    return _git_ops(operation="status", repo_path=repo_path)
+    return await _git_ops(operation="status", repo_path=repo_path)
 
 
 @mcp.resource(
     "git://{repo_path}/log",
     description="Recent commit log for a specific repo path.",
 )
-def resource_repo_log(repo_path: str) -> dict:
+async def resource_repo_log(repo_path: str) -> dict:
     """Recent commits for a given repo path."""
-    return _git_ops(operation="log", repo_path=repo_path, max_count=20, oneline=True)
+    return await _git_ops(operation="log", repo_path=repo_path, max_count=20, oneline=True)
 
 
 @mcp.resource(
@@ -914,6 +1037,8 @@ def git_github_explain_concept(concept: str, level: str = "intermediate") -> str
 
 # ── FastAPI web bridge ────────────────────────────────────────────────────────
 
+_mcp_http = mcp.http_app(path="/mcp")
+
 web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
 
 web_app.add_middleware(
@@ -930,16 +1055,28 @@ web_app.add_middleware(
 )
 
 
+@web_app.get("/health")
+async def web_health():
+    return {"ok": True, "service": "git-github-mcp", "version": VERSION, "port": WEB_PORT}
+
+
 @web_app.get("/api/status")
 async def api_status():
     return await asyncio.to_thread(_get_status, level="basic")
+
+
+# Mount MCP HTTP transport alongside the web API
+web_app.mount("/mcp", _mcp_http)
 
 
 @web_app.get("/api/tools")
 async def api_tools():
     return {
         "tools": [
-            {"name": "git_ops", "operations": 43, "description": "Local Git repository operations"},
+            {"name": "git_core", "operations": 11, "description": "status/log/diff/add/commit/push/pull/fetch"},
+            {"name": "git_branch", "operations": 14, "description": "branch lifecycle, merge, rebase, stash, tag"},
+            {"name": "git_admin", "operations": 16, "description": "remote/reset/revert/clean/submodule/bisect"},
+            {"name": "git_blame", "operations": 1, "description": "annotate file lines with commit info"},
             {"name": "github_ops", "operations": 58, "description": "GitHub API via gh CLI"},
             {
                 "name": "git_agentic_workflow",
@@ -967,7 +1104,7 @@ async def api_tools():
 @web_app.post("/api/git")
 async def api_git(body: dict):
     args = body.get("arguments", body)
-    return await git_ops(**args)
+    return await _git_ops(**args)
 
 
 @web_app.post("/api/github")
@@ -1010,10 +1147,39 @@ if os.path.isdir(_dist):
 
 
 def main():
-    from .transport import run_server
+    import threading
+    import time
 
-    if os.getenv("MCP_TRANSPORT") == "http" or "--http" in __import__("sys").argv:
-        logger.info(f"Starting web bridge on {WEB_HOST}:{WEB_PORT}")
-        uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT)
-    else:
+    from .transport import run_server, get_transport_config
+
+    # Start the HTTP bridge on port 10702 in a background thread
+    http_thread = threading.Thread(
+        target=lambda: uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT, log_level="warning"),
+        daemon=True,
+    )
+    http_thread.start()
+    logger.info(f"HTTP bridge running on {WEB_HOST}:{WEB_PORT}")
+
+    cfg = get_transport_config()
+    transport = cfg.get("transport", "stdio")
+
+    if transport == "http":
+        # HTTP mode: run the MCP server via the transport module (blocks)
         run_server(mcp, server_name="git-github-mcp")
+    else:
+        # STDIO mode: run in a thread, keep main alive for HTTP bridge
+        import asyncio
+
+        stdio_thread = threading.Thread(
+            target=lambda: asyncio.run(mcp.run_stdio_async()),
+            daemon=True,
+        )
+        stdio_thread.start()
+        logger.info("MCP STDIO listener started in background thread")
+
+        # Keep main thread alive so daemon threads (HTTP bridge) survive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Shutdown requested by user")

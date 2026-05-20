@@ -1,2 +1,7 @@
-[core]
-	autocrlf = false
+[core]  
+	autocrlf = false  
+	longpaths = true  
+[credential]  
+	helper =  
+[gc]  
+	auto = 0  

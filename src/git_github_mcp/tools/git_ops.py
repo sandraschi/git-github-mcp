@@ -1,4 +1,4 @@
-"""Git operations portmanteau — full local Git workflow via subprocess."""
+﻿"""Git operations portmanteau — full local Git workflow via subprocess."""
 
 import asyncio
 import os
@@ -151,8 +151,8 @@ def _err(op: str, msg: str, **kw) -> dict[str, Any]:
     return error_response(op, msg, **kw)
 
 
-def _simple(repo: Path, op: str, args: list[str], timeout: int = 60) -> dict[str, Any]:
-    ok, out, err = _run_git(repo, args, timeout)
+async def _simple(repo: Path, op: str, args: list[str], timeout: int = 60) -> dict[str, Any]:
+    ok, out, err = await _run_git_async(repo, args, timeout)
     if not ok:
         return _err(op, (err or out).strip() or f"{op} failed")
     return _ok(op, {"output": out.strip()})
@@ -166,7 +166,7 @@ async def _simple_async(repo: Path, op: str, args: list[str], timeout: int = 60)
     return _ok(op, {"output": out.strip()})
 
 
-def git_ops(
+async def git_ops(
     operation: str,
     repo_path: str | None = None,
     # add / commit
@@ -183,6 +183,7 @@ def git_ops(
     repo_url: str | None = None,
     target_dir: str | None = None,
     initial_branch: str = "main",
+    depth: int | None = None,  # shallow clone depth; None = full clone
     # log / diff / show / blame
     max_count: int = 20,
     commit: str | None = None,
@@ -237,9 +238,9 @@ def git_ops(
             repo.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             return _err("init", f"mkdir failed: {e}")
-        ok, out, err = _run_git(repo, ["init", "-b", initial_branch])
+        ok, out, err = await _run_git_async(repo, ["init", "-b", initial_branch])
         if not ok:
-            ok, out, err = _run_git(repo, ["init"])  # fallback for older git
+            ok, out, err = await _run_git_async(repo, ["init"])  # fallback for older git
         if not ok:
             return _err("init", err or "git init failed")
         return _ok(
@@ -255,13 +256,32 @@ def git_ops(
         args = ["clone", repo_url]
         if branch:
             args = ["clone", "-b", branch, repo_url]
+        if depth is not None:
+            args.insert(1, "--depth")
+            args.insert(2, str(depth))
         if target_dir:
             args.append(str(Path(target_dir).resolve()))
-        ok, out, err = _run_git(base, args, timeout=120)
+        ok, out, err = await _run_git_async(base, args, timeout=120)
         if not ok:
+            raw_msg = (err or out).strip()
+            if "timed out" in raw_msg:
+                ps_cmd = f"& 'C:\\Program Files\\Git\\cmd\\git.exe' clone --depth 1 {repo_url}"
+                return _err(
+                    "clone",
+                    (
+                        f"Clone timed out after 120s â€” repository is likely large or connection is slow. "
+                        f"Try a shallow clone to get just the current tree without full history. "
+                        f"PowerShell fallback: {ps_cmd}"
+                    ),
+                    recovery_options=[
+                        "Pass depth=1 to this tool for a shallow clone (fast, current tree only)",
+                        "Clone manually: git clone --depth 1 " + repo_url,
+                        "Check connection â€” large repos need stable bandwidth",
+                    ],
+                )
             return _err(
                 "clone",
-                (err or out).strip() or "clone failed",
+                raw_msg or "clone failed",
                 recovery_options=["Check URL", "gh auth login", "Check network"],
             )
         dest = target_dir or repo_url.rstrip("/").split("/")[-1].replace(".git", "")
@@ -284,7 +304,7 @@ def git_ops(
 
     # ── Core ──────────────────────────────────────────────────────────────────
     if operation == "status":
-        ok, out, err = _run_git(repo, ["status", "--porcelain"])
+        ok, out, err = await _run_git_async(repo, ["status", "--porcelain"])
         if not ok:
             return _err("status", err or "status failed")
 
@@ -336,8 +356,8 @@ def git_ops(
                     state = "added"  # Intent-to-add
                 unstaged.append({"file": path_str, "state": state, "code": y})
 
-        _, branch_out, _ = _run_git(repo, ["branch", "--show-current"])
-        _, remote_out, _ = _run_git(repo, ["remote", "get-url", "origin"])
+        _, branch_out, _ = await _run_git_async(repo, ["branch", "--show-current"])
+        _, remote_out, _ = await _run_git_async(repo, ["remote", "get-url", "origin"])
 
         return _ok(
             "status",
@@ -359,7 +379,7 @@ def git_ops(
 
     if operation == "add":
         if all_files:
-            ok, _, err = _run_git(repo, ["add", "."])
+            ok, _, err = await _run_git_async(repo, ["add", "."])
             if not ok:
                 return _err("add", err or "add . failed")
             return _ok(
@@ -369,7 +389,7 @@ def git_ops(
             )
         if not files:
             return _err("add", "Provide files list or set all_files=True")
-        ok, _, err = _run_git(repo, ["add", *files])
+        ok, _, err = await _run_git_async(repo, ["add", *files])
         if not ok:
             return _err("add", err or "add failed")
         return _ok(
@@ -390,7 +410,7 @@ def git_ops(
             cmd += ["-m", message]
         if all_files:
             cmd.insert(1, "-a")
-        ok, out, err = _run_git(repo, cmd)
+        ok, out, err = await _run_git_async(repo, cmd)
         if not ok:
             return _err("commit", (err or out).strip() or "commit failed")
         return _ok(
@@ -409,7 +429,7 @@ def git_ops(
             cmd.append(remote)
             if branch:
                 cmd.append(branch)
-        ok, out, err = _run_git(repo, cmd, timeout=60)
+        ok, out, err = await _run_git_async(repo, cmd, timeout=60)
         if not ok:
             return _err(
                 "push",
@@ -423,10 +443,10 @@ def git_ops(
 
     if operation == "pull":
         args = ["pull", remote] + ([branch] if branch else [])
-        return _simple(repo, "pull", args)
+        return await _simple_async(repo, "pull", args)
 
     if operation == "fetch":
-        return _simple(repo, "fetch", ["fetch", remote])
+        return await _simple_async(repo, "fetch", ["fetch", remote])
 
     # ── Inspect ───────────────────────────────────────────────────────────────
     if operation == "log":
@@ -434,7 +454,7 @@ def git_ops(
         cmd = ["log", f"-{max_count}", fmt, "--date=short"]
         if branch:
             cmd.append(branch)
-        ok, out, err = _run_git(repo, cmd)
+        ok, out, err = await _run_git_async(repo, cmd)
         if not ok:
             return _err("log", err or "log failed")
         if oneline:
@@ -465,13 +485,13 @@ def git_ops(
             cmd.append(commit)
         if files:
             cmd.extend(["--", *files])
-        ok, out, err = _run_git(repo, cmd)
+        ok, out, err = await _run_git_async(repo, cmd)
         if not ok:
             return _err("diff", err or "diff failed")
         return _ok("diff", {"diff": out, "lines": len(out.splitlines())})
 
     if operation == "show":
-        return _simple(repo, "show", ["show", "--stat", commit or "HEAD"])
+        return await _simple_async(repo, "show", ["show", "--stat", commit or "HEAD"])
 
     if operation == "blame":
         if not file_path:
@@ -479,7 +499,7 @@ def git_ops(
         cmd = ["blame", "--line-porcelain", file_path]
         if commit:
             cmd.insert(1, commit)
-        ok, out, err = _run_git(repo, cmd)
+        ok, out, err = await _run_git_async(repo, cmd)
         if not ok:
             return _err("blame", err or "blame failed")
         # Parse porcelain output into structured lines
@@ -513,71 +533,71 @@ def git_ops(
 
     # ── Branch ────────────────────────────────────────────────────────────────
     if operation == "branch_list":
-        return _simple(repo, "branch_list", ["branch", "-a", "-v"])
+        return await _simple_async(repo, "branch_list", ["branch", "-a", "-v"])
 
     if operation == "branch_create":
         if not branch:
             return _err("branch_create", "branch required")
         cmd = ["checkout", "-b", branch] + ([source_branch] if source_branch else [])
-        return _simple(repo, "branch_create", cmd)
+        return await _simple_async(repo, "branch_create", cmd)
 
     if operation == "branch_switch":
         if not branch:
             return _err("branch_switch", "branch required")
-        return _simple(repo, "branch_switch", ["checkout", branch])
+        return await _simple_async(repo, "branch_switch", ["checkout", branch])
 
     if operation == "branch_delete":
         if not branch:
             return _err("branch_delete", "branch required")
-        return _simple(repo, "branch_delete", ["branch", "-D" if force else "-d", branch])
+        return await _simple_async(repo, "branch_delete", ["branch", "-D" if force else "-d", branch])
 
     if operation == "branch_rename":
         if not branch or not source_branch:
             return _err("branch_rename", "branch (old name) and source_branch (new name) required")
-        return _simple(repo, "branch_rename", ["branch", "-m", branch, source_branch])
+        return await _simple_async(repo, "branch_rename", ["branch", "-m", branch, source_branch])
 
     if operation == "branch_merge":
         if not source_branch:
             return _err("branch_merge", "source_branch required")
         cmd = ["merge", source_branch] + (["-m", message] if message else [])
-        return _simple(repo, "branch_merge", cmd)
+        return await _simple_async(repo, "branch_merge", cmd)
 
     if operation == "rebase":
         if not source_branch:
             return _err("rebase", "source_branch required")
-        return _simple(repo, "rebase", ["rebase", source_branch])
+        return await _simple_async(repo, "rebase", ["rebase", source_branch])
 
     # ── Remote ────────────────────────────────────────────────────────────────
     if operation == "remote_list":
-        return _simple(repo, "remote_list", ["remote", "-v"])
+        return await _simple_async(repo, "remote_list", ["remote", "-v"])
 
     if operation == "remote_add":
         name = remote_name or "origin"
         if not remote_url:
             return _err("remote_add", "remote_url required")
-        return _simple(repo, "remote_add", ["remote", "add", name, remote_url])
+        return await _simple_async(repo, "remote_add", ["remote", "add", name, remote_url])
 
     if operation == "remote_remove":
         name = remote_name or remote
-        return _simple(repo, "remote_remove", ["remote", "remove", name])
+        return await _simple_async(repo, "remote_remove", ["remote", "remove", name])
 
     # ── Stash ─────────────────────────────────────────────────────────────────
     if operation == "stash":
         cmd = ["stash", "push"] + (["-m", stash_message] if stash_message else [])
-        return _simple(repo, "stash", cmd)
+        return await _simple_async(repo, "stash", cmd)
 
     if operation == "stash_pop":
-        return _simple(repo, "stash_pop", ["stash", "pop", f"stash@{{{stash_index}}}"])
+        return await _simple_async(repo, "stash_pop", ["stash", "pop", f"stash@{{{stash_index}}}"])
 
     if operation == "stash_list":
-        return _simple(repo, "stash_list", ["stash", "list"])
+        return await _simple_async(repo, "stash_list", ["stash", "list"])
 
     if operation == "stash_drop":
-        return _simple(repo, "stash_drop", ["stash", "drop", f"stash@{{{stash_index}}}"])
+        return await _simple_async(repo, "stash_drop", ["stash", "drop", f"stash@{{{stash_index}}}"])
 
     # ── Tag ───────────────────────────────────────────────────────────────────
     if operation == "tag_list":
-        return _simple(repo, "tag_list", ["tag", "-l", "-n1"])
+        return await _simple_async(repo, "tag_list", ["tag", "-l", "-n1"])
 
     if operation == "tag_create":
         if not tag_name:
@@ -585,28 +605,28 @@ def git_ops(
         cmd = ["tag", "-a", tag_name, "-m", tag_message or tag_name] if tag_message else ["tag", tag_name]
         if commit:
             cmd.append(commit)
-        return _simple(repo, "tag_create", cmd)
+        return await _simple_async(repo, "tag_create", cmd)
 
     if operation == "tag_delete":
         if not tag_name:
             return _err("tag_delete", "tag_name required")
-        return _simple(repo, "tag_delete", ["tag", "-d", tag_name])
+        return await _simple_async(repo, "tag_delete", ["tag", "-d", tag_name])
 
     # ── Undo ─────────────────────────────────────────────────────────────────
     if operation == "reset":
         if mode not in ("soft", "mixed", "hard"):
             return _err("reset", "mode must be soft, mixed, or hard")
-        return _simple(repo, "reset", ["reset", f"--{mode}", commit or "HEAD"])
+        return await _simple_async(repo, "reset", ["reset", f"--{mode}", commit or "HEAD"])
 
     if operation == "revert":
         if not commit:
             return _err("revert", "commit required")
-        return _simple(repo, "revert", ["revert", "--no-edit", commit])
+        return await _simple_async(repo, "revert", ["revert", "--no-edit", commit])
 
     if operation == "cherry_pick":
         if not commit:
             return _err("cherry_pick", "commit required")
-        return _simple(repo, "cherry_pick", ["cherry-pick", commit])
+        return await _simple_async(repo, "cherry_pick", ["cherry-pick", commit])
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     if operation == "clean":
@@ -616,11 +636,11 @@ def git_ops(
             cmd.append("-d")
         if dry_run:
             cmd_dry = [*cmd, "--dry-run"]
-            ok, out, err = _run_git(repo, cmd_dry)
+            ok, out, err = await _run_git_async(repo, cmd_dry)
             if not ok:
                 return _err("clean", err or "clean dry-run failed")
             return _ok("clean", {"dry_run": True, "would_remove": out.strip().splitlines()})
-        ok, out, err = _run_git(repo, cmd)
+        ok, out, err = await _run_git_async(repo, cmd)
         if not ok:
             return _err("clean", err or "clean failed")
         return _ok(
@@ -636,37 +656,37 @@ def git_ops(
         cmd = ["submodule", "add", submodule_url]
         if submodule_path:
             cmd.append(submodule_path)
-        return _simple(repo, "submodule_add", cmd)
+        return await _simple_async(repo, "submodule_add", cmd)
 
     if operation == "submodule_update":
         cmd = ["submodule", "update", "--init"]
         if recursive:
             cmd.append("--recursive")
-        return _simple(repo, "submodule_update", cmd)
+        return await _simple_async(repo, "submodule_update", cmd)
 
     if operation == "submodule_sync":
         cmd = ["submodule", "sync"]
         if recursive:
             cmd.append("--recursive")
-        return _simple(repo, "submodule_sync", cmd)
+        return await _simple_async(repo, "submodule_sync", cmd)
 
     if operation == "submodule_status":
-        return _simple(repo, "submodule_status", ["submodule", "status"])
+        return await _simple_async(repo, "submodule_status", ["submodule", "status"])
 
     # ── Bisect ────────────────────────────────────────────────────────────────
     if operation == "bisect_start":
-        return _simple(repo, "bisect_start", ["bisect", "start"])
+        return await _simple_async(repo, "bisect_start", ["bisect", "start"])
 
     if operation == "bisect_bad":
         cmd = ["bisect", "bad"] + ([commit] if commit else [])
-        return _simple(repo, "bisect_bad", cmd)
+        return await _simple_async(repo, "bisect_bad", cmd)
 
     if operation == "bisect_good":
         cmd = ["bisect", "good"] + ([commit] if commit else [])
-        return _simple(repo, "bisect_good", cmd)
+        return await _simple_async(repo, "bisect_good", cmd)
 
     if operation == "bisect_reset":
-        return _simple(repo, "bisect_reset", ["bisect", "reset"])
+        return await _simple_async(repo, "bisect_reset", ["bisect", "reset"])
 
     # ── Worktree ──────────────────────────────────────────────────────────────
     if operation == "worktree_add":
@@ -675,15 +695,15 @@ def git_ops(
         cmd = ["worktree", "add", worktree_path]
         if branch:
             cmd.append(branch)
-        return _simple(repo, "worktree_add", cmd)
+        return await _simple_async(repo, "worktree_add", cmd)
 
     if operation == "worktree_list":
-        return _simple(repo, "worktree_list", ["worktree", "list"])
+        return await _simple_async(repo, "worktree_list", ["worktree", "list"])
 
     if operation == "worktree_remove":
         if not worktree_path:
             return _err("worktree_remove", "worktree_path required")
         cmd = ["worktree", "remove"] + (["--force"] if force else []) + [worktree_path]
-        return _simple(repo, "worktree_remove", cmd)
+        return await _simple_async(repo, "worktree_remove", cmd)
 
     return _err(operation, "Not implemented")

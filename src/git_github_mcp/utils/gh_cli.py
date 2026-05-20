@@ -5,8 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Prevent hidden console windows on Windows from blocking the process
-_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+# CREATE_NO_WINDOW + CREATE_BREAKAWAY_FROM_JOB (escapes Electron job object limits)
+_NO_WINDOW = 0x08000000 | 0x01000000 if sys.platform == "win32" else 0
 
 
 def _get_gh_path() -> str:
@@ -55,8 +55,8 @@ def run_gh(
     try:
         gh_path = _get_gh_path()
 
-        result = subprocess.run(
-            [gh_path] + args,
+        result = subprocess.run(  # noqa: S603 — list-based, no shell
+            [gh_path, *args],
             cwd=cwd,
             capture_output=True,
             text=True,

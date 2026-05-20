@@ -35,7 +35,7 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str, str]:
     label = " ".join(cmd[:2])
     logger.info(f"_run start: {label} (timeout={timeout})")
     try:
-        r = subprocess.run(
+        r = subprocess.run(  # noqa: S603 — list-based, no shell
             cmd,
             capture_output=True,
             text=True,
@@ -155,7 +155,7 @@ def _check_gh() -> dict:
 
     # gh auth token: reads cached token locally, no network
     logger.info("_check_gh: running gh auth token")
-    token_rc, token_out, token_err = _run([gh_path, "auth", "token"], 5)
+    token_rc, token_out, _ = _run([gh_path, "auth", "token"], 5)
     logger.info(f"_check_gh: auth token rc={token_rc}")
     if token_rc == 0 and token_out.strip():
         info["auth"] = "ok"
