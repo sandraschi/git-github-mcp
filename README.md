@@ -7,6 +7,9 @@
   <a href="https://github.com/PrefectHQ/fastmcp"><img src="https://img.shields.io/badge/FastMCP-3.2-7c5cfc?style=flat-square" alt="FastMCP"></a>
 </p>
 
+
+> 📖 **[Installation Guide](INSTALL.md)** — quick start, manual setup, and troubleshooting
+
 **Industrial-grade Git and GitHub orchestration** for the Agentic Revolution. Built for developers who need their AI implementation engines to interact with repositories without environment friction.
 
 **Stack:** v0.4.1  FastMCP 3.2.0+  Python 3.12+  Windows 10/11  GitHub CLI (gh)  
