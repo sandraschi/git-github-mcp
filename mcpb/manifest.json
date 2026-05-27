@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "git-github-mcp",
   "version": "0.4.0",
-  "description": "FastMCP 3.1+ portmanteau server: git_ops (43) + github_ops (58) = 101 actions, git_github_status/help, two sampling agentic workflows, 7 prompts, 8 resources (incl. skills), optional FastAPI web bridge.",
+  "description": "FastMCP 3.1+ portmanteau server: git_core/branch/admin/blame (43 local git ops) + github_ops (58 GitHub actions via gh CLI), two sampling agentic workflows, 7 prompts, optional FastAPI web bridge on port 10702.",
   "author": {
     "name": "Sandra Schi",
     "url": "https://github.com/sandraschi"
@@ -41,12 +41,24 @@
   },
   "tools": [
     {
-      "name": "git_ops",
-      "description": "Local Git — 43 actions: init, clone, status, add, commit, push, pull, fetch, log, diff, show, blame, branches, rebase, remotes, stash, tags, reset, revert, cherry_pick, clean, submodule_*, bisect_*, worktree_*"
+      "name": "git_core",
+      "description": "Local Git core ops — status, log, diff, show, init, clone, add, commit, push, pull, fetch (11 ops)"
+    },
+    {
+      "name": "git_branch",
+      "description": "Git branch ops — branch lifecycle, merge, rebase, stash, tag (14 ops)"
+    },
+    {
+      "name": "git_admin",
+      "description": "Git admin ops — remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree (16 ops)"
+    },
+    {
+      "name": "git_blame",
+      "description": "Git blame — annotate file lines with commit info"
     },
     {
       "name": "github_ops",
-      "description": "GitHub via gh CLI — 58 actions: repos (incl. show_repo), issues, PRs, releases, Actions workflows, labels, secrets, collaborators, search (repos, topic, issues, code, code_find_repos), Projects, Packages, Gitingest (gitingest_link/convert_url/help), auth_status, gist_list"
+      "description": "GitHub via gh CLI — 58 actions: repos, issues, PRs, releases, Actions workflows, labels, secrets, collaborators, search, Projects, Packages, Gitingest, auth_status, gist_list"
     },
     {
       "name": "git_github_status",
@@ -58,7 +70,7 @@
     },
     {
       "name": "git_agentic_workflow",
-      "description": "Sampling: plan and execute multi-step git_ops + github_ops from natural language (requires MCP sampling)"
+      "description": "Sampling: plan and execute multi-step git_core + github_ops from natural language (requires MCP sampling)"
     },
     {
       "name": "git_github_search_workflow",
@@ -69,81 +81,50 @@
     {
       "name": "git_commit_message",
       "description": "Generate a conventional commit message from a staged diff",
+      "text": "Write a conventional commit message for the following staged diff.\n\nRules:\n- Format: <type>(<scope>): <short description>\n- Types: feat, fix, docs, style, refactor, test, chore, ci, perf\n- Subject line max 72 chars, imperative mood\n- Add body if changes are non-trivial\n- Add BREAKING CHANGE footer if applicable\n\nDiff:\n```\n{{diff}}\n```\n\nContext: {{context}}",
       "arguments": ["diff", "context"]
     },
     {
       "name": "git_release_notes",
       "description": "Generate release notes from a commit log",
+      "text": "Write release notes for version {{version}}.\n\nFormat:\n## What's Changed\nGroup commits into: Features, Bug Fixes, Documentation, Internal.\nSkip trivial commits (chore: bump, style: format).\n\nCommits:\n```\n{{commits}}\n```\n\nRepo: {{repo}}",
       "arguments": ["commits", "version", "repo"]
     },
     {
       "name": "git_pr_description",
       "description": "Generate a pull request description from branch and commits",
+      "text": "Write a pull request description for branch `{{branch}}`.\n\nInclude:\n- ## Summary (what and why)\n- ## Changes (bullet list)\n- ## Testing (how to verify)\n- ## Notes (breaking changes, migration steps, TODOs)\n\nCommits:\n```\n{{commits}}\n```\n\nChanged files:\n```\n{{diff_stat}}\n```",
       "arguments": ["branch", "commits", "diff_stat"]
     },
     {
       "name": "git_review_diff",
       "description": "Code review prompt for a git diff",
+      "text": "Review the following code diff.\n\nFocus: {{focus}}\n\nFor each issue found:\n- File and line reference\n- Severity: critical / major / minor / nit\n- Explanation and suggested fix\n\nAlso note what's done well.\n\nDiff:\n```\n{{diff}}\n```",
       "arguments": ["diff", "focus"]
     },
     {
       "name": "github_issue_template",
       "description": "Generate a GitHub issue body (types: bug, feature, docs, question)",
+      "text": "Write a GitHub issue body for a {{type}} report.\n\nTitle: {{title}}\nContext: {{context}}\n\nFor bug: Sections: Description, Steps to Reproduce, Expected Behavior, Actual Behavior, Environment.\nFor feature: Sections: Problem Statement, Proposed Solution, Alternatives Considered.\nFor docs: Sections: Current Documentation, What's Missing, Suggested Content.\nFor question: Sections: Question, What I've Tried, Relevant Code.",
       "arguments": ["title", "type", "context"]
     },
     {
       "name": "github_debug_workflow",
       "description": "Debug a failing GitHub Actions workflow from error output",
+      "text": "Debug this failing GitHub Actions workflow: {{workflow_name}}\nRepo: {{repo}}\n\nAnalyse the error, identify root cause, and provide:\n1. Root cause explanation\n2. Exact fix (YAML snippet or command)\n3. How to verify the fix\n\nError output:\n```\n{{error_output}}\n```",
       "arguments": ["workflow_name", "error_output", "repo"]
     },
     {
       "name": "git_github_explain_concept",
       "description": "Teach a Git/GitHub concept with examples (e.g. gitingest, agentic-workflows)",
+      "text": "Teach the concept '{{concept}}' at level '{{level}}'.\n\nOutput structure:\n1. What it is (1-2 sentences)\n2. When to use it / when not to use it\n3. 2-4 practical commands/examples\n4. Common failure modes and recovery commands\n5. One short checklist the user can follow\n\nKeep the explanation practical and non-fluffy.",
       "arguments": ["concept", "level"]
-    }
-  ],
-  "resources": [
-    {
-      "uri": "git://repo/status",
-      "description": "Current git status of the working directory"
-    },
-    {
-      "uri": "git://repo/log",
-      "description": "Recent commit log of the working directory"
-    },
-    {
-      "uri": "git://{repo_path}/status",
-      "description": "Git status for a specific repo path"
-    },
-    {
-      "uri": "git://{repo_path}/log",
-      "description": "Commit log for a specific repo path"
-    },
-    {
-      "uri": "github://{owner}/{repo}/issues",
-      "description": "Open issues for a GitHub repository"
-    },
-    {
-      "uri": "github://{owner}/{repo}/prs",
-      "description": "Open pull requests for a GitHub repository"
-    },
-    {
-      "uri": "git://skills/concepts",
-      "description": "Git/GitHub concept index for tutoring"
-    },
-    {
-      "uri": "git://skills/{topic}",
-      "description": "Focused lecture notes (e.g. rebase, gitingest, agentic-workflows)"
     }
   ],
   "compatibility": {
     "platforms": ["darwin", "win32", "linux"],
     "runtimes": {
       "python": ">=3.12"
-    },
-    "dependencies": [
-      "git",
-      "gh CLI (gh auth login required for github_ops)"
-    ]
+    }
   }
 }
