@@ -1,4 +1,4 @@
-﻿"""Git operations portmanteau — full local Git workflow via subprocess."""
+"""Git operations portmanteau — full local Git workflow via subprocess."""
 
 import asyncio
 import os
@@ -128,6 +128,7 @@ async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tupl
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=_git_env(),
+            creationflags=_NO_WINDOW,
         )
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
@@ -143,8 +144,8 @@ async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tupl
         return False, "", str(e)
 
 
-def _ok(op: str, data: dict, msg: str | None = None, next_steps: list[str] | None = None) -> dict[str, Any]:
-    return success_response(data, op, message=msg, next_steps=next_steps or [])
+def _ok(op: str, data: dict, message: str | None = None, next_steps: list[str] | None = None) -> dict[str, Any]:
+    return success_response(data, op, message=message, next_steps=next_steps or [])
 
 
 def _err(op: str, msg: str, **kw) -> dict[str, Any]:
