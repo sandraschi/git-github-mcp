@@ -1,70 +1,43 @@
-Param([switch]$Headless)
-$SkipFrontend = $Headless
-
-# --- SOTA Headless Standard ---
-if ($Headless -and ($Host.UI.RawUI.WindowTitle -notmatch 'Hidden')) {
-    Start-Process pwsh -ArgumentList '-NoProfile', '-File', $PSCommandPath, '-Headless' -WindowStyle Hidden
-    exit
-}
-$WindowStyle = if ($Headless) { 'Hidden' } else { 'Normal' }
-# ------------------------------
-
-# git-github-mcp start script
-# Backend FastAPI on 10702, Frontend Vite on 10703
-
+param([switch]$Headless, [switch]$BackendOnly, [switch]$NoBrowser)
+$ErrorActionPreference = "Stop"
+$ScriptRoot = Split-Path -Parent $PSCommandPath
+$RepoRoot = Split-Path -Parent $ScriptRoot
 $BackendPort = 10702
 $FrontendPort = 10703
-$RepoRoot = $PSScriptRoot | Split-Path -Parent
 
-Write-Host "git-github-mcp v0.3.0 startup" -ForegroundColor Green
-Write-Host "  v1.20 Hardened CLI Safety: Enforced" -ForegroundColor Green
-Write-Host "  High-Fidelity status parsing: Active" -ForegroundColor Green
-Write-Host ""
-Write-Host "  GitHub API features need the GitHub CLI logged in." -ForegroundColor Yellow
-Write-Host "  If you have not yet: run  gh auth login  in a terminal, then  gh auth status" -ForegroundColor Yellow
-Write-Host "  (Stored under your user profile / OS credential store â€” same user as this script.)" -ForegroundColor DarkGray
-Write-Host ""
+Get-NetTCPConnection -LocalPort $BackendPort -ErrorAction SilentlyContinue |
+    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+Get-NetTCPConnection -LocalPort $FrontendPort -ErrorAction SilentlyContinue |
+    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
 
-# Kill zombies on both ports
-foreach ($port in @($BackendPort, $FrontendPort)) {
-    $conn = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-    if ($conn) {
-        $conn | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-        Write-Host "  Cleared port $port" -ForegroundColor Yellow
-    }
+$BackendJob = Start-Job -Name "backend" -ScriptBlock {
+    param($Root)
+    Set-Location $Root
+    $env:MCP_TRANSPORT = "http"
+    uv run git-github-mcp
+} -ArgumentList $RepoRoot
+
+Write-Host "Waiting for backend on :$BackendPort ..." -ForegroundColor Cyan
+for ($i = 0; $i -lt 60; $i++) {
+    try { $r = Invoke-WebRequest -Uri "http://127.0.0.1:$BackendPort/health" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
+          if ($r.StatusCode -eq 200) { Write-Host "Backend ready" -ForegroundColor Green; break } } catch {}
+    Start-Sleep 1
 }
 
-Start-Sleep -Milliseconds 500
+if (-not $BackendOnly) {
+    $WebRoot = $ScriptRoot
+    Write-Host "Starting frontend on :$FrontendPort ..." -ForegroundColor Cyan
+    Start-Process -NoNewWindow -FilePath "npx" -ArgumentList "vite --port $FrontendPort --host" -WorkingDirectory $WebRoot
+}
 
-# Start FastAPI backend
-Write-Host "  Starting backend on :$BackendPort ..." -ForegroundColor Cyan
-$backendJob = Start-Process -FilePath "uv" `
-    -ArgumentList "run --directory `"$RepoRoot`" git-github-mcp --http" `
-    -WorkingDirectory $RepoRoot `
-    -WindowStyle Minimized `
-    -PassThru
+if (-not $NoBrowser) {
+    Start-Sleep 2
+    Start-Process "http://127.0.0.1:$FrontendPort"
+}
 
-Start-Sleep -Seconds 2
-
-# Start Vite dev frontend
-Write-Host "  Starting frontend on :$FrontendPort ..." -ForegroundColor Cyan
-$frontendJob = Start-Process -FilePath "cmd.exe" `
-    -ArgumentList "/c npm run dev" `
-    -WorkingDirectory (Join-Path $RepoRoot "web") `
-    -WindowStyle Minimized `
-    -PassThru
-
-Start-Sleep -Seconds 3
-
-Write-Host ""
-Write-Host "  Backend  http://localhost:$BackendPort/api/status" -ForegroundColor Green
-Write-Host "  Frontend http://localhost:$FrontendPort" -ForegroundColor Green
-Write-Host ""
-Write-Host "  Press Ctrl+C to stop" -ForegroundColor Gray
-
-# Last step: open webapp in default browser
-Start-Process "http://localhost:$FrontendPort"
-
-# Wait
-try { Wait-Process -Id $frontendJob.Id } catch { }
-
+while ($true) {
+    if ($BackendJob.State -eq "Completed" -or $BackendJob.State -eq "Failed") {
+        Receive-Job $BackendJob; break
+    }
+    Start-Sleep 2
+}
