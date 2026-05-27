@@ -73,6 +73,8 @@ ACTION_TYPE = (
     "search_issues",
     "search_code",
     "search_repos_topic",
+    "search_repos_by_topic",
+    "user_repos_full",
     "code_find_repos",
     # Repo display
     "show_repo",
@@ -104,8 +106,8 @@ def _j(s: str) -> Any:
         return []
 
 
-def _ok(op: str, data: dict, msg: str | None = None, next_steps: list | None = None) -> dict:
-    return success_response(data, op, message=msg, next_steps=next_steps or [])
+def _ok(op: str, data: dict, message: str | None = None, next_steps: list | None = None) -> dict:
+    return success_response(data, op, message=message, next_steps=next_steps or [])
 
 
 def _err(op: str, msg: str, **kw) -> dict:
@@ -173,6 +175,8 @@ def github_ops(
     search_scope: str | None = None,
     # If True with search_code: add markdown table + unique_repositories
     pretty: bool = False,
+    # For user_repos_full: filter by visibility
+    visibility: str = "",  # "public", "private", "internal", or "" for all
     # GitHub Projects (gh project — may need: gh auth refresh -s project)
     project_number: int | None = None,
     # GitHub Packages (gh api — scope read:packages / write:packages)
@@ -194,8 +198,9 @@ def github_ops(
     LABELS:        label_list, label_create, label_delete
     SECRETS:       secrets_list, secrets_set, secrets_delete
     COLLABORATORS: collaborator_add, collaborator_remove
-    SEARCH:        search_repos, search_repos_topic, search_issues, search_code (pretty=),
-                   code_find_repos
+    SEARCH:        search_repos, search_repos_topic, search_repos_by_topic, search_issues,
+                   search_code (pretty=), code_find_repos
+    FLEET AUDIT:   user_repos_full
     PROJECTS:      project_list, project_view, project_create, project_delete, project_edit
     PACKAGES:      package_list, package_view, package_delete
     GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
@@ -239,6 +244,33 @@ def github_ops(
             "repo_list",
             {"repos": data, "count": len(data)},
             next_steps=["github_ops(operation='repo_view', owner='...', repo='...')"],
+        )
+
+    if operation == "user_repos_full":
+        if not owner:
+            return _err("user_repos_full", "owner required")
+        per_page = 100
+        page = 1
+        all_repos: list[dict] = []
+        while True:
+            path = f"users/{owner}/repos?per_page={per_page}&page={page}&sort=pushed&direction=desc"
+            if visibility:
+                path += f"&type={visibility}"
+            ok, out, err = run_gh(["api", "--paginate", path], timeout=120)
+            if not ok:
+                return _err("user_repos_full", err or "API call failed")
+            data = _j(out)
+            if not isinstance(data, list):
+                break
+            all_repos.extend(data)
+            if len(data) < per_page:
+                break
+            page += 1
+        return _ok(
+            "user_repos_full",
+            {"repos": all_repos, "count": len(all_repos), "owner": owner, "visibility": visibility or "all"},
+            message=f"All {len(all_repos)} repos for {owner} — full metadata",
+            next_steps=[f"github_ops(operation='search_repos_by_topic', topic='mcp', owner='{owner}')"],
         )
 
     if operation == "repo_view":
@@ -360,6 +392,55 @@ def github_ops(
         if not ok:
             return _err("repo_archive", err or "repo archive failed")
         return _ok("repo_archive", {"repo": slug}, message=f"Repository {slug} archived")
+
+    if operation == "user_repos_full":
+        args = [
+            "repo", "list",
+            "--limit", str(max(1, min(int(limit), 1000))),
+            "--json",
+            ("name,description,isPrivate,isFork,isArchived,isTemplate,"
+             "stargazerCount,forkCount,watchers,updatedAt,pushedAt,"
+             "url,sshUrl,primaryLanguage,languages,repositoryTopics,defaultBranchRef"),
+        ]
+        if owner:
+            args.insert(2, owner)
+        ok, out, err = run_gh(args)
+        if not ok:
+            return _err("user_repos_full", err or "repo list failed")
+        data = _j(out)
+        if not isinstance(data, list):
+            data = []
+        # Build summary statistics
+        total = len(data)
+        public_count = sum(1 for r in data if not r.get("isPrivate", False))
+        private_count = total - public_count
+        archived_count = sum(1 for r in data if r.get("isArchived", False))
+        fork_count = sum(1 for r in data if r.get("isFork", False))
+        template_count = sum(1 for r in data if r.get("isTemplate", False))
+        source_count = total - fork_count
+        return _ok(
+            "user_repos_full",
+            {
+                "repos": data,
+                "summary": {
+                    "total": total,
+                    "public": public_count,
+                    "private": private_count,
+                    "archived": archived_count,
+                    "forks": fork_count,
+                    "templates": template_count,
+                    "source_repos": source_count,
+                },
+                "owner": owner or "@me",
+            },
+            message=(f"{total} repos ({public_count} public, {private_count} private, "
+                     f"{archived_count} archived, {fork_count} forks)"),
+            next_steps=[
+                f"github_ops(operation='show_repo', owner='{owner or 'YOU'}', repo='REPO_NAME')",
+                ("github_ops(operation='user_repos_full', owner='YOU', limit=200) "
+                 "for larger lists"),
+            ],
+        )
 
     # ── Issues ────────────────────────────────────────────────────────────────
     if operation == "issue_list":
@@ -558,7 +639,7 @@ def github_ops(
                 "--limit",
                 str(limit),
                 "--json",
-                "tagName,name,isDraft,isPrerelease,publishedAt,url",
+                "tagName,name,isDraft,isPrerelease,isLatest,publishedAt",
             ]
         )
         if not ok:
@@ -795,13 +876,21 @@ def github_ops(
                 "--limit",
                 str(limit),
                 "--json",
-                "name,fullName,description,url,stargazerCount,language",
+                ("name,fullName,description,url,stargazerCount,language,"
+                 "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"),
             ]
         )
         if not ok:
             return _err("search_repos", err or "search failed")
         data = _j(out)
-        return _ok("search_repos", {"repos": data, "count": len(data)})
+        return _ok(
+            "search_repos",
+            {"repos": data, "count": len(data), "query": query},
+            next_steps=[
+                "github_ops(operation='show_repo', owner='OWNER', repo='REPO')",
+                "github_ops(operation='gitingest_link', owner='OWNER', repo='REPO')",
+            ],
+        )
 
     if operation == "search_issues":
         if not query:
@@ -860,7 +949,8 @@ def github_ops(
                 "--limit",
                 str(limit),
                 "--json",
-                "name,fullName,description,url,stargazerCount,language",
+                ("name,fullName,description,url,stargazerCount,language,"
+                 "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"),
             ]
         )
         if not ok:
@@ -868,10 +958,50 @@ def github_ops(
         data = _j(out)
         if not isinstance(data, list):
             data = []
+        # Compute summary
+        total = len(data)
+        archived_count = sum(1 for r in data if r.get("isArchived", False))
+        fork_count = sum(1 for r in data if r.get("isFork", False))
         return _ok(
             "search_repos_topic",
+            {
+                "repos": data,
+                "count": total,
+                "archived": archived_count,
+                "forks": fork_count,
+                "source_repos": total - fork_count,
+                "built_query": qtopic,
+                "topic": topic,
+            },
+            message=(f"{total} repos matching topic `{topic}` "
+                     f"({archived_count} archived, {fork_count} forks)"),
+        )
+
+    if operation == "search_repos_by_topic":
+        if not topic:
+            return _err("search_repos_by_topic", "topic required (GitHub repo topic / tag)")
+        qtopic = build_topic_repo_query(topic, owner, query)
+        ok, out, err = run_gh(
+            [
+                "search",
+                "repos",
+                qtopic,
+                "--limit",
+                str(limit),
+                "--json",
+                "name,fullName,description,url,stargazerCount,forkCount,"
+                "language,isPrivate,isFork,updatedAt,pushedAt,repositoryTopics",
+            ]
+        )
+        if not ok:
+            return _err("search_repos_by_topic", err or "search failed")
+        data = _j(out)
+        if not isinstance(data, list):
+            data = []
+        return _ok(
+            "search_repos_by_topic",
             {"repos": data, "count": len(data), "built_query": qtopic},
-            message=f"Repositories matching topic `{topic}`",
+            message=f"Full-metadata repos matching topic `{topic}`",
         )
 
     if operation == "code_find_repos":
