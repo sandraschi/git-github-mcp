@@ -18,7 +18,8 @@ Install these if you don't have them already. Windows commands use
 | **uv** | Options C and D | `winget install astral-sh.uv` | `brew install uv` |
 | **Node.js** | Option B only | `winget install OpenJS.NodeJS` | `brew install node` |
 
-> After a winget install, close and reopen your terminal so the new tool is on PATH.
+> **Windows:** After any winget install, **close and reopen PowerShell** so PATH updates apply.  
+> **macOS:** use `brew install git gh uv node` equivalents.
 
 After installing gh CLI, authenticate once:
 
@@ -33,37 +34,41 @@ gh auth login
 No Python or uv required. Claude Desktop manages the runtime.
 
 1. Go to [Releases](https://github.com/sandraschi/git-github-mcp/releases/latest)
-2. Download `git-github-mcp-{version}.mcpb`
+2. Download `git-github-mcp-*.mcpb`
 3. Open Claude Desktop
 4. Drag the `.mcpb` file onto the Claude Desktop window and accept the install prompt
 
-Done.
+**Pass criteria:** server appears in the MCP list with no terminal steps.
 
 ---
 
 ## Option B — mcpb CLI
 
-Requires Node.js (see Prerequisites above).
+`mcpb` is **not** on PyPI — `uvx mcpb` will fail. Requires Node.js:
 
 ```powershell
+winget install OpenJS.NodeJS --accept-source-agreements --accept-package-agreements
+# Close and reopen terminal, then:
 npx @anthropic-ai/mcpb install https://github.com/sandraschi/git-github-mcp
 ```
 
-> `uvx mcpb` will NOT work — mcpb is an npm package, not on PyPI.
+Restart Claude Desktop after install completes.
 
 ---
 
 ## Option C — Manual Configuration
 
-Requires uv and git (see Prerequisites above).
-
 ```powershell
+winget install astral-sh.uv --accept-source-agreements --accept-package-agreements
+winget install Git.Git --accept-source-agreements --accept-package-agreements
+# Close and reopen terminal
+
 git clone https://github.com/sandraschi/git-github-mcp
 cd git-github-mcp
-uv sync
+uv sync --all-extras
 ```
 
-Add to `claude_desktop_config.json`:
+Edit Claude Desktop config:
 
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -77,7 +82,8 @@ Add to `claude_desktop_config.json`:
         "--directory",
         "C:\\path\\to\\git-github-mcp",
         "run",
-        "git-github-mcp"
+        "git-github-mcp",
+        "--stdio"
       ],
       "env": {
         "PYTHONUNBUFFERED": "1"
@@ -89,24 +95,22 @@ Add to `claude_desktop_config.json`:
 
 Replace `C:\\path\\to\\git-github-mcp` with your actual clone path. Restart Claude Desktop.
 
-> The server starts a FastAPI HTTP bridge on port 10702 in addition to the MCP stdio
-> listener. This is always active — see [HTTP bridge endpoints](#http-bridge-endpoints) below.
+> The server also starts a FastAPI HTTP bridge on port 10702. Always active — see
+> [HTTP bridge endpoints](#http-bridge-endpoints) below.
 
 ---
 
 ## Option D — Web App Mode
 
-Includes a React frontend (Vite, port 10703) that talks to the FastAPI backend (port 10702).
+React frontend (Vite, port 10703) + FastAPI backend (port 10702). Requires Option D setup.
 
 ```powershell
-cd web
-npm install
-cd ..
+winget install Casey.Just --accept-source-agreements --accept-package-agreements
+cd web && npm install && cd ..
 .\start.ps1
 ```
 
-`start.ps1` kills any process holding ports 10702/10703, starts the backend, waits for the
-health check, then opens `http://127.0.0.1:10703` in your browser.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for full dev setup, lint, tests, and mcpb packaging.
 
 | Switch | Effect |
 |--------|--------|
@@ -117,7 +121,7 @@ health check, then opens `http://127.0.0.1:10703` in your browser.
 
 ## Verify Installation
 
-After installing, open Claude Desktop and type:
+In Claude Desktop, try:
 
 > "What is the git status of my current repo?"
 
@@ -128,9 +132,7 @@ Claude Desktop and check that the server appears in Settings → MCP Servers.
 
 ## GitHub Token
 
-`github_ops` uses gh CLI auth by default. To use a PAT instead:
-
-Add to the `env` block in `claude_desktop_config.json`:
+`github_ops` uses gh CLI auth by default. To use a PAT instead, add to the `env` block:
 
 ```json
 "env": {
@@ -138,8 +140,6 @@ Add to the `env` block in `claude_desktop_config.json`:
   "GH_TOKEN": "ghp_your_token_here"
 }
 ```
-
-`GH_TOKEN` takes precedence over interactive gh auth.
 
 ---
 
@@ -154,11 +154,11 @@ Add to the `env` block in `claude_desktop_config.json`:
 | `GH_TOKEN` | — | GitHub token (overrides gh CLI auth) |
 | `PYTHONUNBUFFERED` | — | Set to `1` in Claude Desktop config |
 
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference.
+
 ---
 
 ## HTTP Bridge Endpoints
-
-The FastAPI bridge starts automatically alongside the MCP server:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
@@ -178,9 +178,13 @@ The FastAPI bridge starts automatically alongside the MCP server:
 | `github_ops` — "gh CLI not found" | `winget install GitHub.cli` then `gh auth login` |
 | `github_ops` — "not logged in" | `gh auth login` or set `GH_TOKEN` |
 | `git_core` times out after 25 s | Windows Job Object issue under Electron — use `/api/git` REST fallback |
-| Server not in Claude Desktop | Run `uv run git-github-mcp` directly in terminal to see error; check config path |
+| Server not in Claude Desktop | Run `uv run git-github-mcp --stdio` directly to see error; check config path |
 | Port 10702 already in use | `Get-NetTCPConnection -LocalPort 10702` then kill the owner |
-| `uv` not found | `winget install astral-sh.uv` then reopen terminal |
-| `npx mcpb` fails | Ensure Node.js is installed: `winget install OpenJS.NodeJS` |
+| `uv` not found | `winget install astral-sh.uv`; reopen terminal |
+| `uvx mcpb` fails | Expected — use Option A or `npx @anthropic-ai/mcpb` |
 
-For more: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) · [open an issue](https://github.com/sandraschi/git-github-mcp/issues)
+Full diagnostics: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) · [open an issue](https://github.com/sandraschi/git-github-mcp/issues)
+
+---
+
+*Feature overview: [README.md](README.md)*
