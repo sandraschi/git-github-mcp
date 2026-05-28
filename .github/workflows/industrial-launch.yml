@@ -1,4 +1,4 @@
-name: Industrial Launch (schip-mcp-git-github)
+name: Industrial Launch (git-github-mcp)
 
 on:
   push:
@@ -30,7 +30,7 @@ jobs:
           uv build
           # Heritage support for legacy MCPB
           if [ -d "mcpb" ]; then
-            zip -r dist/schip-mcp-git-github.mcpb mcpb/ -x "*.git*"
+            zip -r dist/git-github-mcp.mcpb mcpb/ -x "*.git*"
           fi
 
       - name: Generate Changelog
@@ -52,7 +52,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "schip-mcp-git-github ${{ github.ref_name }}"
+          name: "git-github-mcp ${{ github.ref_name }}"
           body: |
             ## 🚀 Industrial Launch: ${{ github.ref_name }}
             
@@ -60,7 +60,7 @@ jobs:
 
             ### ⚡ Quick Start (Zero-Install)
             ```powershell
-            uvx schip-mcp-git-github --serve
+            uv run git-github-mcp --serve
             ```
 
             ### 📖 What's New
