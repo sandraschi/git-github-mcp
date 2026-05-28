@@ -16,3 +16,5 @@ FastMCP 3.2.0+ hardened substrate for Git (local) and GitHub (gh CLI)
 - `README.md` — full documentation
 - `pyproject.toml` — build config and entry points
 - `CLAUDE.md` — Claude Code context (if present)
+
+Install docs: follow mcp-central-docs/standards/AGENT_INSTALL_REFERENCE.md
