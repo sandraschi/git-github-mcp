@@ -1,13 +1,13 @@
 {
   "name": "git-github-mcp",
-  "version": "0.3.0",
-  "description": "Hardened FastMCP 3.1.1+ substrate for Git/GitHub with v1.20 non-interactive safety.",
+  "version": "0.4.0",
+  "description": "Hardened FastMCP 3.2+ substrate for Git/GitHub — fleet SOTA webapp with breakfast runner.",
   "homepage": "https://github.com/sandraschi/git-github-mcp",
   "repository": "https://github.com/sandraschi/git-github-mcp",
   "author": "sandraschi",
   "license": "MIT",
   "mcp": {
-    "version": "3.1.1",
+    "version": "3.2+",
     "runtime": "python",
     "tools": [
       {

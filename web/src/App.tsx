@@ -10,13 +10,21 @@ import { Settings } from '@/pages/settings';
 import { Lectures } from '@/pages/lectures';
 import { InboxPage } from '@/pages/inbox';
 import { BreakfastPage } from '@/pages/breakfast';
+import { ToolsPage } from '@/pages/tools';
+import { LogsPage } from '@/pages/logs';
+import { HelpPage } from '@/pages/help';
+import { AppsPage } from '@/pages/apps';
 
 function App() {
   return (
     <Router>
-      <AppLayout>
-        <Routes>
+      <Routes>
+        <Route element={<AppLayout />}>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/tools" element={<ToolsPage />} />
+          <Route path="/logs" element={<LogsPage />} />
+          <Route path="/apps" element={<AppsPage />} />
+          <Route path="/help" element={<HelpPage />} />
           <Route path="/repos" element={<Repositories />} />
           <Route path="/commits" element={<Commits />} />
           <Route path="/inbox" element={<InboxPage />} />
@@ -27,8 +35,8 @@ function App() {
           <Route path="/lectures" element={<Lectures />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </AppLayout>
+        </Route>
+      </Routes>
     </Router>
   );
 }

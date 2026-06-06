@@ -22,6 +22,9 @@ from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
 from fastmcp.server import create_proxy
 
+from .activity_log import install_log_handler, log_activity
+from .capabilities import build_capabilities
+from .logs_api import build_router as _build_logs_router
 from .services.fleet_ops import fleet_ops as _fleet_ops
 from .services.morning_digest import run_morning_digest as _run_morning_digest
 from .tools.git_ops import git_ops as _git_ops
@@ -33,6 +36,7 @@ from .web_discovery import run_discovery_workflow as _run_discovery_workflow
 
 logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("git-github-mcp")
+install_log_handler()
 
 VERSION = "0.4.0"
 WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
@@ -1136,6 +1140,7 @@ def git_github_explain_concept(concept: str, level: str = "intermediate") -> str
 _mcp_http = mcp.http_app(path="/mcp")
 
 web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
+web_app.include_router(_build_logs_router())
 
 web_app.add_middleware(
     CORSMiddleware,
@@ -1154,6 +1159,39 @@ web_app.add_middleware(
 @web_app.get("/health")
 async def web_health():
     return {"ok": True, "service": "git-github-mcp", "version": VERSION, "port": WEB_PORT}
+
+
+@web_app.get("/api/capabilities")
+async def api_capabilities():
+    return await build_capabilities(mcp, version=VERSION)
+
+
+@web_app.get("/api/apps")
+async def api_apps():
+    """Fleet apps hub — entries with webapp ports from fleet registry."""
+    from .services.fleet_catalog import load_registry
+
+    apps: list[dict] = []
+    for row in load_registry():
+        if not isinstance(row, dict):
+            continue
+        rid = str(row.get("id") or "")
+        port = int(row.get("frontend_port") or row.get("port") or 0)
+        if port <= 0:
+            continue
+        apps.append(
+            {
+                "id": rid,
+                "name": rid,
+                "description": str(row.get("description") or row.get("category") or "fleet MCP"),
+                "port": port,
+                "category": str(row.get("category") or "mcp"),
+                "url": f"http://127.0.0.1:{port}",
+            }
+        )
+    apps.sort(key=lambda a: a["port"])
+    log_activity("api", f"apps hub listed {len(apps)} entries", level="INFO")
+    return {"apps": apps, "fleet_total": len(load_registry())}
 
 
 @web_app.get("/api/status")
@@ -1226,12 +1264,16 @@ async def api_tools():
 @web_app.post("/api/git")
 async def api_git(body: dict):
     args = body.get("arguments", body)
+    op = args.get("operation", "?")
+    log_activity("git_ops", f"operation={op}", level="INFO", meta={"operation": op})
     return await _git_ops(**args)
 
 
 @web_app.post("/api/github")
 async def api_github(body: dict):
     args = body.get("arguments", body)
+    op = args.get("operation", "?")
+    log_activity("github_ops", f"operation={op}", level="INFO", meta={"operation": op})
     return await github_ops(**args)
 
 

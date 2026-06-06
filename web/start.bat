@@ -1,3 +1,14 @@
 @echo off
+setlocal
+REM git-github-mcp Vite dev UI — backend 10702, frontend 10703
 cd /d "%~dp0"
-powershell -ExecutionPolicy Bypass -File "%~dp0start.ps1"
+
+set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0start.ps1" %*
+set "EC=%ERRORLEVEL%"
+if %EC% NEQ 0 (
+  echo Exit code: %EC%
+  pause
+)
+endlocal & exit /b %EC%

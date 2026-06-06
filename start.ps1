@@ -1,42 +1,54 @@
-param([switch]$Headless, [switch]$BackendOnly, [switch]$NoBrowser)
-$ErrorActionPreference = "Stop"
+param(
+    [switch]$Headless,
+    [switch]$BackendOnly,
+    [switch]$FrontendOnly,
+    [switch]$NoBrowser
+)
+
 $ScriptRoot = Split-Path -Parent $PSCommandPath
+$WebRoot = Join-Path $ScriptRoot "web"
 $BackendPort = 10702
 $FrontendPort = 10703
 
-Get-NetTCPConnection -LocalPort $BackendPort -ErrorAction SilentlyContinue |
-    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
-Get-NetTCPConnection -LocalPort $FrontendPort -ErrorAction SilentlyContinue |
-    ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+. (Join-Path $ScriptRoot "scripts\FleetWebStart.ps1")
 
-$BackendJob = Start-Job -Name "backend" -ScriptBlock {
-    param($Root)
-    Set-Location $Root
-    $env:MCP_TRANSPORT = "http"
-    uv run git-github-mcp
-} -ArgumentList $ScriptRoot
-
-Write-Host "Waiting for backend on :$BackendPort ..." -ForegroundColor Cyan
-for ($i = 0; $i -lt 60; $i++) {
-    try { $r = Invoke-WebRequest -Uri "http://127.0.0.1:$BackendPort/health" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
-          if ($r.StatusCode -eq 200) { Write-Host "Backend ready" -ForegroundColor Green; break } } catch {}
-    Start-Sleep 1
-}
-
-if (-not $BackendOnly) {
-    $WebRoot = Join-Path $ScriptRoot "web"
-    Write-Host "Starting frontend on :$FrontendPort ..." -ForegroundColor Cyan
-    Start-Process -NoNewWindow -FilePath "npx" -ArgumentList "vite --port $FrontendPort --host" -WorkingDirectory $WebRoot
-}
-
-if (-not $NoBrowser) {
-    Start-Sleep 2
-    Start-Process "http://127.0.0.1:$FrontendPort"
-}
-
-while ($true) {
-    if ($BackendJob.State -eq "Completed" -or $BackendJob.State -eq "Failed") {
-        Receive-Job $BackendJob; break
+$central = Get-FleetCentralDocsPath -RepoRoot $ScriptRoot
+if ($central) {
+    . (Join-Path $central "standards\FleetStartMode.ps1")
+    $FleetStart = Initialize-FleetStartMode @PSBoundParameters
+    Enter-FleetHeadlessConsole -Headless:$Headless -BackendOnly:$BackendOnly
+} else {
+    $FleetStart = [pscustomobject]@{
+        RunBackend  = -not $FrontendOnly
+        RunFrontend = (-not $BackendOnly) -and (-not $Headless)
+        SkipBrowser = $NoBrowser -or $Headless -or $BackendOnly
     }
-    Start-Sleep 2
 }
+
+Write-Host "Starting git-github-mcp (fleet SOTA)..." -ForegroundColor Cyan
+Write-Host "Frontend $FrontendPort | Backend $BackendPort | MCP /mcp" -ForegroundColor Gray
+
+Stop-FleetZombies -Ports @($BackendPort, $FrontendPort)
+
+$uvExe = Require-FleetCommand -Cmd "uv" -WingetId "Astral.uv" -Label "uv"
+$npmExe = Require-FleetCommand -Cmd "npm" -WingetId "OpenJS.NodeJS.LTS" -Label "npm"
+Require-FleetCommand -Cmd "node" -WingetId "OpenJS.NodeJS.LTS" -Label "node" | Out-Null
+
+if ($FleetStart.RunBackend) {
+    Ensure-GitGithubPythonDeps -RepoRoot $ScriptRoot -UvExe $uvExe
+    Start-GitGithubBackendWindow -RepoRoot $ScriptRoot -UvExe $uvExe
+    if (-not (Wait-GitGithubBackend -BackendPort $BackendPort)) { exit 1 }
+}
+
+if (-not $FleetStart.RunFrontend) { return }
+
+Ensure-GitGithubFrontendDeps -WebRoot $WebRoot -NpmExe $npmExe
+
+$frontendUrl = "http://127.0.0.1:$FrontendPort/"
+if (-not $FleetStart.SkipBrowser) {
+    Start-GitGithubBrowserWhenReady -FrontendUrl $frontendUrl -OpenPath "/breakfast"
+}
+
+Set-Location $WebRoot
+Write-Host "Starting Vite on $FrontendPort ..." -ForegroundColor Green
+& $npmExe run dev -- --port $FrontendPort --host 127.0.0.1 --strictPort

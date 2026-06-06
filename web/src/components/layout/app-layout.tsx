@@ -1,37 +1,83 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  GitCommit, GitPullRequest, CircleDot,
-  MessageSquare, Settings, ChevronRight, Terminal,
-  LayoutDashboard, BookOpen, GraduationCap, Inbox, Coffee,
+  GitCommit,
+  GitPullRequest,
+  CircleDot,
+  MessageSquare,
+  Settings,
+  ChevronRight,
+  Terminal,
+  LayoutDashboard,
+  BookOpen,
+  GraduationCap,
+  Inbox,
+  Coffee,
+  Wrench,
+  ScrollText,
+  Grid3X3,
+  HelpCircle,
 } from 'lucide-react';
+import { LoggerPanel } from '@/components/logger-panel';
+import { Topbar } from '@/components/layout/topbar';
 
-const NAV = [
-  { to: '/',        icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/repos',   icon: BookOpen,         label: 'Repos' },
-  { to: '/commits', icon: GitCommit,        label: 'Commits' },
-  { to: '/inbox',   icon: Inbox,            label: 'PRs & Issues' },
-  { to: '/breakfast', icon: Coffee,         label: 'Breakfast' },
-  { to: '/issues',  icon: CircleDot,        label: 'Issues' },
-  { to: '/prs',     icon: GitPullRequest,   label: 'Pull Requests' },
-  { to: '/chat',    icon: MessageSquare,    label: 'Command' },
-  { to: '/lectures',icon: GraduationCap,    label: 'Lectures' },
-  { to: '/settings',icon: Settings,         label: 'Settings' },
-];
+const FLEET_NAV = [
+  { to: '/', icon: LayoutDashboard, label: 'Home' },
+  { to: '/tools', icon: Wrench, label: 'Tools' },
+  { to: '/logs', icon: ScrollText, label: 'Logs' },
+  { to: '/apps', icon: Grid3X3, label: 'Apps' },
+  { to: '/help', icon: HelpCircle, label: 'Help' },
+] as const;
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+const DOMAIN_NAV = [
+  { to: '/repos', icon: BookOpen, label: 'Repos' },
+  { to: '/commits', icon: GitCommit, label: 'Commits' },
+  { to: '/inbox', icon: Inbox, label: 'PRs & Issues' },
+  { to: '/breakfast', icon: Coffee, label: 'Breakfast' },
+  { to: '/issues', icon: CircleDot, label: 'Issues' },
+  { to: '/prs', icon: GitPullRequest, label: 'Pull Requests' },
+  { to: '/chat', icon: MessageSquare, label: 'Command' },
+  { to: '/lectures', icon: GraduationCap, label: 'Lectures' },
+  { to: '/settings', icon: Settings, label: 'Settings' },
+] as const;
+
+const PAGE_LABELS: Record<string, string> = {
+  '/': 'Dashboard',
+  '/tools': 'MCP Tools',
+  '/logs': 'Event Logs',
+  '/apps': 'Fleet Apps',
+  '/help': 'Help',
+  '/repos': 'Repositories',
+  '/commits': 'Commits',
+  '/inbox': 'PRs & Issues',
+  '/breakfast': 'Breakfast Runner',
+  '/issues': 'Issues',
+  '/prs': 'Pull Requests',
+  '/chat': 'Command',
+  '/lectures': 'Lectures',
+  '/settings': 'Settings',
+};
+
+export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
+  const pageLabel = PAGE_LABELS[location.pathname] ?? 'git-github-mcp';
+
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `flex items-center h-10 px-3 rounded-md transition-all duration-200 group relative ${
+      isActive
+        ? 'bg-gh-green/10 text-gh-green border border-gh-green/20'
+        : 'text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent'
+    }`;
 
   return (
     <div className="flex h-screen bg-background text-foreground selection:bg-gh-green/30">
-      {/* Sidebar */}
       <aside
         className={`flex flex-col transition-all duration-300 ease-in-out border-r border-border bg-card/50 backdrop-blur-xl z-20 ${
           collapsed ? 'w-16' : 'w-64'
         }`}
       >
-        {/* Logo Section */}
-        <div 
+        <div
           className="h-16 flex items-center px-4 border-b border-border cursor-pointer hover:bg-white/5 transition-colors group"
           onClick={() => setCollapsed(!collapsed)}
         >
@@ -43,53 +89,49 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <span className="font-heading font-black text-sm tracking-tighter text-gh-green uppercase truncate">
                 git·hub·mcp
               </span>
-              <span className="text-[10px] text-muted-foreground font-mono leading-none">v1.20.0 · ARC-AGI</span>
+              <span className="text-[10px] text-muted-foreground font-mono leading-none">v0.4.0 · fleet SOTA</span>
             </div>
           )}
-          <ChevronRight 
+          <ChevronRight
             className={`ml-auto w-4 h-4 text-muted-foreground transition-transform duration-300 ${
               collapsed ? '' : 'rotate-180'
-            }`} 
+            }`}
           />
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
-          {NAV.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `flex items-center h-10 px-3 rounded-md transition-all duration-200 group relative ${
-                  isActive 
-                    ? 'bg-gh-green/10 text-gh-green border border-gh-green/20' 
-                    : 'text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent'
-                }`
-              }
-            >
+          {!collapsed && (
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3 mb-2">
+              Fleet
+            </div>
+          )}
+          {FLEET_NAV.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} end={to === '/'} className={navLinkClass} title={label}>
               <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-              {!collapsed && (
-                <span className="ml-3 text-sm font-medium truncate">{label}</span>
-              )}
-              {collapsed && (
-                <div className="absolute left-14 bg-popover text-popover-foreground px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity border border-border shadow-xl z-50">
-                  {label}
-                </div>
-              )}
+              {!collapsed && <span className="ml-3 text-sm font-medium truncate">{label}</span>}
+            </NavLink>
+          ))}
+          {!collapsed && (
+            <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-3 mt-4 mb-2">
+              GitHub
+            </div>
+          )}
+          {DOMAIN_NAV.map(({ to, icon: Icon, label }) => (
+            <NavLink key={to} to={to} className={navLinkClass} title={label}>
+              <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+              {!collapsed && <span className="ml-3 text-sm font-medium truncate">{label}</span>}
             </NavLink>
           ))}
         </nav>
 
-        {/* Footer */}
         <div className="p-4 border-t border-border bg-black/20">
           {!collapsed ? (
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-gh-green animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">System Online</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Online</span>
               </div>
-              <span className="text-[9px] font-mono text-muted-foreground/60">Node: Vienna·Goliath v1.20</span>
+              <span className="text-[9px] font-mono text-muted-foreground/60">:10702 / :10703</span>
             </div>
           ) : (
             <div className="flex justify-center">
@@ -99,18 +141,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative">
-        {/* Topbar background glow */}
+      <div className="flex-1 flex flex-col min-w-0 relative">
         <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-gh-green/5 to-transparent pointer-events-none" />
-        
-        {/* Page Content */}
-        <div className="flex-1 overflow-auto relative z-10 p-6 md:p-8 custom-scrollbar">
+        <Topbar label={pageLabel} />
+        <main className="flex-1 overflow-auto relative z-10 p-6 md:p-8 custom-scrollbar">
           <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {children}
+            <Outlet />
           </div>
-        </div>
-      </main>
+        </main>
+        <LoggerPanel />
+      </div>
     </div>
   );
 }
