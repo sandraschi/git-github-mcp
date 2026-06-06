@@ -12,7 +12,7 @@ import {
   Shield,
   Workflow,
 } from 'lucide-react';
-import { runFleetOps, runFleetSuite } from '@/lib/api';
+import { runFleetOps, runFleetSuiteStream, type FleetSuiteProgress } from '@/lib/api';
 
 const FLEET_KEY = 'git-github-mcp-inbox-fleet';
 const LAST_SUITE_KEY = 'git-github-mcp-breakfast-suite';
@@ -202,6 +202,7 @@ export function BreakfastPage() {
   const [error, setError] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
   const [registryLoading, setRegistryLoading] = useState(false);
+  const [progress, setProgress] = useState<FleetSuiteProgress | null>(null);
 
   const data = useMemo(() => unwrap(suite?.morning_digest), [suite]);
 
@@ -235,20 +236,25 @@ export function BreakfastPage() {
     setStatus('running');
     setError(null);
     setLastMessage(null);
+    setProgress(null);
     try {
       const deliverParts: string[] = [];
       if (deliverFile) deliverParts.push('file');
       if (deliverAiwatcher) deliverParts.push('aiwatcher');
 
-      const res = (await runFleetSuite({
-        fleet_repos: fleet || undefined,
-        use_registry: useRegistry,
-        stale_days: staleDays,
-        since_last_run: sinceLastRun,
-        deliver: deliverParts.length > 0 ? deliverParts.join(',') : undefined,
-      })) as SuiteResponse;
+      const res = (await runFleetSuiteStream(
+        {
+          fleet_repos: fleet || undefined,
+          use_registry: useRegistry,
+          stale_days: staleDays,
+          since_last_run: sinceLastRun,
+          deliver: deliverParts.length > 0 ? deliverParts.join(',') : undefined,
+        },
+        (p) => setProgress(p),
+      )) as SuiteResponse;
       if (!res.success) throw new Error(res.error ?? 'Fleet suite failed');
       const result = res.result ?? null;
+      setProgress(null);
       setSuite(result);
       setLastMessage(res.message ?? 'Full fleet suite finished');
       setStatus('done');
@@ -262,6 +268,7 @@ export function BreakfastPage() {
     } catch (e) {
       setError(String(e));
       setStatus('error');
+      setProgress(null);
     }
   }, [fleetText, useRegistry, staleDays, sinceLastRun, deliverFile, deliverAiwatcher]);
 
@@ -282,9 +289,15 @@ export function BreakfastPage() {
   const council = unwrap(suite?.council_payload);
   const running = status === 'running';
 
+  const runningLabel =
+    progress?.message ??
+    (progress
+      ? `${progress.step_label} (${progress.percent}%)`
+      : 'Running full fleet suite…');
+
   const statusLabel: Record<RunnerStatus, string> = {
     idle: 'Ready — press Start full suite',
-    running: 'Running full fleet suite…',
+    running: runningLabel,
     done: 'Last suite complete',
     error: 'Run failed',
   };
@@ -362,6 +375,37 @@ export function BreakfastPage() {
             )}
           </div>
         </div>
+
+        {running && progress && (
+          <div className="space-y-2" aria-live="polite">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span className="truncate max-w-[70%]">{progress.message ?? progress.step_label}</span>
+              <span className="font-mono shrink-0">
+                {progress.percent}% · step {progress.step_index}/{progress.step_total}
+              </span>
+            </div>
+            <div
+              className="h-2.5 rounded-full bg-slate-800/80 overflow-hidden border border-border/50"
+              role="progressbar"
+              aria-valuenow={progress.percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-[width] duration-300 ease-out"
+                style={{ width: `${Math.min(100, Math.max(0, progress.percent))}%` }}
+              />
+            </div>
+            {progress.repo && (
+              <p className="text-xs font-mono text-amber-200/90 truncate">
+                {progress.repo}
+                {typeof progress.repo_index === 'number' && typeof progress.repo_total === 'number'
+                  ? ` (${progress.repo_index}/${progress.repo_total})`
+                  : ''}
+              </p>
+            )}
+          </div>
+        )}
 
         {lastMessage && status === 'done' && (
           <p className="text-sm text-emerald-400/90">{lastMessage}</p>

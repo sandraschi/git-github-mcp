@@ -18,6 +18,7 @@ def op_local_dirty(
     repos_root: str | None = None,
     fleet_repos: str | None = None,
     use_registry: bool = True,
+    on_repo_progress: Any = None,
 ) -> dict[str, Any]:
     entries = load_registry(Path(registry_path) if registry_path else DEFAULT_REGISTRY_PATH)
     root = Path(repos_root) if repos_root else DEFAULT_REPOS_ROOT
@@ -39,7 +40,10 @@ def op_local_dirty(
     ahead: list[dict[str, Any]] = []
     missing: list[str] = []
 
-    for rid, repo_path in targets:
+    total = len(targets)
+    for index, (rid, repo_path) in enumerate(targets, start=1):
+        if on_repo_progress:
+            on_repo_progress(str(rid), index, total)
         if not repo_path.is_dir():
             missing.append(str(repo_path))
             continue
@@ -92,6 +96,7 @@ def op_release_drift(
     fleet_repos_file: str | None = None,
     use_registry: bool = True,
     repos_root: str | None = None,
+    on_repo_progress: Any = None,
 ) -> dict[str, Any]:
     repos = _resolve_repos(
         fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry
@@ -105,8 +110,11 @@ def op_release_drift(
     }
 
     drifts: list[dict[str, Any]] = []
-    for owner, repo in repos:
+    total = len(repos)
+    for index, (owner, repo) in enumerate(repos, start=1):
         slug = f"{owner}/{repo}"
+        if on_repo_progress:
+            on_repo_progress(slug, index, total)
         local_path = path_by_id.get(repo, root / repo)
         local_ver = read_pyproject_version(local_path) if local_path.is_dir() else None
         res = github_ops(operation="release_list", owner=owner, repo=repo, limit=3)

@@ -51,4 +51,9 @@ if (-not $FleetStart.SkipBrowser) {
 
 Set-Location $WebRoot
 Write-Host "Starting Vite on $FrontendPort ..." -ForegroundColor Green
+Write-Host "UI: http://127.0.0.1:$FrontendPort/breakfast" -ForegroundColor Gray
 & $npmExe run dev -- --port $FrontendPort --host 127.0.0.1 --strictPort
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Vite exited with code $LASTEXITCODE" -ForegroundColor Red
+    exit $LASTEXITCODE
+}

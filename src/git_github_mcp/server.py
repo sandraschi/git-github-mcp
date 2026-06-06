@@ -10,14 +10,17 @@ Web:       FastAPI bridge (e.g. POST /api/git, /api/github, /api/discovery)
 """
 
 import asyncio
+import json
 import logging
 import os
+import threading
 import time
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
 from fastmcp.server import create_proxy
@@ -26,6 +29,7 @@ from .activity_log import install_log_handler, log_activity
 from .capabilities import build_capabilities
 from .logs_api import build_router as _build_logs_router
 from .services.fleet_ops import fleet_ops as _fleet_ops
+from .services.fleet_orchestrator import run_full_suite as _run_full_suite
 from .services.morning_digest import run_morning_digest as _run_morning_digest
 from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
@@ -1296,7 +1300,83 @@ async def api_fleet_ops(body: dict | None = None):
 async def api_fleet_suite(body: dict | None = None):
     """Run full fleet maintainer suite (fleet_ops operation=full_suite)."""
     args = body or {}
-    return await asyncio.to_thread(_fleet_ops, "full_suite", **args)
+
+    def _run_and_cache() -> dict:
+        result = _fleet_ops("full_suite", **args)
+        if isinstance(result, dict):
+            _cache_suite_result(result)
+        return result
+
+    return await asyncio.to_thread(_run_and_cache)
+
+
+_suite_last: dict | None = None
+_suite_last_lock = threading.Lock()
+
+
+def _cache_suite_result(result: dict) -> None:
+    global _suite_last
+    with _suite_last_lock:
+        _suite_last = result
+
+
+@web_app.get("/api/fleet-suite/last")
+async def api_fleet_suite_last():
+    """Latest full_suite result (populated by /api/fleet-suite/stream)."""
+    with _suite_last_lock:
+        if _suite_last is None:
+            return {"success": False, "error": "No fleet suite result cached yet"}
+        return _suite_last
+
+
+def _fleet_suite_stream_args(body: dict | None) -> dict:
+    args = body or {}
+    return {
+        "fleet_repos": args.get("fleet_repos"),
+        "fleet_repos_file": args.get("fleet_repos_file"),
+        "use_registry": bool(args.get("use_registry", True)),
+        "stale_days": int(args.get("stale_days", 7) or 7),
+        "deliver": args.get("deliver"),
+        "maintainer_login": args.get("maintainer_login"),
+        "since_last_run": bool(args.get("since_last_run", True)),
+    }
+
+
+@web_app.post("/api/fleet-suite/stream")
+async def api_fleet_suite_stream(body: dict | None = None):
+    """Stream NDJSON progress events while running full_suite; final line is done or error."""
+    stream_args = _fleet_suite_stream_args(body)
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=512)
+
+    def progress(event: dict) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, {"type": "progress", **event})
+
+    def worker() -> None:
+        try:
+            result = _run_full_suite(**stream_args, on_progress=progress)
+            _cache_suite_result(result)
+            # Lightweight done — full payload is huge; client fetches /api/fleet-suite/last
+            loop.call_soon_threadsafe(
+                queue.put_nowait,
+                {
+                    "type": "done",
+                    "success": bool(result.get("success")),
+                    "message": result.get("message"),
+                },
+            )
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "error": str(exc)})
+
+    async def generate():
+        threading.Thread(target=worker, daemon=True).start()
+        while True:
+            item = await queue.get()
+            yield json.dumps(item, default=str) + "\n"
+            if item.get("type") in ("done", "error"):
+                break
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
 
 
 @web_app.post("/api/discovery")

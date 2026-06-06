@@ -60,6 +60,10 @@ function Require-FleetCommand {
     )
     if (Get-Command $Cmd -ErrorAction SilentlyContinue) {
         Write-Host "  [ok] $Label" -ForegroundColor DarkGreen
+        if ($Cmd -eq "npm") {
+            $npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+            if ($npmCmd) { return $npmCmd.Source }
+        }
         return (Get-Command $Cmd).Source
     }
     Write-Host "  [--] $Label not found - installing via winget ..." -ForegroundColor Yellow
@@ -88,6 +92,10 @@ function Require-FleetCommand {
         exit 1
     }
     Write-Host "  [ok] $Label installed" -ForegroundColor Green
+    if ($Cmd -eq "npm") {
+        $npmCmd = Get-Command npm.cmd -ErrorAction SilentlyContinue
+        if ($npmCmd) { return $npmCmd.Source }
+    }
     return (Get-Command $Cmd).Source
 }
 
@@ -125,7 +133,9 @@ function Ensure-GitGithubFrontendDeps {
     try {
         if (-not (Test-Path "node_modules")) {
             Write-Host "Installing npm dependencies ..." -ForegroundColor Cyan
-            & $NpmExe install --prefer-offline
+            $npmCmd = if ($NpmExe -like "*.cmd") { $NpmExe } else { (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source }
+            if (-not $npmCmd) { $npmCmd = $NpmExe }
+            & $npmCmd install --prefer-offline
             if ($LASTEXITCODE -ne 0) {
                 Write-Host "ERROR: npm install failed." -ForegroundColor Red
                 exit 1
@@ -143,15 +153,19 @@ function Ensure-GitGithubFrontendDeps {
 function Wait-GitGithubBackend {
     param([int]$BackendPort, [int]$MaxWaitSec = 90)
     $healthUrl = "http://127.0.0.1:$BackendPort/health"
+    Write-Host "Waiting for backend on :$BackendPort " -NoNewline -ForegroundColor Cyan
     for ($i = 0; $i -lt $MaxWaitSec; $i++) {
         try {
             $null = Invoke-WebRequest -Uri $healthUrl -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
+            Write-Host ""
             Write-Host "Backend ready on $BackendPort" -ForegroundColor Green
             return $true
         } catch {
+            if (($i % 5) -eq 0) { Write-Host "." -NoNewline -ForegroundColor Cyan }
             Start-Sleep -Seconds 1
         }
     }
+    Write-Host ""
     Write-Host "ERROR: backend health timed out after ${MaxWaitSec}s on $BackendPort" -ForegroundColor Red
     Write-Host "Check the backend PowerShell window (gh auth, uv sync)." -ForegroundColor Yellow
     return $false
@@ -169,7 +183,7 @@ Remove-Item Env:MCP_TRANSPORT -ErrorAction SilentlyContinue
 
 function Start-GitGithubBrowserWhenReady {
     param([string]$FrontendUrl, [string]$OpenPath = "/")
-    $target = "$FrontendUrl.TrimEnd('/')$OpenPath"
+    $target = ($FrontendUrl.TrimEnd('/')) + $OpenPath
     $pollAndOpen = @"
 for (`$i = 0; `$i -lt 60; `$i++) {
     try {

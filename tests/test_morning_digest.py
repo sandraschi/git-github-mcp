@@ -47,6 +47,22 @@ def test_classify_pr_stale_skips_maintainer() -> None:
     assert classify_pr_stale(pr, stale_days=7, maintainer="sandraschi") is None
 
 
+def test_classify_pr_stale_gh_comments_list() -> None:
+    """gh pr list --json comments returns comment objects, not a scalar count."""
+    pr = {
+        "author": {"login": "contributor"},
+        "createdAt": "2020-01-01T00:00:00Z",
+        "updatedAt": "2020-01-01T00:00:00Z",
+        "comments": [{"id": "1"}, {"id": "2"}],
+        "number": 2,
+        "title": "Discussed PR",
+        "url": "https://example.com/pr/2",
+    }
+    reason = classify_pr_stale(pr, stale_days=7, maintainer="sandraschi")
+    assert reason is not None
+    assert "quiet" in reason
+
+
 def test_build_markdown_digest() -> None:
     summary = {
         "generated_at": "2026-06-05T07:00:00+00:00",

@@ -73,6 +73,7 @@ def op_ack_drafts(
     stale_days: int = 7,
     maintainer_login: str | None = None,
     template: str | None = None,
+    on_repo_progress: Any = None,
 ) -> dict[str, Any]:
     repos = _resolve_repos(
         fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry
@@ -81,7 +82,11 @@ def op_ack_drafts(
     body_template = (template or _ACK_TEMPLATE).strip()
     drafts: list[dict[str, Any]] = []
 
-    for owner, repo in repos:
+    total = len(repos)
+    for index, (owner, repo) in enumerate(repos, start=1):
+        slug = f"{owner}/{repo}"
+        if on_repo_progress:
+            on_repo_progress(slug, index, total)
         scanned = scan_fleet_repo(
             owner, repo, stale_days=stale_days, maintainer=maintainer, limit=30, include_issues=False
         )

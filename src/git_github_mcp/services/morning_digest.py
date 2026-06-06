@@ -113,6 +113,23 @@ def _author_login(author: Any) -> str:
     return ""
 
 
+def _pr_comment_count(raw: Any) -> int:
+    """gh pr list --json comments is a list of objects; older callers may pass int."""
+    if raw is None:
+        return 0
+    if isinstance(raw, list):
+        return len(raw)
+    if isinstance(raw, dict) and "totalCount" in raw:
+        try:
+            return int(raw["totalCount"])
+        except (TypeError, ValueError):
+            return 0
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
 def classify_pr_stale(pr: dict[str, Any], *, stale_days: int, maintainer: str | None) -> str | None:
     """Return stale reason or None if not flagged."""
     author = _author_login(pr.get("author"))
@@ -122,7 +139,7 @@ def classify_pr_stale(pr: dict[str, Any], *, stale_days: int, maintainer: str | 
     age = days_since(updated)
     if age is None:
         return None
-    comments = int(pr.get("comments") or 0)
+    comments = _pr_comment_count(pr.get("comments"))
     if comments == 0 and age >= stale_days:
         return f"no comments in {age}d"
     if comments > 0 and age >= stale_days:
@@ -363,6 +380,7 @@ def run_morning_digest(
     deliver: str | list[str] | None = None,
     output_file: str | None = None,
     since_last_run: bool = True,
+    on_repo_progress: Any = None,
 ) -> dict[str, Any]:
     """Build fleet morning digest. Callable from MCP tool, HTTP API, or CLI."""
     repos = load_fleet_repos(fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file)
@@ -388,7 +406,11 @@ def run_morning_digest(
     open_prs = 0
     open_issues = 0
 
-    for owner, repo in repos:
+    total_repos = len(repos)
+    for index, (owner, repo) in enumerate(repos, start=1):
+        slug = f"{owner}/{repo}"
+        if on_repo_progress:
+            on_repo_progress(slug, index, total_repos)
         scanned = scan_fleet_repo(
             owner,
             repo,

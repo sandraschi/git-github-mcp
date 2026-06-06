@@ -106,6 +106,29 @@ def _j(s: str) -> Any:
         return []
 
 
+def _pr_comment_count(raw: Any) -> int:
+    """gh pr list --json comments returns a list of comment objects (not a count)."""
+    if raw is None:
+        return 0
+    if isinstance(raw, list):
+        return len(raw)
+    if isinstance(raw, dict) and "totalCount" in raw:
+        try:
+            return int(raw["totalCount"])
+        except (TypeError, ValueError):
+            return 0
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalize_pr_row(row: dict[str, Any]) -> dict[str, Any]:
+    if "comments" in row:
+        row = {**row, "comments": _pr_comment_count(row.get("comments"))}
+    return row
+
+
 def _ok(op: str, data: dict, message: str | None = None, next_steps: list | None = None) -> dict:
     return success_response(data, op, message=message, next_steps=next_steps or [])
 
@@ -545,6 +568,8 @@ def github_ops(
         if not ok:
             return _err("pr_list", err or "pr list failed")
         data = _j(out)
+        if isinstance(data, list):
+            data = [_normalize_pr_row(row) for row in data if isinstance(row, dict)]
         return _ok("pr_list", {"prs": data, "count": len(data)})
 
     if operation == "pr_view":
