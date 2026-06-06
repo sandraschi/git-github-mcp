@@ -1,20 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Bell,
   CircleDot,
   Coffee,
+  Database,
   ExternalLink,
   GitPullRequest,
   Loader2,
   Play,
   RefreshCw,
+  Shield,
+  Workflow,
 } from 'lucide-react';
-import { runMorningDigest } from '@/lib/api';
+import { runFleetOps, runFleetSuite } from '@/lib/api';
 
 const FLEET_KEY = 'git-github-mcp-inbox-fleet';
-const LAST_DIGEST_KEY = 'git-github-mcp-breakfast-last';
+const LAST_SUITE_KEY = 'git-github-mcp-breakfast-suite';
 
 type RunnerStatus = 'idle' | 'running' | 'done' | 'error';
+
+type FleetOp<T = unknown> = {
+  success?: boolean;
+  result?: T;
+  error?: string;
+  message?: string;
+};
 
 type Author = { login?: string };
 
@@ -24,8 +34,6 @@ type DigestPr = {
   state: string;
   url: string;
   author?: Author;
-  headRefName?: string;
-  baseRefName?: string;
   isDraft?: boolean;
   createdAt: string;
   updatedAt?: string;
@@ -42,7 +50,6 @@ type DigestIssue = {
   state: string;
   url: string;
   author?: Author;
-  labels?: { name: string; color?: string }[];
   createdAt: string;
   updatedAt?: string;
   repo_slug: string;
@@ -89,13 +96,64 @@ type DigestResult = {
   delivery?: Record<string, unknown>;
 };
 
-type DigestResponse = {
-  success: boolean;
-  result?: DigestResult;
-  error?: string;
-  message?: string;
-  recovery_options?: string[];
+type SuiteResult = {
+  generated_at?: string;
+  morning_digest?: FleetOp<DigestResult>;
+  registry_load?: FleetOp<{
+    fleet_repos_text?: string;
+    github_repos?: string[];
+    entry_count?: number;
+  }>;
+  ci_pulse?: FleetOp<{ failure_count?: number; failures?: Record<string, unknown>[] }>;
+  dependabot_digest?: FleetOp<{ alert_count?: number; alerts?: Record<string, unknown>[] }>;
+  ack_drafts?: FleetOp<{ count?: number; drafts?: Record<string, unknown>[] }>;
+  port_audit?: FleetOp<{
+    collision_count?: number;
+    mismatch_count?: number;
+    collisions?: Record<string, unknown>[];
+    mismatches?: Record<string, unknown>[];
+  }>;
+  docs_gate?: FleetOp<{ non_compliant_count?: number; non_compliant?: Record<string, unknown>[] }>;
+  quarantine_report?: FleetOp<{ count?: number; repos?: Record<string, unknown>[] }>;
+  local_dirty?: FleetOp<{
+    dirty_count?: number;
+    sync_drift_count?: number;
+    dirty?: Record<string, unknown>[];
+    sync_drift?: Record<string, unknown>[];
+  }>;
+  release_drift?: FleetOp<{ drift_count?: number; drifts?: Record<string, unknown>[] }>;
+  grade_snapshot?: FleetOp<{ ok?: boolean; matrix?: unknown; error?: string }>;
+  gitingest_bundle?: FleetOp<{ links?: { repo_slug: string; gitingest_url: string }[] }>;
+  runner_status?: FleetOp<{ last_run_at?: string; scheduled_task?: { installed?: boolean } }>;
+  weekly_retro?: FleetOp<{
+    merged_pr_count?: number;
+    new_issue_count?: number;
+    merged_prs?: Record<string, unknown>[];
+    new_issues?: Record<string, unknown>[];
+  }>;
+  council_payload?: FleetOp<{ summary?: Record<string, number>; actions?: string[] }>;
 };
+
+type SuiteResponse = FleetOp<SuiteResult>;
+
+type TabId =
+  | 'overview'
+  | 'notifications'
+  | 'prs'
+  | 'issues'
+  | 'repos'
+  | 'ci'
+  | 'security'
+  | 'acks'
+  | 'catalog'
+  | 'workspace'
+  | 'links'
+  | 'retro';
+
+function unwrap<T>(op?: FleetOp<T>): T | null {
+  if (!op?.success) return null;
+  return (op.result ?? null) as T | null;
+}
 
 function parseFleet(text: string): string {
   return text
@@ -115,11 +173,11 @@ function relTime(iso: string | undefined): string {
   return `${days}d ago`;
 }
 
-function loadCachedDigest(): DigestResult | null {
+function loadCachedSuite(): SuiteResult | null {
   try {
-    const raw = localStorage.getItem(LAST_DIGEST_KEY);
+    const raw = localStorage.getItem(LAST_SUITE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as DigestResult;
+    return JSON.parse(raw) as SuiteResult;
   } catch {
     return null;
   }
@@ -133,20 +191,44 @@ export function BreakfastPage() {
       return 'sandraschi/git-github-mcp';
     }
   });
+  const [useRegistry, setUseRegistry] = useState(true);
   const [staleDays, setStaleDays] = useState(7);
   const [sinceLastRun, setSinceLastRun] = useState(true);
   const [deliverFile, setDeliverFile] = useState(true);
   const [deliverAiwatcher, setDeliverAiwatcher] = useState(false);
-  const [tab, setTab] = useState<'notifications' | 'prs' | 'issues' | 'repos'>('notifications');
-  const [data, setData] = useState<DigestResult | null>(() => loadCachedDigest());
-  const [status, setStatus] = useState<RunnerStatus>(() => (loadCachedDigest() ? 'done' : 'idle'));
+  const [tab, setTab] = useState<TabId>('overview');
+  const [suite, setSuite] = useState<SuiteResult | null>(() => loadCachedSuite());
+  const [status, setStatus] = useState<RunnerStatus>(() => (loadCachedSuite() ? 'done' : 'idle'));
   const [error, setError] = useState<string | null>(null);
   const [lastMessage, setLastMessage] = useState<string | null>(null);
+  const [registryLoading, setRegistryLoading] = useState(false);
+
+  const data = useMemo(() => unwrap(suite?.morning_digest), [suite]);
+
+  const loadRegistry = useCallback(async () => {
+    setRegistryLoading(true);
+    setError(null);
+    try {
+      const res = (await runFleetOps('registry_load', {})) as FleetOp<{
+        fleet_repos_text?: string;
+      }>;
+      if (!res.success) throw new Error(res.error ?? 'registry_load failed');
+      const text = res.result?.fleet_repos_text;
+      if (text) {
+        setFleetText(text);
+        setUseRegistry(true);
+      }
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRegistryLoading(false);
+    }
+  }, []);
 
   const run = useCallback(async () => {
     const fleet = parseFleet(fleetText);
-    if (!fleet) {
-      setError('Add at least one owner/repo line to the fleet list.');
+    if (!useRegistry && !fleet) {
+      setError('Add at least one owner/repo line, or enable fleet registry.');
       setStatus('error');
       return;
     }
@@ -158,24 +240,21 @@ export function BreakfastPage() {
       if (deliverFile) deliverParts.push('file');
       if (deliverAiwatcher) deliverParts.push('aiwatcher');
 
-      const res = (await runMorningDigest({
-        fleet_repos: fleet,
+      const res = (await runFleetSuite({
+        fleet_repos: fleet || undefined,
+        use_registry: useRegistry,
         stale_days: staleDays,
-        include_issues: true,
-        include_notifications: true,
         since_last_run: sinceLastRun,
         deliver: deliverParts.length > 0 ? deliverParts.join(',') : undefined,
-      })) as DigestResponse;
-      if (!res.success) {
-        throw new Error(res.error ?? 'Digest failed');
-      }
+      })) as SuiteResponse;
+      if (!res.success) throw new Error(res.error ?? 'Fleet suite failed');
       const result = res.result ?? null;
-      setData(result);
-      setLastMessage(res.message ?? 'Runner finished');
+      setSuite(result);
+      setLastMessage(res.message ?? 'Full fleet suite finished');
       setStatus('done');
       if (result) {
         try {
-          localStorage.setItem(LAST_DIGEST_KEY, JSON.stringify(result));
+          localStorage.setItem(LAST_SUITE_KEY, JSON.stringify(result));
         } catch {
           /* ignore */
         }
@@ -184,7 +263,7 @@ export function BreakfastPage() {
       setError(String(e));
       setStatus('error');
     }
-  }, [fleetText, staleDays, sinceLastRun, deliverFile, deliverAiwatcher]);
+  }, [fleetText, useRegistry, staleDays, sinceLastRun, deliverFile, deliverAiwatcher]);
 
   useEffect(() => {
     try {
@@ -200,12 +279,13 @@ export function BreakfastPage() {
   );
 
   const totals = data?.totals;
+  const council = unwrap(suite?.council_payload);
   const running = status === 'running';
 
   const statusLabel: Record<RunnerStatus, string> = {
-    idle: 'Ready — press Start runner',
-    running: 'Running fleet scan…',
-    done: 'Last run complete',
+    idle: 'Ready — press Start full suite',
+    running: 'Running full fleet suite…',
+    done: 'Last suite complete',
     error: 'Run failed',
   };
 
@@ -216,6 +296,21 @@ export function BreakfastPage() {
     error: 'bg-red-500/20 text-red-200 border-red-500/40',
   };
 
+  const tabs: { id: TabId; label: string; Icon: typeof Bell }[] = [
+    { id: 'overview', label: 'Overview', Icon: Coffee },
+    { id: 'notifications', label: 'Activity', Icon: Bell },
+    { id: 'prs', label: 'PRs', Icon: GitPullRequest },
+    { id: 'issues', label: 'Issues', Icon: CircleDot },
+    { id: 'repos', label: 'Repos', Icon: ExternalLink },
+    { id: 'ci', label: 'CI', Icon: Workflow },
+    { id: 'security', label: 'Security', Icon: Shield },
+    { id: 'acks', label: 'Ack drafts', Icon: GitPullRequest },
+    { id: 'catalog', label: 'Registry', Icon: Database },
+    { id: 'workspace', label: 'Workspace', Icon: CircleDot },
+    { id: 'links', label: 'Links', Icon: ExternalLink },
+    { id: 'retro', label: 'Retro', Icon: RefreshCw },
+  ];
+
   return (
     <div className="space-y-5 max-w-5xl">
       <div className="flex items-start gap-3">
@@ -223,13 +318,12 @@ export function BreakfastPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Breakfast runner</h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-            On-demand fleet digest — GitHub notifications, open PRs/issues, stale threads.
-            Equivalent to <code className="text-foreground/80">fleet_morning_digest</code>.
+            Full fleet maintainer suite — digest, CI, security, registry, workspace, grades.
+            MCP: <code className="text-foreground/80">fleet_ops(operation=&quot;full_suite&quot;)</code>
           </p>
         </div>
       </div>
 
-      {/* Runner control panel */}
       <section className="rounded-xl border border-border bg-card/60 p-4 md:p-5 space-y-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -239,10 +333,10 @@ export function BreakfastPage() {
               {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {statusLabel[status]}
             </span>
-            {data?.generated_at && status !== 'running' && (
+            {(suite?.generated_at ?? data?.generated_at) && status !== 'running' && (
               <span className="text-xs text-muted-foreground font-mono">
-                {new Date(data.generated_at).toLocaleString()}
-                {data.maintainer ? ` · ${data.maintainer}` : ''}
+                {new Date(suite?.generated_at ?? data?.generated_at ?? '').toLocaleString()}
+                {data?.maintainer ? ` · ${data.maintainer}` : ''}
               </span>
             )}
           </div>
@@ -253,14 +347,10 @@ export function BreakfastPage() {
               disabled={running}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-amber-500 text-amber-950 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed shadow-md transition-colors"
             >
-              {running ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Play className="h-5 w-5 fill-current" />
-              )}
-              {running ? 'Running…' : 'Start runner'}
+              {running ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5 fill-current" />}
+              {running ? 'Running…' : 'Start full suite'}
             </button>
-            {data && !running && (
+            {suite && !running && (
               <button
                 type="button"
                 onClick={() => run()}
@@ -279,7 +369,17 @@ export function BreakfastPage() {
 
         <div className="grid gap-3 md:grid-cols-2">
           <div>
-            <label className="text-xs text-muted-foreground uppercase tracking-wide">Fleet repos</label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-xs text-muted-foreground uppercase tracking-wide">Fleet repos</label>
+              <button
+                type="button"
+                onClick={() => loadRegistry()}
+                disabled={running || registryLoading}
+                className="text-xs text-amber-400 hover:text-amber-300 disabled:opacity-50"
+              >
+                {registryLoading ? 'Loading…' : 'Load from fleet registry'}
+              </button>
+            </div>
             <textarea
               className="mt-1 w-full min-h-[88px] rounded-md border border-border bg-background/80 px-3 py-2 font-mono text-sm"
               value={fleetText}
@@ -287,9 +387,21 @@ export function BreakfastPage() {
               placeholder="sandraschi/git-github-mcp"
               disabled={running}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">Shared with /inbox · one owner/repo per line</p>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Shared with /inbox · one owner/repo per line
+            </p>
           </div>
           <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useRegistry}
+                onChange={(e) => setUseRegistry(e.target.checked)}
+                disabled={running}
+                className="rounded"
+              />
+              Use mcp-central-docs fleet registry when list is empty
+            </label>
             <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
               <input
                 type="checkbox"
@@ -346,9 +458,20 @@ export function BreakfastPage() {
         </div>
       )}
 
-      {!data && status === 'idle' && !error && (
+      {!suite && status === 'idle' && !error && (
         <div className="rounded-lg border border-dashed border-border p-12 text-center text-muted-foreground text-sm">
-          No results yet. Configure your fleet list and click <strong className="text-foreground">Start runner</strong>.
+          No results yet. Click <strong className="text-foreground">Start full suite</strong> or load the fleet registry.
+        </div>
+      )}
+
+      {council?.summary && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          {Object.entries(council.summary).map(([k, v]) => (
+            <div key={k} className="rounded-lg border border-border bg-card/40 px-3 py-2 text-center">
+              <div className="text-xl font-semibold text-amber-300">{v}</div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">{k.replace(/_/g, ' ')}</div>
+            </div>
+          ))}
         </div>
       )}
 
@@ -369,22 +492,15 @@ export function BreakfastPage() {
         </div>
       )}
 
-      {data && (
+      {suite && (
         <>
-          <div className="flex flex-wrap items-center gap-2">
-            {(
-              [
-                ['notifications', 'New activity', Bell],
-                ['prs', 'Pull requests', GitPullRequest],
-                ['issues', 'Issues', CircleDot],
-                ['repos', 'Repos', ExternalLink],
-              ] as const
-            ).map(([id, label, Icon]) => (
+          <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
+            {tabs.map(({ id, label, Icon }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border shrink-0 ${
                   tab === id
                     ? 'bg-amber-500/15 text-amber-200 border-amber-500/35'
                     : 'bg-card/60 text-muted-foreground border-border hover:text-foreground'
@@ -400,6 +516,8 @@ export function BreakfastPage() {
             <div className="flex justify-center py-16">
               <Loader2 className="animate-spin h-8 w-8 text-amber-500" />
             </div>
+          ) : tab === 'overview' ? (
+            <OverviewPanel suite={suite} council={council} />
           ) : tab === 'notifications' ? (
             <ItemList
               empty="No new notifications since last digest run."
@@ -416,7 +534,7 @@ export function BreakfastPage() {
           ) : tab === 'prs' ? (
             <ItemList
               empty="No open pull requests in fleet."
-              items={(data.open_prs ?? []).map((pr) => ({
+              items={(data?.open_prs ?? []).map((pr) => ({
                 key: `${pr.repo_slug}-${pr.number}`,
                 repo: pr.repo_slug,
                 repoUrl: pr.repo_url,
@@ -438,7 +556,7 @@ export function BreakfastPage() {
           ) : tab === 'issues' ? (
             <ItemList
               empty="No open issues in fleet."
-              items={(data.open_issues ?? []).map((iss) => ({
+              items={(data?.open_issues ?? []).map((iss) => ({
                 key: `${iss.repo_slug}-${iss.number}`,
                 repo: iss.repo_slug,
                 repoUrl: iss.repo_url,
@@ -451,37 +569,32 @@ export function BreakfastPage() {
                 staleReason: iss.stale_reason,
               }))}
             />
+          ) : tab === 'repos' ? (
+            <RepoList links={data?.repo_links ?? []} />
+          ) : tab === 'ci' ? (
+            <CiPanel ci={unwrap(suite.ci_pulse)} />
+          ) : tab === 'security' ? (
+            <SecurityPanel sec={unwrap(suite.dependabot_digest)} />
+          ) : tab === 'acks' ? (
+            <AckPanel acks={unwrap(suite.ack_drafts)} />
+          ) : tab === 'catalog' ? (
+            <CatalogPanel
+              registry={unwrap(suite.registry_load)}
+              ports={unwrap(suite.port_audit)}
+              docs={unwrap(suite.docs_gate)}
+              quarantine={unwrap(suite.quarantine_report)}
+            />
+          ) : tab === 'workspace' ? (
+            <WorkspacePanel dirty={unwrap(suite.local_dirty)} drift={unwrap(suite.release_drift)} />
+          ) : tab === 'links' ? (
+            <LinksPanel grades={unwrap(suite.grade_snapshot)} gitingest={unwrap(suite.gitingest_bundle)} />
           ) : (
-            <div className="rounded-lg border border-border overflow-hidden">
-              {(data.repo_links ?? []).length === 0 ? (
-                <div className="p-10 text-center text-muted-foreground text-sm">No repos scanned</div>
-              ) : (
-                (data.repo_links ?? []).map((r) => (
-                  <div
-                    key={r.slug}
-                    className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/80 last:border-0 hover:bg-white/[0.02]"
-                  >
-                    <a
-                      href={r.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm font-medium hover:text-amber-300 flex items-center gap-2"
-                    >
-                      {r.slug}
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                    </a>
-                    <div className="text-xs text-muted-foreground font-mono">
-                      {r.open_prs} PRs · {r.open_issues} issues
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+            <RetroPanel runner={unwrap(suite.runner_status)} retro={unwrap(suite.weekly_retro)} />
           )}
 
-          {(data.repo_errors?.length ?? 0) > 0 && (
+          {(data?.repo_errors?.length ?? 0) > 0 && (
             <div className="text-xs text-amber-400/90 font-mono border border-amber-900/40 rounded p-3 bg-amber-950/20">
-              {data.repo_errors?.map((e) => (
+              {data?.repo_errors?.map((e) => (
                 <div key={e}>{e}</div>
               ))}
             </div>
@@ -489,6 +602,328 @@ export function BreakfastPage() {
         </>
       )}
     </div>
+  );
+}
+
+function OverviewPanel({
+  suite,
+  council,
+}: {
+  suite: SuiteResult;
+  council: { summary?: Record<string, number>; actions?: string[] } | null;
+}) {
+  const checks = [
+    { label: 'Morning digest', ok: suite.morning_digest?.success },
+    { label: 'Registry', ok: suite.registry_load?.success },
+    { label: 'CI pulse', ok: suite.ci_pulse?.success },
+    { label: 'Dependabot', ok: suite.dependabot_digest?.success },
+    { label: 'Port audit', ok: suite.port_audit?.success },
+    { label: 'Docs gate', ok: suite.docs_gate?.success },
+    { label: 'Local dirty', ok: suite.local_dirty?.success },
+    { label: 'Grade snapshot', ok: suite.grade_snapshot?.success },
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border border-border p-4 grid sm:grid-cols-2 gap-2">
+        {checks.map((c) => (
+          <div key={c.label} className="flex items-center justify-between text-sm">
+            <span>{c.label}</span>
+            <span className={c.ok ? 'text-emerald-400' : 'text-red-400'}>{c.ok ? 'ok' : 'failed'}</span>
+          </div>
+        ))}
+      </div>
+      {council?.actions && council.actions.length > 0 && (
+        <div className="rounded-lg border border-border p-4">
+          <h3 className="text-sm font-semibold mb-2">Suggested actions</h3>
+          <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-1">
+            {council.actions.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RepoList({ links }: { links: RepoLink[] }) {
+  if (links.length === 0) {
+    return <EmptyPanel text="No repos scanned" />;
+  }
+  return (
+    <div className="rounded-lg border border-border overflow-hidden">
+      {links.map((r) => (
+        <div
+          key={r.slug}
+          className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/80 last:border-0 hover:bg-white/[0.02]"
+        >
+          <a href={r.url} target="_blank" rel="noreferrer" className="text-sm font-medium hover:text-amber-300 flex items-center gap-2">
+            {r.slug}
+            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+          </a>
+          <div className="text-xs text-muted-foreground font-mono">
+            {r.open_prs} PRs · {r.open_issues} issues
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CiPanel({ ci }: { ci: { failure_count?: number; failures?: Record<string, unknown>[] } | null }) {
+  const failures = ci?.failures ?? [];
+  if (!ci) return <EmptyPanel text="CI pulse not run" />;
+  if (failures.length === 0) {
+    return <EmptyPanel text={`No CI failures in last window (${ci.failure_count ?? 0})`} />;
+  }
+  return (
+    <ItemList
+      empty=""
+      items={failures.map((f, i) => ({
+        key: `ci-${i}`,
+        repo: String(f.repo_slug ?? ''),
+        repoUrl: String(f.repo_url ?? ''),
+        title: String(f.name ?? 'Workflow run'),
+        url: String(f.url ?? ''),
+        meta: [f.conclusion, f.branch, relTime(String(f.created_at ?? ''))].filter(Boolean).join(' · '),
+        stale: true,
+        staleReason: 'CI failure',
+      }))}
+    />
+  );
+}
+
+function SecurityPanel({
+  sec,
+}: {
+  sec: { alert_count?: number; alerts?: Record<string, unknown>[] } | null;
+}) {
+  const alerts = sec?.alerts ?? [];
+  if (!sec) return <EmptyPanel text="Security digest not run" />;
+  if (alerts.length === 0) return <EmptyPanel text="No open Dependabot alerts" />;
+  return (
+    <ItemList
+      empty=""
+      items={alerts.map((a, i) => ({
+        key: `sec-${i}`,
+        repo: String(a.repo_slug ?? ''),
+        repoUrl: String(a.repo_url ?? ''),
+        title: String(a.package ?? 'dependency alert'),
+        url: String(a.url ?? ''),
+        meta: [a.security_advisory ?? a.severity, a.state].filter(Boolean).join(' · '),
+        stale: true,
+        staleReason: 'security',
+      }))}
+    />
+  );
+}
+
+function AckPanel({ acks }: { acks: { drafts?: Record<string, unknown>[] } | null }) {
+  const drafts = acks?.drafts ?? [];
+  if (!acks) return <EmptyPanel text="Ack drafts not run" />;
+  if (drafts.length === 0) return <EmptyPanel text="No stale PRs need acknowledgment drafts" />;
+  return (
+    <div className="space-y-3">
+      {drafts.map((d, i) => (
+        <div key={i} className="rounded-lg border border-border p-4 text-sm">
+          <a href={String(d.url ?? '')} target="_blank" rel="noreferrer" className="font-medium hover:text-amber-300">
+            {String(d.repo_slug)} #{String(d.pr_number)} — {String(d.title)}
+          </a>
+          <p className="text-xs text-muted-foreground mt-1">{String(d.stale_reason ?? '')}</p>
+          <p className="text-xs mt-2 p-2 rounded bg-muted/50 text-muted-foreground whitespace-pre-wrap">
+            {String(d.draft_body ?? '')}
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CatalogPanel({
+  registry,
+  ports,
+  docs,
+  quarantine,
+}: {
+  registry: { entry_count?: number; github_repos?: string[] } | null;
+  ports: {
+    collision_count?: number;
+    mismatch_count?: number;
+    collisions?: Record<string, unknown>[];
+    mismatches?: Record<string, unknown>[];
+  } | null;
+  docs: { non_compliant_count?: number; non_compliant?: Record<string, unknown>[] } | null;
+  quarantine: { count?: number; repos?: Record<string, unknown>[] } | null;
+}) {
+  return (
+    <div className="space-y-4 text-sm">
+      <Section title="Registry">
+        {registry ? (
+          <p className="text-muted-foreground">
+            {registry.entry_count ?? 0} entries · {(registry.github_repos ?? []).length} GitHub slugs
+          </p>
+        ) : (
+          <p className="text-muted-foreground">Not loaded</p>
+        )}
+      </Section>
+      <Section title={`Port audit (${ports?.collision_count ?? 0} collisions, ${ports?.mismatch_count ?? 0} mismatches)`}>
+        {(ports?.collisions ?? []).map((c, i) => (
+          <div key={i} className="text-amber-400 font-mono text-xs">
+            port {String(c.port)}: {JSON.stringify(c.repos)}
+          </div>
+        ))}
+        {(ports?.mismatches ?? []).slice(0, 10).map((m, i) => (
+          <div key={i} className="text-xs text-muted-foreground">
+            {String(m.id)} {String(m.kind)} registry={String(m.registry_port)} doc={JSON.stringify(m.webapp_ports_doc)}
+          </div>
+        ))}
+      </Section>
+      <Section title={`Docs gate (${docs?.non_compliant_count ?? 0} non-compliant)`}>
+        {(docs?.non_compliant ?? []).slice(0, 15).map((r) => (
+          <div key={String(r.id)} className="text-xs text-muted-foreground">
+            {String(r.id)}: missing {JSON.stringify(r.missing)}
+          </div>
+        ))}
+      </Section>
+      <Section title={`Quarantine (${quarantine?.count ?? 0})`}>
+        {(quarantine?.repos ?? []).map((r) => (
+          <div key={String(r.id)} className="text-xs">
+            <span className="font-mono">{String(r.slug)}</span>
+            <span className="text-muted-foreground">
+              {' '}
+              — {String(r.open_prs)} PRs, {String(r.open_issues)} issues
+              {r.superseded_by ? ` · superseded by ${String(r.superseded_by)}` : ''}
+            </span>
+          </div>
+        ))}
+      </Section>
+    </div>
+  );
+}
+
+function WorkspacePanel({
+  dirty,
+  drift,
+}: {
+  dirty: {
+    dirty_count?: number;
+    dirty?: Record<string, unknown>[];
+    sync_drift?: Record<string, unknown>[];
+  } | null;
+  drift: { drift_count?: number; drifts?: Record<string, unknown>[] } | null;
+}) {
+  return (
+    <div className="space-y-4 text-sm">
+      <Section title={`Dirty worktrees (${dirty?.dirty_count ?? 0})`}>
+        {(dirty?.dirty ?? []).map((d) => (
+          <div key={String(d.id)} className="text-xs font-mono text-amber-300">
+            {String(d.id)} — {String(d.changed_files)} files
+          </div>
+        ))}
+      </Section>
+      <Section title="Sync drift">
+        {(dirty?.sync_drift ?? []).map((d) => (
+          <div key={String(d.id)} className="text-xs text-muted-foreground">
+            {String(d.id)}: ahead {String(d.ahead)} / behind {String(d.behind)}
+          </div>
+        ))}
+      </Section>
+      <Section title={`Release drift (${drift?.drift_count ?? 0})`}>
+        {(drift?.drifts ?? []).map((d) => (
+          <div key={String(d.repo_slug)} className="text-xs">
+            {String(d.repo_slug)}: local {String(d.local_version)} vs tag {String(d.latest_release_tag ?? 'none')}
+          </div>
+        ))}
+      </Section>
+    </div>
+  );
+}
+
+function LinksPanel({
+  grades,
+  gitingest,
+}: {
+  grades: { ok?: boolean; error?: string; repo_count?: number } | null;
+  gitingest: { links?: { repo_slug: string; gitingest_url: string }[] } | null;
+}) {
+  return (
+    <div className="space-y-4 text-sm">
+      <Section title="Grade snapshot (scraper-mcp)">
+        {grades?.ok ? (
+          <p className="text-muted-foreground">{grades.repo_count ?? '?'} repos in matrix</p>
+        ) : (
+          <p className="text-amber-400">{grades?.error ?? 'scraper-mcp offline — start on 10998'}</p>
+        )}
+      </Section>
+      <Section title={`Gitingest (${gitingest?.links?.length ?? 0})`}>
+        <div className="rounded-lg border border-border overflow-hidden max-h-64 overflow-y-auto">
+          {(gitingest?.links ?? []).map((l) => (
+            <a
+              key={l.repo_slug}
+              href={l.gitingest_url}
+              target="_blank"
+              rel="noreferrer"
+              className="block px-4 py-2 text-xs font-mono border-b border-border/80 hover:bg-white/[0.02]"
+            >
+              {l.repo_slug}
+            </a>
+          ))}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function RetroPanel({
+  runner,
+  retro,
+}: {
+  runner: { last_run_at?: string; scheduled_task?: { installed?: boolean } } | null;
+  retro: {
+    merged_pr_count?: number;
+    new_issue_count?: number;
+    merged_prs?: Record<string, unknown>[];
+  } | null;
+}) {
+  return (
+    <div className="space-y-4 text-sm">
+      <Section title="Scheduled runner">
+        <p className="text-muted-foreground">
+          Task installed: {runner?.scheduled_task?.installed ? 'yes' : 'no'}
+          {runner?.last_run_at ? ` · last run ${new Date(runner.last_run_at).toLocaleString()}` : ''}
+        </p>
+      </Section>
+      <Section title={`Weekly retro (${retro?.merged_pr_count ?? 0} merged PRs, ${retro?.new_issue_count ?? 0} new issues)`}>
+        <ItemList
+          empty="No merged PRs this week"
+          items={(retro?.merged_prs ?? []).map((pr, i) => ({
+            key: `m-${i}`,
+            repo: String(pr.repo_slug ?? ''),
+            repoUrl: '',
+            title: String(pr.title ?? ''),
+            url: String(pr.url ?? ''),
+            meta: [pr.author && typeof pr.author === 'object' ? (pr.author as Author).login : null, relTime(String(pr.mergedAt ?? ''))]
+              .filter(Boolean)
+              .join(' · '),
+          }))}
+        />
+      </Section>
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <h3 className="text-sm font-semibold mb-2">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
+function EmptyPanel({ text }: { text: string }) {
+  return (
+    <div className="p-10 text-center text-muted-foreground text-sm rounded-lg border border-border">{text}</div>
   );
 }
 
@@ -505,9 +940,7 @@ type RowItem = {
 
 function ItemList({ empty, items }: { empty: string; items: RowItem[] }) {
   if (items.length === 0) {
-    return (
-      <div className="p-10 text-center text-muted-foreground text-sm rounded-lg border border-border">{empty}</div>
-    );
+    return <EmptyPanel text={empty} />;
   }
   return (
     <div className="rounded-lg border border-border overflow-hidden">
@@ -537,12 +970,7 @@ function ItemList({ empty, items }: { empty: string; items: RowItem[] }) {
               )}
             </div>
             {row.url ? (
-              <a
-                href={row.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm font-medium hover:underline block truncate mt-1"
-              >
+              <a href={row.url} target="_blank" rel="noreferrer" className="text-sm font-medium hover:underline block truncate mt-1">
                 {row.title}
               </a>
             ) : (

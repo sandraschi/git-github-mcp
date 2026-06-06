@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
 from fastmcp.server import create_proxy
 
+from .services.fleet_ops import fleet_ops as _fleet_ops
 from .services.morning_digest import run_morning_digest as _run_morning_digest
 from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
@@ -58,7 +59,8 @@ mcp = FastMCP(
         "Use git_github_help for full operation reference. "
         "Use git_agentic_workflow for multi-step operations that require reasoning. "
         "Use git_github_search_workflow for agentic GitHub discovery/search tasks. "
-        "Use fleet_morning_digest for daily PR/issue/notification breakfast summary across fleet repos."
+        "Use fleet_morning_digest for daily PR/issue/notification breakfast summary across fleet repos. "
+        "Use fleet_ops for full maintainer toolkit (registry_load, port_audit, ci_pulse, full_suite, etc.)."
     ),
 )
 
@@ -438,6 +440,57 @@ async def fleet_morning_digest(
         deliver=deliver,
         output_file=output_file,
         since_last_run=since_last_run,
+    )
+    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
+    return result
+
+
+@mcp.tool()
+async def fleet_ops(
+    operation: str,
+    fleet_repos: str | None = None,
+    fleet_repos_file: str | None = None,
+    use_registry: bool = True,
+    stale_days: int = 7,
+    maintainer_login: str | None = None,
+    deliver: str | None = None,
+    since_last_run: bool = True,
+    hours: int = 48,
+    days: int = 7,
+    owner: str | None = None,
+    registry_path: str | None = None,
+    repos_root: str | None = None,
+    scraper_url: str | None = None,
+    template: str | None = None,
+) -> dict:
+    """Fleet maintainer portmanteau for sandraschi MCP fleet.
+
+    Operations: registry_load, port_audit, docs_gate, quarantine_report,
+    ci_pulse, dependabot_digest, mention_inbox, ack_drafts, local_dirty,
+    release_drift, grade_snapshot, gitingest_bundle, runner_status,
+    weekly_retro, council_payload, full_suite.
+
+    full_suite runs morning_digest plus all checks and returns a combined payload.
+    Requires gh auth for GitHub-backed ops. Non-blocking (thread pool).
+    """
+    start = time.perf_counter()
+    result = await asyncio.to_thread(
+        _fleet_ops,
+        operation,
+        fleet_repos=fleet_repos,
+        fleet_repos_file=fleet_repos_file,
+        use_registry=use_registry,
+        stale_days=stale_days,
+        maintainer_login=maintainer_login,
+        deliver=deliver,
+        since_last_run=since_last_run,
+        hours=hours,
+        days=days,
+        owner=owner,
+        registry_path=registry_path,
+        repos_root=repos_root,
+        scraper_url=scraper_url,
+        template=template,
     )
     result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
@@ -1142,6 +1195,28 @@ async def api_tools():
                 "name": "fleet_morning_digest",
                 "description": "Daily fleet PR/issue/notification breakfast summary",
             },
+            {
+                "name": "fleet_ops",
+                "description": "Fleet maintainer toolkit (16 ops incl. full_suite)",
+                "operations": [
+                    "registry_load",
+                    "port_audit",
+                    "docs_gate",
+                    "quarantine_report",
+                    "ci_pulse",
+                    "dependabot_digest",
+                    "mention_inbox",
+                    "ack_drafts",
+                    "local_dirty",
+                    "release_drift",
+                    "grade_snapshot",
+                    "gitingest_bundle",
+                    "runner_status",
+                    "weekly_retro",
+                    "council_payload",
+                    "full_suite",
+                ],
+            },
             {"name": "git_github_status", "description": "System status"},
             {"name": "git_github_help", "description": "Contextual help"},
         ]
@@ -1165,6 +1240,21 @@ async def api_morning_digest(body: dict | None = None):
     """Run fleet morning digest (same as fleet_morning_digest MCP tool)."""
     args = body or {}
     return await asyncio.to_thread(_run_morning_digest, **args)
+
+
+@web_app.post("/api/fleet-ops")
+async def api_fleet_ops(body: dict | None = None):
+    """Run a single fleet_ops operation (same as fleet_ops MCP tool)."""
+    args = body or {}
+    operation = args.pop("operation", "")
+    return await asyncio.to_thread(_fleet_ops, operation, **args)
+
+
+@web_app.post("/api/fleet-suite")
+async def api_fleet_suite(body: dict | None = None):
+    """Run full fleet maintainer suite (fleet_ops operation=full_suite)."""
+    args = body or {}
+    return await asyncio.to_thread(_fleet_ops, "full_suite", **args)
 
 
 @web_app.post("/api/discovery")

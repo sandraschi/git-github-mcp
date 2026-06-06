@@ -12,6 +12,7 @@ import {
     ChevronRight,
     Github,
     Inbox,
+    Coffee,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -28,6 +29,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         { label: 'Repositories', icon: GitBranch, href: '/repos' },
         { label: 'Commits', icon: GitCommit, href: '/commits' },
         { label: 'PRs & Issues', icon: Inbox, href: '/inbox' },
+        { label: 'Breakfast', icon: Coffee, href: '/breakfast' },
         { label: 'Chat', icon: MessageSquare, href: '/chat' },
         { label: 'Settings', icon: Settings, href: '/settings' },
     ];

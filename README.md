@@ -119,6 +119,18 @@ Fleet list: `config/fleet-repos.txt` (copy from `config/fleet-repos.example.txt`
 
 MCP: `fleet_morning_digest(deliver="file,aiwatcher")` · HTTP: `POST http://127.0.0.1:10702/api/morning-digest`
 
+### Fleet maintainer toolkit (`fleet_ops`)
+
+Portmanteau for registry, CI, security, workspace, and orchestration. **`full_suite`** runs morning digest plus all checks.
+
+```powershell
+uv run python -c "from git_github_mcp.services.fleet_ops import fleet_ops; print(fleet_ops('runner_status'))"
+```
+
+MCP: `fleet_ops(operation="full_suite")` · HTTP: `POST http://127.0.0.1:10702/api/fleet-suite` · single op: `POST /api/fleet-ops`
+
+Web `/breakfast` runs the full suite on **Start full suite** and exposes tabs for CI, security, registry, workspace, grades, and weekly retro.
+
 Delivery: **file** (markdown), **aiwatcher** (`POST /api/fleet/ingest`), **robofang** (bridge pulse).
 
 This does not replace a fair review — it reduces “I wasted hours in the void” as the default story.

@@ -35,3 +35,16 @@ export async function getStatus(): Promise<unknown> {
 export async function runMorningDigest(args: Record<string, unknown> = {}): Promise<unknown> {
   return callApi('/api/morning-digest', args);
 }
+
+/** Single fleet_ops operation — same as fleet_ops MCP tool. */
+export async function runFleetOps(
+  operation: string,
+  args: Record<string, unknown> = {},
+): Promise<unknown> {
+  return callApi('/api/fleet-ops', { operation, ...args });
+}
+
+/** Full fleet maintainer suite — morning digest + all fleet checks. */
+export async function runFleetSuite(args: Record<string, unknown> = {}): Promise<unknown> {
+  return callApi('/api/fleet-suite', args);
+}
