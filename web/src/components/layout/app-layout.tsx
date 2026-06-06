@@ -3,13 +3,15 @@ import { NavLink } from 'react-router-dom';
 import {
   GitCommit, GitPullRequest, CircleDot,
   MessageSquare, Settings, ChevronRight, Terminal,
-  LayoutDashboard, BookOpen, GraduationCap
+  LayoutDashboard, BookOpen, GraduationCap, Inbox, Coffee,
 } from 'lucide-react';
 
 const NAV = [
   { to: '/',        icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/repos',   icon: BookOpen,         label: 'Repos' },
   { to: '/commits', icon: GitCommit,        label: 'Commits' },
+  { to: '/inbox',   icon: Inbox,            label: 'PRs & Issues' },
+  { to: '/breakfast', icon: Coffee,         label: 'Breakfast' },
   { to: '/issues',  icon: CircleDot,        label: 'Issues' },
   { to: '/prs',     icon: GitPullRequest,   label: 'Pull Requests' },
   { to: '/chat',    icon: MessageSquare,    label: 'Command' },

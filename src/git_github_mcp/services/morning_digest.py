@@ -280,7 +280,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
         lines.append("")
 
     lines.append("---")
-    lines.append("Open inbox: http://127.0.0.1:10702/inbox")
+    lines.append("Open breakfast: http://127.0.0.1:10703/breakfast")
     return "\n".join(lines)
 
 
@@ -328,7 +328,7 @@ def deliver_digest(markdown: str, summary: dict[str, Any], deliver: list[str]) -
                 f"{summary['totals']['notifications']} notifications",
                 "summary": markdown[:4000],
                 "source": "git-github-mcp",
-                "url": "http://127.0.0.1:10702/inbox",
+                "url": "http://127.0.0.1:10703/breakfast",
                 "urgency_hint": min(10.0, 3.0 + summary["totals"]["stale_prs"] + summary["totals"]["notifications"] / 5),
             },
         )
@@ -409,6 +409,60 @@ def run_morning_digest(
     if include_notifications:
         notifications = fetch_notifications(since_iso=since_iso)
 
+    all_open_prs: list[dict[str, Any]] = []
+    all_open_issues: list[dict[str, Any]] = []
+    repo_links: list[dict[str, Any]] = []
+    for scanned in repo_results:
+        slug = scanned["slug"]
+        repo_url = f"https://github.com/{slug}"
+        repo_links.append(
+            {
+                "slug": slug,
+                "url": repo_url,
+                "open_prs": scanned["prs_open"],
+                "open_issues": scanned["issues_open"],
+            }
+        )
+        stale_pr_nums = {int(p.get("number", 0)) for p in scanned["stale_prs"]}
+        stale_issue_nums = {int(i.get("number", 0)) for i in scanned["stale_issues"]}
+        for pr in scanned["prs"]:
+            num = int(pr.get("number", 0))
+            row = {
+                **pr,
+                "repo_slug": slug,
+                "repo_url": repo_url,
+                "is_stale": num in stale_pr_nums,
+            }
+            if num in stale_pr_nums:
+                for s in scanned["stale_prs"]:
+                    if int(s.get("number", 0)) == num:
+                        row["stale_reason"] = s.get("stale_reason")
+                        break
+            all_open_prs.append(row)
+        for issue in scanned["issues"]:
+            num = int(issue.get("number", 0))
+            row = {
+                **issue,
+                "repo_slug": slug,
+                "repo_url": repo_url,
+                "is_stale": num in stale_issue_nums,
+            }
+            if num in stale_issue_nums:
+                for s in scanned["stale_issues"]:
+                    if int(s.get("number", 0)) == num:
+                        row["stale_reason"] = s.get("stale_reason")
+                        break
+            all_open_issues.append(row)
+
+    def _sort_updated(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        epoch = datetime(1970, 1, 1, tzinfo=UTC)
+
+        return sorted(
+            items,
+            key=lambda x: _parse_iso(x.get("updatedAt") or x.get("createdAt")) or epoch,
+            reverse=True,
+        )
+
     generated_at = datetime.now(UTC).isoformat()
     summary: dict[str, Any] = {
         "generated_at": generated_at,
@@ -416,6 +470,9 @@ def run_morning_digest(
         "repo_count": len(repos),
         "stale_days": stale_n,
         "repos": [r["slug"] for r in repo_results],
+        "repo_links": repo_links,
+        "open_prs": _sort_updated(all_open_prs),
+        "open_issues": _sort_updated(all_open_issues),
         "totals": {
             "open_prs": open_prs,
             "open_issues": open_issues,
@@ -449,7 +506,7 @@ def run_morning_digest(
             f"{summary['totals']['notifications']} notifications"
         ),
         next_steps=[
-            "Open http://127.0.0.1:10702/inbox for human triage",
+            "Open http://127.0.0.1:10703/breakfast for human triage",
             "Acknowledge stale PRs via github_ops(pr_comment, ...)",
         ],
     )

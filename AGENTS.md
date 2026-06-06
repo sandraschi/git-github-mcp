@@ -27,4 +27,4 @@ uv run python scripts/run_morning_digest.py --deliver file,aiwatcher
 .\scripts\install_morning_task.ps1
 ```
 
-MCP: `fleet_morning_digest` · HTTP: `POST /api/morning-digest`
+MCP: `fleet_morning_digest` · HTTP: `POST /api/morning-digest` · Web: `http://127.0.0.1:10703/breakfast`

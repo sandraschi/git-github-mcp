@@ -178,7 +178,11 @@ export function InboxPage() {
             <code className="text-slate-300">issue_list</code>. A{' '}
             <strong className="text-slate-200">supervisor</strong> (OpenClaw, OpenManus, RoboFang, OpenClaude,
             etc.) can run a daily heartbeat that lists open PRs/issues across your repo fleet — this page is
-            the dashboard for the same data.
+            the dashboard for the same data. For the scheduled{' '}
+            <a href="/breakfast" className="text-amber-300 hover:underline">
+              breakfast runner
+            </a>{' '}
+            digest, use <strong className="text-slate-200">Breakfast</strong> in the sidebar.
           </p>
         </div>
       </div>

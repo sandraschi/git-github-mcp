@@ -30,3 +30,8 @@ export async function getStatus(): Promise<unknown> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+/** Fleet morning digest — same as fleet_morning_digest MCP tool. */
+export async function runMorningDigest(args: Record<string, unknown> = {}): Promise<unknown> {
+  return callApi('/api/morning-digest', args);
+}

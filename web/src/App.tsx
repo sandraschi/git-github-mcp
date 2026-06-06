@@ -9,6 +9,7 @@ import { Chat } from '@/pages/chat';
 import { Settings } from '@/pages/settings';
 import { Lectures } from '@/pages/lectures';
 import { InboxPage } from '@/pages/inbox';
+import { BreakfastPage } from '@/pages/breakfast';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
           <Route path="/repos" element={<Repositories />} />
           <Route path="/commits" element={<Commits />} />
           <Route path="/inbox" element={<InboxPage />} />
+          <Route path="/breakfast" element={<BreakfastPage />} />
           <Route path="/issues" element={<Issues />} />
           <Route path="/prs" element={<PullRequests />} />
           <Route path="/chat" element={<Chat />} />
