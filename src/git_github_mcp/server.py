@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
 from fastmcp.server import create_proxy
 
+from .services.morning_digest import run_morning_digest as _run_morning_digest
 from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
 from .tools.help import get_help as _get_help
@@ -56,7 +57,8 @@ mcp = FastMCP(
         "Use git_blame for file blame (1 op). "
         "Use git_github_help for full operation reference. "
         "Use git_agentic_workflow for multi-step operations that require reasoning. "
-        "Use git_github_search_workflow for agentic GitHub discovery/search tasks."
+        "Use git_github_search_workflow for agentic GitHub discovery/search tasks. "
+        "Use fleet_morning_digest for daily PR/issue/notification breakfast summary across fleet repos."
     ),
 )
 
@@ -395,6 +397,47 @@ async def github_ops(
         package_name=package_name,
         subpath=subpath,
         github_url=github_url,
+    )
+    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
+    return result
+
+
+@mcp.tool()
+async def fleet_morning_digest(
+    fleet_repos: str | None = None,
+    fleet_repos_file: str | None = None,
+    stale_days: int = 7,
+    include_issues: bool = True,
+    include_notifications: bool = True,
+    limit_per_repo: int = 30,
+    maintainer_login: str | None = None,
+    deliver: str | None = None,
+    output_file: str | None = None,
+    since_last_run: bool = True,
+) -> dict:
+    """Breakfast runner: scan fleet repos for open PRs/issues, stale threads, and new notifications.
+
+    Fleet list format (one per line): owner/repo — same as web /inbox fleet mode.
+    Sources: fleet_repos parameter, GIT_GITHUB_FLEET_REPOS_FILE, or config/fleet-repos.txt.
+
+    deliver: comma-separated optional sinks — file, aiwatcher, robofang
+    (or set GIT_GITHUB_DIGEST_DELIVER). Schedule via scripts/install_morning_task.ps1.
+
+    Requires: gh auth login. Non-blocking (runs in thread pool).
+    """
+    start = time.perf_counter()
+    result = await asyncio.to_thread(
+        _run_morning_digest,
+        fleet_repos=fleet_repos,
+        fleet_repos_file=fleet_repos_file,
+        stale_days=stale_days,
+        include_issues=include_issues,
+        include_notifications=include_notifications,
+        limit_per_repo=limit_per_repo,
+        maintainer_login=maintainer_login,
+        deliver=deliver,
+        output_file=output_file,
+        since_last_run=since_last_run,
     )
     result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
@@ -1095,6 +1138,10 @@ async def api_tools():
                 ),
                 "presets": list(DISCOVERY_PRESETS),
             },
+            {
+                "name": "fleet_morning_digest",
+                "description": "Daily fleet PR/issue/notification breakfast summary",
+            },
             {"name": "git_github_status", "description": "System status"},
             {"name": "git_github_help", "description": "Contextual help"},
         ]
@@ -1111,6 +1158,13 @@ async def api_git(body: dict):
 async def api_github(body: dict):
     args = body.get("arguments", body)
     return await github_ops(**args)
+
+
+@web_app.post("/api/morning-digest")
+async def api_morning_digest(body: dict | None = None):
+    """Run fleet morning digest (same as fleet_morning_digest MCP tool)."""
+    args = body or {}
+    return await asyncio.to_thread(_run_morning_digest, **args)
 
 
 @web_app.post("/api/discovery")

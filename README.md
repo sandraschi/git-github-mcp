@@ -106,6 +106,21 @@ Silence reads as indifference. You do not need a bot on day one: use **`github_o
 
 6. **Fleet doc (mcp-central-docs):** **[GITHUB_MAINTAINER_HEARTBEAT.md](https://github.com/sandraschi/mcp-central-docs/blob/master/patterns/GITHUB_MAINTAINER_HEARTBEAT.md)** — where the schedule lives, robofang council hook, prompt sketch.
 
+### Breakfast runner (`fleet_morning_digest`)
+
+Daily fleet scan: open PRs/issues per repo, stale-thread flags, GitHub notifications since last run.
+
+```powershell
+uv run python scripts/run_morning_digest.py --deliver file,aiwatcher
+.\scripts\install_morning_task.ps1
+```
+
+Fleet list: `config/fleet-repos.txt` (copy from `config/fleet-repos.example.txt`) or `GIT_GITHUB_FLEET_REPOS_FILE`.
+
+MCP: `fleet_morning_digest(deliver="file,aiwatcher")` · HTTP: `POST http://127.0.0.1:10702/api/morning-digest`
+
+Delivery: **file** (markdown), **aiwatcher** (`POST /api/fleet/ingest`), **robofang** (bridge pulse).
+
 This does not replace a fair review — it reduces “I wasted hours in the void” as the default story.
 
 

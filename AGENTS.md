@@ -18,3 +18,13 @@ FastMCP 3.2.0+ hardened substrate for Git (local) and GitHub (gh CLI)
 - `CLAUDE.md` — Claude Code context (if present)
 
 Install docs: follow mcp-central-docs/standards/AGENT_INSTALL_REFERENCE.md
+
+## Breakfast runner
+
+```powershell
+copy config\fleet-repos.example.txt config\fleet-repos.txt
+uv run python scripts/run_morning_digest.py --deliver file,aiwatcher
+.\scripts\install_morning_task.ps1
+```
+
+MCP: `fleet_morning_digest` · HTTP: `POST /api/morning-digest`

@@ -1,0 +1,4 @@
+# One owner/repo per line — copy to config/fleet-repos.txt or %LOCALAPPDATA%\git-github-mcp\fleet-repos.txt
+sandraschi/git-github-mcp
+sandraschi/scraper-mcp
+sandraschi/mcp-central-docs
