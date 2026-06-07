@@ -1,4 +1,4 @@
-param(
+﻿param(
     [switch]$Headless,
     [switch]$BackendOnly,
     [switch]$FrontendOnly,
@@ -12,23 +12,19 @@ $FrontendPort = 10703
 
 . (Join-Path $ScriptRoot "scripts\FleetWebStart.ps1")
 
-$central = Get-FleetCentralDocsPath -RepoRoot $ScriptRoot
-if ($central) {
-    . (Join-Path $central "standards\FleetStartMode.ps1")
-    $FleetStart = Initialize-FleetStartMode @PSBoundParameters
-    Enter-FleetHeadlessConsole -Headless:$Headless -BackendOnly:$BackendOnly
-} else {
-    $FleetStart = [pscustomobject]@{
-        RunBackend  = -not $FrontendOnly
-        RunFrontend = (-not $BackendOnly) -and (-not $Headless)
-        SkipBrowser = $NoBrowser -or $Headless -or $BackendOnly
-    }
+$FleetStartPath = Join-Path $ScriptRoot "scripts\FleetStartMode.ps1"
+if (-not (Test-Path -LiteralPath $FleetStartPath)) {
+    Write-Host "ERROR: Missing vendored launcher helper: $FleetStartPath" -ForegroundColor Red
+    exit 1
 }
+. $FleetStartPath
+$FleetStart = Initialize-FleetStartMode @PSBoundParameters
+Enter-FleetHeadlessConsole -Headless:$Headless -BackendOnly:$BackendOnly
 
 Write-Host "Starting git-github-mcp (fleet SOTA)..." -ForegroundColor Cyan
 Write-Host "Frontend $FrontendPort | Backend $BackendPort | MCP /mcp" -ForegroundColor Gray
 
-Stop-FleetZombies -Ports @($BackendPort, $FrontendPort)
+Stop-FleetPortSquatters -Ports @($BackendPort, $FrontendPort) -Label "git-github-mcp"
 
 $uvExe = Require-FleetCommand -Cmd "uv" -WingetId "Astral.uv" -Label "uv"
 $npmExe = Require-FleetCommand -Cmd "npm" -WingetId "OpenJS.NodeJS.LTS" -Label "npm"
@@ -57,3 +53,4 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Vite exited with code $LASTEXITCODE" -ForegroundColor Red
     exit $LASTEXITCODE
 }
+
