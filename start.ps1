@@ -26,6 +26,8 @@ Write-Host "Frontend $FrontendPort | Backend $BackendPort | MCP /mcp" -Foregroun
 
 Stop-FleetPortSquatters -Ports @($BackendPort, $FrontendPort) -Label "git-github-mcp"
 
+if (-not (Assert-FleetPortsAvailable -Ports @($BackendPort, $FrontendPort) -Label "git-github-mcp")) { exit 1 }
+
 $uvExe = Require-FleetCommand -Cmd "uv" -WingetId "Astral.uv" -Label "uv"
 $npmExe = Require-FleetCommand -Cmd "npm" -WingetId "OpenJS.NodeJS.LTS" -Label "npm"
 Require-FleetCommand -Cmd "node" -WingetId "OpenJS.NodeJS.LTS" -Label "node" | Out-Null
@@ -53,4 +55,5 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: Vite exited with code $LASTEXITCODE" -ForegroundColor Red
     exit $LASTEXITCODE
 }
+
 
