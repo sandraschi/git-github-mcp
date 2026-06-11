@@ -1443,9 +1443,16 @@ def main():
         stdio_thread.start()
         logger.info("MCP STDIO listener started in background thread")
 
-        # Keep main thread alive so daemon threads (HTTP bridge) survive
+        # Orphan-process fix (2026-06-11): previously this was an
+        # unconditional `while True: sleep(1)`, which kept the process
+        # alive forever after the client died (stdio EOF). One zombie
+        # leaked per client restart. Now: stay alive only while the
+        # STDIO transport is connected; when it ends, exit — the daemon
+        # HTTP bridge dies with us. For a standalone HTTP server, run
+        # with transport=http instead.
         try:
-            while True:
-                time.sleep(1)
+            while stdio_thread.is_alive():
+                stdio_thread.join(timeout=1.0)
+            logger.info("STDIO transport ended (client disconnected) — shutting down")
         except KeyboardInterrupt:
             logger.info("Shutdown requested by user")
