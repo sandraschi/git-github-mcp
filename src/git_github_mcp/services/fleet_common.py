@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import shutil
 import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib import error as urlerror
-from urllib import request as urlrequest
+
+import httpx
+
+logger = logging.getLogger("git-github-mcp.fleet_common")
 
 _SLUG_RE = re.compile(r"^([\w.-]+)/([\w.-]+)$")
 _DEFAULT_STATE_DIR = Path(os.getenv("LOCALAPPDATA", Path.home())) / "git-github-mcp"
@@ -88,35 +92,30 @@ def state_dir() -> Path:
 
 
 def post_json(url: str, body: dict[str, Any] | None = None, *, timeout: float = 12.0) -> tuple[bool, str]:
-    data = json.dumps(body or {}).encode("utf-8")
-    req = urlrequest.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        with urlrequest.urlopen(req, timeout=timeout) as resp:
-            return True, resp.read().decode("utf-8", errors="replace")[:8000]
-    except urlerror.URLError as exc:
-        return False, str(exc.reason if hasattr(exc, "reason") else exc)
+        resp = httpx.post(url, json=body or {}, timeout=timeout)
+        return True, resp.text[:8000]
+    except httpx.HTTPError as exc:
+        return False, str(exc)
 
 
 def get_json(url: str, *, timeout: float = 12.0) -> tuple[bool, Any, str]:
     try:
-        with urlrequest.urlopen(url, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-            return True, json.loads(raw) if raw.strip() else {}, ""
-    except urlerror.URLError as exc:
-        return False, None, str(exc.reason if hasattr(exc, "reason") else exc)
+        resp = httpx.get(url, timeout=timeout)
+        raw = resp.text
+        return True, json.loads(raw) if raw.strip() else {}, ""
+    except httpx.HTTPError as exc:
+        return False, None, str(exc)
     except json.JSONDecodeError as exc:
         return False, None, str(exc)
 
 
 def run_git(args: list[str], cwd: Path, timeout: int = 30) -> tuple[bool, str, str]:
+    git_exe = shutil.which("git") or "git"
+    _subprocess_run = subprocess.run
     try:
-        result = subprocess.run(
-            ["git", *args],
+        result = _subprocess_run(
+            [git_exe, *args],
             cwd=cwd,
             capture_output=True,
             text=True,

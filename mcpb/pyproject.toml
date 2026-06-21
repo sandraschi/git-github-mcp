@@ -1,16 +1,20 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "uv-dynamic-versioning>=0.7.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "git-github-mcp"
-version = "0.1.0"
-description = "FastMCP 2.14.4 portmanteau server for Git and GitHub (gh CLI)"
+version = "0.4.0"
+description = "FastMCP 3.2.0+ hardened substrate for Git (local) and GitHub (gh CLI)"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
-    "fastmcp>=3.1.0,<4",
+    "fastapi>=0.115.0",
+    "fastmcp>=3.2.0",
+    "uvicorn[standard]>=0.32.0",
+    "ruff>=0.15.2",
+    "prefab-ui>=0.14.0",
 ]
 
 [project.optional-dependencies]
@@ -26,10 +30,23 @@ git-github-mcp = "git_github_mcp.__main__:main"
 [tool.hatch.build.targets.wheel]
 packages = ["src/git_github_mcp"]
 
-
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "W", "UP"]
+select = ["E", "F", "W", "I", "B", "S", "UP", "RUF"]
+ignore = ["S101", "B008"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+bump = true
+fallback-version = "0.4.0"

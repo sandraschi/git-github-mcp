@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
-import urllib.request
 from typing import Any
+
+import httpx
+
+logger = logging.getLogger("git-github-mcp.capabilities")
 
 _PORTMANTEAU = frozenset(
     {
@@ -20,11 +24,11 @@ _PORTMANTEAU = frozenset(
 def _probe_local_llm() -> bool:
     for url in ("http://127.0.0.1:11434/api/tags", "http://127.0.0.1:1234/v1/models"):
         try:
-            with urllib.request.urlopen(url, timeout=1.2) as resp:
-                if resp.getcode() < 500:
-                    return True
-        except Exception:
-            continue
+            resp = httpx.get(url, timeout=1.2)
+            if resp.status_code < 500:
+                return True
+        except Exception as exc:
+            logger.debug("LLM probe failed for %s: %s", url, exc)
     return False
 
 
@@ -43,7 +47,7 @@ async def build_capabilities(mcp: Any, *, version: str = "0.4.0") -> dict[str, A
         tools = await mcp.list_tools(run_middleware=False)
         tool_names = sorted({t.name for t in tools})
     except Exception:
-        pass
+        logger.debug("list_tools failed, using static tool list")
 
     portmanteau_tools = [n for n in tool_names if n in _PORTMANTEAU]
     atomic_tools = [n for n in tool_names if n not in _PORTMANTEAU]
@@ -68,13 +72,13 @@ async def build_capabilities(mcp: Any, *, version: str = "0.4.0") -> dict[str, A
             if uri.startswith("skill://"):
                 skill_uris.append(uri)
     except Exception:
-        pass
+        logger.debug("list_resources failed")
 
     local_llm = _probe_local_llm()
 
     return {
         "status": "ok",
-        "server": {"name": "git-github-mcp", "version": version, "fastmcp": "3.2+"},
+        "server": {"name": "git-github-mcp", "version": version, "fastmcp": "3.4.2+"},
         "tool_surface": {
             "total": len(tool_names),
             "portmanteau_count": len(portmanteau_tools),

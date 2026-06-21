@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.3",
   "name": "git-github-mcp",
-  "version": "0.4.0",
-  "description": "FastMCP 3.1+ portmanteau server: git_core/branch/admin/blame (43 local git ops) + github_ops (58 GitHub actions via gh CLI), two sampling agentic workflows, 7 prompts, optional FastAPI web bridge on port 10702.",
+  "version": "0.5.0",
+  "description": "FastMCP 3.2+ portmanteau server: git_core/branch/admin/blame (43 local git ops) + github_ops (58 GitHub actions via gh CLI), fleet_morning_digest + fleet_ops maintainer toolkit (16 ops incl. full_suite), two sampling agentic workflows, 7 prompts, optional FastAPI web bridge on port 10702.",
   "author": {
     "name": "Sandra Schi",
     "url": "https://github.com/sandraschi"
@@ -75,6 +75,14 @@
     {
       "name": "git_github_search_workflow",
       "description": "Sampling: GitHub discovery/search only — planned github_ops chain (requires MCP sampling)"
+    },
+    {
+      "name": "fleet_morning_digest",
+      "description": "Breakfast runner: fleet PR/issue scan, stale threads, notifications, optional markdown/aiwatcher delivery"
+    },
+    {
+      "name": "fleet_ops",
+      "description": "Fleet maintainer portmanteau: registry_load, ci_pulse, dependabot_digest, port_audit, docs_gate, full_suite, and 10 more ops"
     }
   ],
   "prompts": [

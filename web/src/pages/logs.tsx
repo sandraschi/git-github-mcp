@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { API_BASE } from '../lib/api';
 
 type LogEntry = {
   id: string;
@@ -18,7 +19,7 @@ export function LogsPage() {
     try {
       const params = new URLSearchParams({ limit: '100', sort: 'desc' });
       if (search.trim()) params.set('search', search.trim());
-      const r = await fetch(`/api/logs?${params}`);
+      const r = await fetch(`${API_BASE}/api/logs?${params}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       setEntries((j.entries as LogEntry[]) ?? []);
@@ -36,7 +37,7 @@ export function LogsPage() {
   }, [load]);
 
   const clearLogs = async () => {
-    await fetch('/api/logs', { method: 'DELETE' });
+    await fetch(API_BASE + '/api/logs', { method: 'DELETE' });
     void load();
   };
 

@@ -1,354 +1,201 @@
 {
-  "git_ops": [
-    {
-      "operation": "status",
-      "repo_path": "D:/Dev/repos/my-repo"
-    },
-    {
-      "operation": "clone",
-      "repo_url": "https://github.com/sandraschi/git-github-mcp.git",
-      "target_dir": "D:/Dev/repos/git-github-mcp"
-    },
-    {
-      "operation": "add",
-      "repo_path": ".",
-      "all_files": true
-    },
-    {
-      "operation": "commit",
-      "repo_path": ".",
-      "message": "feat: add new feature"
-    },
-    {
-      "operation": "push",
-      "repo_path": ".",
-      "remote": "origin",
-      "branch": "master"
-    },
-    {
-      "operation": "pull",
-      "repo_path": ".",
-      "remote": "origin"
-    },
-    {
-      "operation": "log",
-      "repo_path": ".",
-      "max_count": 10,
-      "oneline": true
-    },
-    {
-      "operation": "diff",
-      "repo_path": ".",
-      "commit": "HEAD~1",
-      "commit2": "HEAD"
-    },
-    {
-      "operation": "blame",
-      "repo_path": ".",
-      "file_path": "src/server.py"
-    },
-    {
-      "operation": "branch_list",
-      "repo_path": "."
-    },
-    {
-      "operation": "branch_create",
-      "repo_path": ".",
-      "branch": "feature/new-thing",
-      "source_branch": "master"
-    },
-    {
-      "operation": "branch_switch",
-      "repo_path": ".",
-      "branch": "feature/new-thing"
-    },
-    {
-      "operation": "branch_merge",
-      "repo_path": ".",
-      "source_branch": "feature/new-thing"
-    },
-    {
-      "operation": "branch_delete",
-      "repo_path": ".",
-      "branch": "feature/new-thing"
-    },
-    {
-      "operation": "stash",
-      "repo_path": ".",
-      "stash_message": "WIP: not ready"
-    },
-    {
-      "operation": "stash_pop",
-      "repo_path": "."
-    },
-    {
-      "operation": "tag_create",
-      "repo_path": ".",
-      "tag_name": "v0.3.0",
-      "tag_message": "Release v0.3.0"
-    },
-    {
-      "operation": "reset",
-      "repo_path": ".",
-      "mode": "soft",
-      "commit": "HEAD~1"
-    },
-    {
-      "operation": "revert",
-      "repo_path": ".",
-      "commit": "abc1234"
-    },
-    {
-      "operation": "cherry_pick",
-      "repo_path": ".",
-      "commit": "abc1234"
-    },
-    {
-      "operation": "clean",
-      "repo_path": ".",
-      "dry_run": true
-    },
-    {
-      "operation": "clean",
-      "repo_path": ".",
-      "include_dirs": true
-    },
-    {
-      "operation": "submodule_update",
-      "repo_path": ".",
-      "recursive": true
-    },
-    {
-      "operation": "bisect_start",
-      "repo_path": "."
-    },
-    {
-      "operation": "bisect_bad",
-      "repo_path": "."
-    },
-    {
-      "operation": "bisect_good",
-      "repo_path": ".",
-      "commit": "v0.2.0"
-    },
-    {
-      "operation": "bisect_reset",
-      "repo_path": "."
-    },
-    {
-      "operation": "worktree_add",
-      "repo_path": ".",
-      "worktree_path": "../hotfix",
-      "branch": "hotfix/urgent"
-    }
+  "git_core": [
+    {"operation": "status", "repo_path": "D:/Dev/repos/my-repo"},
+    {"operation": "init", "repo_path": "D:/Dev/repos/new-project", "initial_branch": "main"},
+    {"operation": "clone", "repo_url": "https://github.com/sandraschi/git-github-mcp.git", "target_dir": "D:/Dev/repos/git-github-mcp"},
+    {"operation": "clone", "repo_url": "https://github.com/sandraschi/git-github-mcp.git", "depth": 1, "target_dir": "D:/Dev/repos/git-github-mcp"},
+    {"operation": "add", "repo_path": ".", "files": ["src/main.py"]},
+    {"operation": "add", "repo_path": ".", "files": ["src/utils.py", "tests/test_utils.py"]},
+    {"operation": "add", "repo_path": ".", "all_files": true},
+    {"operation": "commit", "repo_path": ".", "message": "feat: add new feature"},
+    {"operation": "commit", "repo_path": ".", "message": "fix: resolve login bug", "all_files": true},
+    {"operation": "commit", "repo_path": ".", "amend": true},
+    {"operation": "push", "repo_path": ".", "remote": "origin", "branch": "main"},
+    {"operation": "push", "repo_path": ".", "remote": "origin", "branch": "feature/new-thing", "set_upstream": true},
+    {"operation": "push", "repo_path": ".", "remote": "origin", "branch": "main", "force": true},
+    {"operation": "pull", "repo_path": ".", "remote": "origin"},
+    {"operation": "pull", "repo_path": ".", "remote": "origin", "branch": "main"},
+    {"operation": "fetch", "repo_path": "."},
+    {"operation": "log", "repo_path": ".", "max_count": 10, "oneline": true},
+    {"operation": "log", "repo_path": ".", "max_count": 5, "branch": "main"},
+    {"operation": "log", "repo_path": ".", "max_count": 50, "oneline": false},
+    {"operation": "diff", "repo_path": "."},
+    {"operation": "diff", "repo_path": ".", "commit": "HEAD~1", "commit2": "HEAD"},
+    {"operation": "diff", "repo_path": ".", "files": ["src/server.py"]},
+    {"operation": "show", "repo_path": "."},
+    {"operation": "show", "repo_path": ".", "commit": "abc1234"},
+    {"operation": "blame", "repo_path": ".", "file_path": "src/server.py"},
+    {"operation": "blame", "repo_path": ".", "file_path": "src/utils.py", "commit": "abc1234"}
+  ],
+  "git_branch": [
+    {"operation": "branch_list", "repo_path": "."},
+    {"operation": "branch_create", "repo_path": ".", "branch": "feature/new-dashboard", "source_branch": "main"},
+    {"operation": "branch_create", "repo_path": ".", "branch": "hotfix/urgent-patch"},
+    {"operation": "branch_switch", "repo_path": ".", "branch": "feature/new-dashboard"},
+    {"operation": "branch_switch", "repo_path": ".", "branch": "main"},
+    {"operation": "branch_delete", "repo_path": ".", "branch": "feature/old-stuff"},
+    {"operation": "branch_delete", "repo_path": ".", "branch": "unmerged-branch", "force": true},
+    {"operation": "branch_rename", "repo_path": ".", "branch": "old-name", "source_branch": "new-name"},
+    {"operation": "branch_merge", "repo_path": ".", "source_branch": "feature/new-dashboard"},
+    {"operation": "branch_merge", "repo_path": ".", "source_branch": "hotfix/urgent", "message": "Merge hotfix"},
+    {"operation": "rebase", "repo_path": ".", "source_branch": "main"},
+    {"operation": "stash", "repo_path": ".", "stash_message": "WIP: refactoring auth module"},
+    {"operation": "stash_pop", "repo_path": "."},
+    {"operation": "stash_list", "repo_path": "."},
+    {"operation": "stash_drop", "repo_path": "."},
+    {"operation": "tag_list", "repo_path": "."},
+    {"operation": "tag_create", "repo_path": ".", "tag_name": "v0.3.0", "tag_message": "Release v0.3.0"},
+    {"operation": "tag_create", "repo_path": ".", "tag_name": "v1.0.0-rc1", "commit": "abc1234"},
+    {"operation": "tag_delete", "repo_path": ".", "tag_name": "v0.2.0-test"}
+  ],
+  "git_admin": [
+    {"operation": "remote_list", "repo_path": "."},
+    {"operation": "remote_add", "repo_path": ".", "remote_url": "https://github.com/user/repo.git", "remote_name": "upstream"},
+    {"operation": "remote_remove", "repo_path": ".", "remote_name": "origin"},
+    {"operation": "reset", "repo_path": ".", "mode": "soft", "commit": "HEAD~1"},
+    {"operation": "reset", "repo_path": ".", "mode": "mixed", "commit": "HEAD~1"},
+    {"operation": "reset", "repo_path": ".", "mode": "hard", "commit": "abc1234"},
+    {"operation": "revert", "repo_path": ".", "commit": "abc1234"},
+    {"operation": "cherry_pick", "repo_path": ".", "commit": "def5678"},
+    {"operation": "clean", "repo_path": ".", "dry_run": true},
+    {"operation": "clean", "repo_path": ".", "include_dirs": true},
+    {"operation": "submodule_add", "repo_path": ".", "submodule_url": "https://github.com/user/lib.git", "submodule_path": "libs/lib"},
+    {"operation": "submodule_update", "repo_path": ".", "recursive": true},
+    {"operation": "submodule_sync", "repo_path": ".", "recursive": true},
+    {"operation": "submodule_status", "repo_path": "."},
+    {"operation": "bisect_start", "repo_path": "."},
+    {"operation": "bisect_bad", "repo_path": "."},
+    {"operation": "bisect_good", "repo_path": ".", "commit": "v0.2.0"},
+    {"operation": "bisect_reset", "repo_path": "."},
+    {"operation": "worktree_add", "repo_path": ".", "worktree_path": "../hotfix", "branch": "hotfix/urgent"},
+    {"operation": "worktree_list", "repo_path": "."},
+    {"operation": "worktree_remove", "repo_path": ".", "worktree_path": "../hotfix", "force": true}
+  ],
+  "git_blame": [
+    {"repo_path": ".", "file_path": "src/server.py"},
+    {"repo_path": ".", "file_path": "src/utils.py", "commit": "abc1234"}
   ],
   "github_ops": [
-    {
-      "operation": "repo_list",
-      "owner": "sandraschi",
-      "limit": 20
-    },
-    {
-      "operation": "repo_view",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp"
-    },
-    {
-      "operation": "repo_create",
-      "repo": "new-mcp-server",
-      "description": "A new MCP server",
-      "private": false
-    },
-    {
-      "operation": "repo_fork",
-      "owner": "someuser",
-      "repo": "cool-project"
-    },
-    {
-      "operation": "repo_rename",
-      "owner": "sandraschi",
-      "repo": "old-name",
-      "new_name": "new-name"
-    },
-    {
-      "operation": "repo_archive",
-      "owner": "sandraschi",
-      "repo": "old-project"
-    },
-    {
-      "operation": "issue_list",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "state": "open",
-      "limit": 20
-    },
-    {
-      "operation": "issue_create",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "title": "Bug: something broken",
-      "body": "Steps to reproduce..."
-    },
-    {
-      "operation": "issue_comment",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "issue_number": 1,
-      "body": "Fixed in latest commit"
-    },
-    {
-      "operation": "issue_close",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "issue_number": 1
-    },
-    {
-      "operation": "pr_list",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "state": "open"
-    },
-    {
-      "operation": "pr_create",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "title": "feat: add sampling",
-      "body": "Adds agentic sampling workflow",
-      "head_branch": "feature/sampling",
-      "base_branch": "master"
-    },
-    {
-      "operation": "pr_comment",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "pr_number": 5,
-      "body": "LGTM!"
-    },
-    {
-      "operation": "pr_merge",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "pr_number": 5,
-      "merge_method": "squash"
-    },
-    {
-      "operation": "pr_close",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "pr_number": 6,
-      "body": "Superseded by #7"
-    },
-    {
-      "operation": "release_list",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp"
-    },
-    {
-      "operation": "release_create",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "tag_name": "v0.3.0",
-      "release_name": "v0.3.0 — FastMCP 3.1",
-      "body": "See CHANGELOG.md",
-      "prerelease": false
-    },
-    {
-      "operation": "release_update",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "tag_name": "v0.3.0",
-      "body": "Updated release notes"
-    },
-    {
-      "operation": "release_delete",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "tag_name": "v0.3.0-test"
-    },
-    {
-      "operation": "workflow_list",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp"
-    },
-    {
-      "operation": "workflow_runs",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "limit": 10
-    },
-    {
-      "operation": "workflow_cancel",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "run_id": "12345678"
-    },
-    {
-      "operation": "workflow_disable",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "workflow_id": "ci.yml"
-    },
-    {
-      "operation": "label_list",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp"
-    },
-    {
-      "operation": "label_create",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "label_name": "glama-ready",
-      "label_color": "0075ca",
-      "label_description": "Ready for Glama publication"
-    },
-    {
-      "operation": "secrets_list",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp"
-    },
-    {
-      "operation": "secrets_set",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "secret_name": "PYPI_TOKEN",
-      "secret_value": "..."
-    },
-    {
-      "operation": "collaborator_add",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp",
-      "username": "someuser",
-      "permission": "push"
-    },
-    {
-      "operation": "search_repos",
-      "query": "mcp server language:python user:sandraschi",
-      "limit": 10
-    },
-    {
-      "operation": "search_issues",
-      "query": "is:open label:bug repo:sandraschi/git-github-mcp",
-      "limit": 10
-    },
-    {
-      "operation": "auth_status"
-    }
+    {"operation": "auth_status"},
+    {"operation": "gist_list", "limit": 10},
+    {"operation": "repo_list", "owner": "sandraschi", "limit": 20},
+    {"operation": "repo_list", "owner": "sandraschi", "limit": 50},
+    {"operation": "repo_view", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"operation": "show_repo", "owner": "sandraschi", "repo": "git-github-mcp", "output_format": "markdown"},
+    {"operation": "show_repo", "owner": "sandraschi", "repo": "git-github-mcp", "output_format": "html"},
+    {"operation": "show_repo", "owner": "sandraschi", "repo": "git-github-mcp", "output_format": "json"},
+    {"operation": "repo_create", "repo": "my-new-server", "description": "A useful MCP server", "private": false},
+    {"operation": "repo_create", "repo": "internal-tool", "description": "Internal utility", "private": true},
+    {"operation": "repo_fork", "owner": "someuser", "repo": "cool-project"},
+    {"operation": "repo_rename", "owner": "sandraschi", "repo": "old-name", "new_name": "new-name"},
+    {"operation": "repo_delete", "owner": "sandraschi", "repo": "test-repo"},
+    {"operation": "repo_archive", "owner": "sandraschi", "repo": "old-project"},
+    {"operation": "issue_list", "owner": "sandraschi", "repo": "git-github-mcp", "state": "open", "limit": 20},
+    {"operation": "issue_list", "owner": "sandraschi", "repo": "git-github-mcp", "state": "all", "limit": 50},
+    {"operation": "issue_view", "owner": "sandraschi", "repo": "git-github-mcp", "issue_number": 5},
+    {"operation": "issue_create", "owner": "sandraschi", "repo": "git-github-mcp", "title": "Bug: login broken", "body": "Steps to reproduce the issue"},
+    {"operation": "issue_create", "owner": "sandraschi", "repo": "git-github-mcp", "title": "Feature request: dark mode", "body": "Would be great to have dark mode support"},
+    {"operation": "issue_comment", "owner": "sandraschi", "repo": "git-github-mcp", "issue_number": 5, "body": "I'll investigate this"},
+    {"operation": "issue_close", "owner": "sandraschi", "repo": "git-github-mcp", "issue_number": 5},
+    {"operation": "pr_list", "owner": "sandraschi", "repo": "git-github-mcp", "state": "open"},
+    {"operation": "pr_list", "owner": "sandraschi", "repo": "git-github-mcp", "state": "all", "limit": 50},
+    {"operation": "pr_view", "owner": "sandraschi", "repo": "git-github-mcp", "pr_number": 12},
+    {"operation": "pr_create", "owner": "sandraschi", "repo": "git-github-mcp", "title": "feat: add sampling", "body": "Adds agentic sampling workflow", "head_branch": "feature/sampling", "base_branch": "main"},
+    {"operation": "pr_create", "owner": "sandraschi", "repo": "git-github-mcp", "title": "WIP: refactor auth", "draft": true, "head_branch": "refactor/auth"},
+    {"operation": "pr_comment", "owner": "sandraschi", "repo": "git-github-mcp", "pr_number": 12, "body": "LGTM! Ready to merge."},
+    {"operation": "pr_merge", "owner": "sandraschi", "repo": "git-github-mcp", "pr_number": 12, "merge_method": "squash"},
+    {"operation": "pr_merge", "owner": "sandraschi", "repo": "git-github-mcp", "pr_number": 13, "merge_method": "rebase"},
+    {"operation": "pr_merge", "owner": "sandraschi", "repo": "git-github-mcp", "pr_number": 14, "merge_method": "merge"},
+    {"operation": "pr_checkout", "owner": "sandraschi", "repo": "git-github-mcp", "pr_number": 12},
+    {"operation": "pr_close", "owner": "sandraschi", "repo": "git-github-mcp", "pr_number": 15, "body": "Superseded by PR #16"},
+    {"operation": "release_list", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"operation": "release_view", "owner": "sandraschi", "repo": "git-github-mcp", "tag_name": "v0.4.0"},
+    {"operation": "release_create", "owner": "sandraschi", "repo": "git-github-mcp", "tag_name": "v0.5.0", "release_name": "v0.5.0 FastMCP 3.4", "body": "See CHANGELOG", "prerelease": false},
+    {"operation": "release_create", "owner": "sandraschi", "repo": "git-github-mcp", "tag_name": "v0.6.0-rc1", "body": "Release candidate", "prerelease": true},
+    {"operation": "release_update", "owner": "sandraschi", "repo": "git-github-mcp", "tag_name": "v0.5.0", "body": "Updated changelog"},
+    {"operation": "release_delete", "owner": "sandraschi", "repo": "git-github-mcp", "tag_name": "v0.4.0-test"},
+    {"operation": "workflow_list", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"operation": "workflow_run", "owner": "sandraschi", "repo": "git-github-mcp", "workflow_id": "ci.yml", "ref": "main"},
+    {"operation": "workflow_run", "owner": "sandraschi", "repo": "git-github-mcp", "workflow_id": "release.yml", "ref": "v0.5.0"},
+    {"operation": "workflow_runs", "owner": "sandraschi", "repo": "git-github-mcp", "limit": 10},
+    {"operation": "workflow_cancel", "owner": "sandraschi", "repo": "git-github-mcp", "run_id": "12345678"},
+    {"operation": "workflow_disable", "owner": "sandraschi", "repo": "git-github-mcp", "workflow_id": "ci.yml"},
+    {"operation": "workflow_enable", "owner": "sandraschi", "repo": "git-github-mcp", "workflow_id": "ci.yml"},
+    {"operation": "label_list", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"operation": "label_create", "owner": "sandraschi", "repo": "git-github-mcp", "label_name": "glama-ready", "label_color": "0075ca", "label_description": "Ready for Glama"},
+    {"operation": "label_create", "owner": "sandraschi", "repo": "git-github-mcp", "label_name": "needs-review", "label_color": "fbca04"},
+    {"operation": "label_delete", "owner": "sandraschi", "repo": "git-github-mcp", "label_name": "wontfix"},
+    {"operation": "secrets_list", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"operation": "secrets_set", "owner": "sandraschi", "repo": "git-github-mcp", "secret_name": "DEPLOY_KEY", "secret_value": "..."},
+    {"operation": "secrets_delete", "owner": "sandraschi", "repo": "git-github-mcp", "secret_name": "DEPLOY_KEY"},
+    {"operation": "collaborator_add", "owner": "sandraschi", "repo": "git-github-mcp", "username": "teammate", "permission": "push"},
+    {"operation": "collaborator_add", "owner": "sandraschi", "repo": "git-github-mcp", "username": "reviewer", "permission": "pull"},
+    {"operation": "collaborator_remove", "owner": "sandraschi", "repo": "git-github-mcp", "username": "former-member"},
+    {"operation": "search_repos", "query": "mcp server language:python", "limit": 10},
+    {"operation": "search_repos", "query": "topic:mcp stars:>10", "limit": 20},
+    {"operation": "search_repos_topic", "topic": "mcp", "owner": "sandraschi", "limit": 30},
+    {"operation": "search_repos_topic", "topic": "cli", "query": "stars:>50", "limit": 20},
+    {"operation": "search_issues", "query": "is:open label:bug repo:sandraschi/git-github-mcp", "limit": 10},
+    {"operation": "search_code", "query": "import fastmcp", "limit": 20, "pretty": true},
+    {"operation": "search_code", "query": "extension:md llms.txt", "limit": 10},
+    {"operation": "code_find_repos", "owner": "sandraschi", "extension": "bak", "limit": 50},
+    {"operation": "code_find_repos", "owner": "sandraschi", "extension": "py", "query": "fastmcp", "limit": 20},
+    {"operation": "project_list", "owner": "@me", "limit": 20},
+    {"operation": "project_view", "owner": "@me", "project_number": 1},
+    {"operation": "project_create", "owner": "@me", "title": "Q3 Planning", "body": "Track quarterly goals"},
+    {"operation": "project_edit", "owner": "@me", "project_number": 1, "title": "Q3 Goals Updated"},
+    {"operation": "project_delete", "owner": "@me", "project_number": 2},
+    {"operation": "package_list", "package_type": "npm", "owner": "sandraschi"},
+    {"operation": "package_list", "package_type": "docker", "owner": "sandraschi"},
+    {"operation": "package_view", "package_type": "npm", "package_name": "my-package", "owner": "sandraschi"},
+    {"operation": "package_delete", "package_type": "npm", "package_name": "deprecated-package", "owner": "sandraschi"},
+    {"operation": "gitingest_link", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"operation": "gitingest_link", "owner": "sandraschi", "repo": "git-github-mcp", "ref": "main", "subpath": "src"},
+    {"operation": "gitingest_convert_url", "github_url": "https://github.com/sandraschi/git-github-mcp"},
+    {"operation": "gitingest_help"}
   ],
   "git_agentic_workflow": [
-    {
-      "task": "Check repo status, stage all changes, commit with a descriptive message, and push to origin",
-      "repo_path": "D:/Dev/repos/my-project"
-    },
-    {
-      "task": "List all open bug issues and create a summary comment on each one",
-      "owner": "sandraschi",
-      "repo": "git-github-mcp"
-    },
-    {
-      "task": "Create a release branch from master, tag it as v1.0.0, and create a GitHub release",
-      "repo_path": "D:/Dev/repos/my-project",
-      "owner": "sandraschi",
-      "repo": "my-project"
-    }
+    {"task": "Check repo status, stage all changes, commit with a descriptive message, and push to origin", "repo_path": "D:/Dev/repos/my-project"},
+    {"task": "List all open bug issues and create a summary comment on each one", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"task": "Create a release branch from main, tag it as v1.0.0, and create a GitHub release", "repo_path": "D:/Dev/repos/my-project", "owner": "sandraschi", "repo": "my-project"},
+    {"task": "Find all PRs that have been open for more than 30 days and comment asking for updates", "owner": "sandraschi", "repo": "git-github-mcp"},
+    {"task": "Rebase the feature branch onto main, resolve any conflicts, and force-push", "repo_path": "D:/Dev/repos/my-project", "branch": "feature/big-refactor"}
+  ],
+  "git_github_search_workflow": [
+    {"task": "Find all repos in sandraschi org with bak file dross", "owner": "sandraschi"},
+    {"task": "Show me stale projects and archived repos in the sandraschi org", "owner": "sandraschi"},
+    {"task": "Find repos tagged mcp with low maintenance activity (no pushes in 90 days)", "owner": "sandraschi", "limit": 50}
+  ],
+  "fleet_morning_digest": [
+    {"stale_days": 7, "include_issues": true, "include_notifications": true},
+    {"stale_days": 14, "include_issues": true, "deliver": "file"},
+    {"stale_days": 3, "include_issues": false, "since_last_run": true}
+  ],
+  "fleet_ops": [
+    {"operation": "registry_load"},
+    {"operation": "port_audit"},
+    {"operation": "docs_gate"},
+    {"operation": "quarantine_report"},
+    {"operation": "ci_pulse"},
+    {"operation": "dependabot_digest"},
+    {"operation": "mention_inbox"},
+    {"operation": "ack_drafts"},
+    {"operation": "local_dirty"},
+    {"operation": "release_drift"},
+    {"operation": "grade_snapshot"},
+    {"operation": "gitingest_bundle"},
+    {"operation": "runner_status"},
+    {"operation": "weekly_retro"},
+    {"operation": "council_payload"},
+    {"operation": "full_suite"}
+  ],
+  "git_github_status": [
+    {"level": "basic"},
+    {"level": "detailed"}
+  ],
+  "git_github_help": [
+    {"level": "basic", "topic": null},
+    {"level": "intermediate", "topic": "git_ops"},
+    {"level": "advanced", "topic": "github_ops"}
   ]
 }

@@ -5,14 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from ..utils.response import success_response
-from .fleet_catalog import registry_to_github_slugs, load_registry
+from .fleet_health import _resolve_repos
 from .morning_digest import (
-    classify_pr_stale,
     fetch_notifications,
     resolve_maintainer_login,
     scan_fleet_repo,
 )
-from .fleet_health import _resolve_repos
 
 _MENTION_REASONS = frozenset(
     {

@@ -8,16 +8,14 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ..tools.github_ops import github_ops
 from ..utils.gh_cli import run_gh
 from ..utils.response import error_response, success_response
 from .fleet_common import (
     DEFAULT_FLEET_OWNER,
     DEFAULT_REGISTRY_PATH,
-    DEFAULT_WEBAPP_PORTS_PATH,
     DEFAULT_REPOS_ROOT,
+    DEFAULT_WEBAPP_PORTS_PATH,
     fleet_repos_to_text,
-    load_fleet_repos,
     run_git,
 )
 

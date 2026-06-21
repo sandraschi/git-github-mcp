@@ -42,7 +42,7 @@ logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s %(message
 logger = logging.getLogger("git-github-mcp")
 install_log_handler()
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
 WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
 
@@ -82,7 +82,7 @@ if bridge_urls:
                 mcp.add_provider(create_proxy(url))
                 _bridge_proxies.append(url)
             except Exception:
-                pass
+                logger.debug("Bridge proxy failed for %s", url)
 
 
 # ── Tools ─────────────────────────────────────────────────────────────────────
@@ -1151,8 +1151,13 @@ web_app.add_middleware(
     allow_origins=[
         "http://localhost:10703",
         "http://127.0.0.1:10703",
+        "http://goliath:10703",
         "http://localhost:10702",
         "http://127.0.0.1:10702",
+        "http://goliath:10702",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+        "tauri://localhost",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -1414,9 +1419,8 @@ if os.path.isdir(_dist):
 
 def main():
     import threading
-    import time
 
-    from .transport import run_server, get_transport_config
+    from .transport import get_transport_config, run_server
 
     # Start the HTTP bridge on port 10702 in a background thread
     http_thread = threading.Thread(

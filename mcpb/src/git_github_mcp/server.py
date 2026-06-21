@@ -1,223 +1,368 @@
-"""FastMCP 2.14.4 server with git_ops and github_ops portmanteaus."""
+﻿"""git-github-mcp server — FastMCP 3.1+, portmanteau pattern.
 
+Tools:     git_ops (43), github_ops (58), git_github_status, git_github_help,
+           git_agentic_workflow, git_github_search_workflow (sampling / agentic)
+Resources: git://repo/*, github://owner/repo/*, git://skills/*
+Prompts:   git_commit_message, git_release_notes, git_pr_description,
+           git_review_diff, github_issue_template, github_debug_workflow,
+           git_github_explain_concept
+Web:       FastAPI bridge (e.g. POST /api/git, /api/github, /api/discovery)
+"""
+
+import asyncio
+import json
 import logging
+import os
+import threading
 import time
 from contextlib import asynccontextmanager
-from typing import Literal
 
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
+from fastmcp.server import create_proxy
 
-from .tools.git_ops import git_ops as _run_git_ops
-from .tools.github_ops import github_ops as _run_github_ops
-from .tools.help import get_help as _run_help
-from .tools.status import get_status as _run_status
+from .activity_log import install_log_handler, log_activity
+from .capabilities import build_capabilities
+from .logs_api import build_router as _build_logs_router
+from .services.fleet_ops import fleet_ops as _fleet_ops
+from .services.fleet_orchestrator import run_full_suite as _run_full_suite
+from .services.morning_digest import run_morning_digest as _run_morning_digest
+from .tools.git_ops import git_ops as _git_ops
+from .tools.github_ops import github_ops as _github_ops
+from .tools.help import get_help as _get_help
+from .tools.status import get_status as _get_status
+from .web_discovery import PRESETS as DISCOVERY_PRESETS
+from .web_discovery import run_discovery_workflow as _run_discovery_workflow
 
 logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("git-github-mcp")
+install_log_handler()
+
+VERSION = "0.4.0"
+WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
+WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
 
 
 @asynccontextmanager
 async def server_lifespan(mcp_instance: FastMCP):
-    """Server lifespan for startup and cleanup."""
-    logger.info("git-github-mcp starting")
+    logger.info(f"git-github-mcp v{VERSION} starting (FastMCP 3.1+)")
     yield
     logger.info("git-github-mcp shutting down")
 
 
 mcp = FastMCP(
     "git-github-mcp",
-    version="0.1.0",
+    version=VERSION,
     lifespan=server_lifespan,
+    instructions=(
+        "Git and GitHub operations server. "
+        "Use git_core for status/log/diff/commit/push/pull/fetch (11 ops). "
+        "Use git_branch for branches/merge/rebase/stash/tag (14 ops). "
+        "Use git_admin for remote/reset/clean/submodule/bisect (16 ops). "
+        "Use git_blame for file blame (1 op). "
+        "Use git_github_help for full operation reference. "
+        "Use git_agentic_workflow for multi-step operations that require reasoning. "
+        "Use git_github_search_workflow for agentic GitHub discovery/search tasks. "
+        "Use fleet_morning_digest for daily PR/issue/notification breakfast summary across fleet repos. "
+        "Use fleet_ops for full maintainer toolkit (registry_load, port_audit, ci_pulse, full_suite, etc.)."
+    ),
 )
 
+_bridge_proxies = []
+bridge_urls = os.getenv("MCP_BRIDGE_URLS", "")
+if bridge_urls:
+    for url in bridge_urls.split(","):
+        url = url.strip()
+        if url:
+            try:
+                mcp.add_provider(create_proxy(url))
+                _bridge_proxies.append(url)
+            except Exception:
+                pass
 
-@mcp.tool()
-async def git_ops(
-    operation: Literal[
-        "clone", "status", "add", "commit", "push", "pull", "branch", "tag", "stash"
-    ],
-    repo_path: str | None = None,
-    message: str | None = None,
-    files: list[str] | None = None,
-    remote: str = "origin",
-    branch: str | None = None,
-    force: bool = False,
-    all_files: bool = False,
-    target_dir: str | None = None,
-    repo_url: str | None = None,
-    ctx: Context | None = None,
-) -> dict:
-    """Git repository operations (portmanteau). Local Git via subprocess.
 
-    SUPPORTED OPERATIONS:
-    - clone: Clone a repository (requires repo_url)
-    - status: Check branch, staged/unstaged changes
-    - add: Stage files for commit
-    - commit: Create commit (requires message)
-    - push: Push to remote
-    - pull: Pull from remote
-    - branch: List branches
-    - tag: List tags
-    - stash: List stashes
+# ── Tools ─────────────────────────────────────────────────────────────────────
 
-    OPERATIONS DETAIL:
 
-    clone: Clone a Git repository
-    - Parameters: repo_url (required), target_dir (optional)
-    - Returns: Cloned path and next steps
-    - Example: git_ops(operation='clone', repo_url='https://github.com/owner/repo.git')
+CORE_OPS = {"init", "clone", "add", "commit", "push", "pull", "fetch", "status", "log", "diff", "show"}
+BRANCH_OPS = {"branch_list", "branch_create", "branch_switch", "branch_delete", "branch_rename",
+              "branch_merge", "rebase", "stash", "stash_pop", "stash_list", "stash_drop",
+              "tag_list", "tag_create", "tag_delete"}
+ADMIN_OPS = {"remote_list", "remote_add", "remote_remove", "reset", "revert", "cherry_pick",
+             "clean", "submodule_add", "submodule_update", "submodule_sync", "submodule_status",
+             "bisect_start", "bisect_bad", "bisect_good", "bisect_reset",
+             "worktree_add", "worktree_list", "worktree_remove"}
+BLAME_OPS = {"blame"}
 
-    status: Show working tree status
-    - Parameters: repo_path (optional, default: cwd)
-    - Returns: Current branch and short status
-    - Example: git_ops(operation='status', repo_path='.')
 
-    add: Stage files for commit
-    - Parameters: files (list) or all_files=True, repo_path (optional)
-    - Returns: Staged file count
-    - Example: git_ops(operation='add', repo_path='.', files=['src/main.py'])
-
-    commit: Record changes to the repository
-    - Parameters: message (required), repo_path (optional), all_files (optional)
-    - Returns: Commit output
-    - Example: git_ops(operation='commit', repo_path='.', message='Fix bug')
-
-    push: Push to remote
-    - Parameters: repo_path, remote (default: origin), branch, force (optional)
-    - Returns: Push confirmation
-    - Example: git_ops(operation='push', repo_path='.', remote='origin')
-
-    pull: Pull from remote
-    - Parameters: repo_path, remote, branch (optional)
-    - Returns: Pull output
-
-    branch, tag, stash: List branches/tags/stashes
-    - Parameters: repo_path (optional)
-
-    Args:
-        operation: One of clone, status, add, commit, push, pull, branch, tag, stash
-        repo_path: Path to repo (default: current directory)
-        message: Commit message (required for commit)
-        files: Files to stage (for add; use all_files=True for all)
-        remote: Remote name (default: origin)
-        branch: Branch name for push/pull
-        force: Force push (default: False)
-        all_files: Stage all files (for add) or commit all (for commit)
-        target_dir: Clone destination directory
-        repo_url: Repository URL (required for clone)
-
-    Returns:
-        Dictionary with success, result, message, next_steps, execution_time_ms.
-        On error: success=False, error, recovery_options.
-
-    Examples:
-        git_ops(operation='clone', repo_url='https://github.com/owner/repo.git')
-        git_ops(operation='status', repo_path='D:/Dev/repos/my-repo')
-        git_ops(operation='add', repo_path='.', files=['file.py'], all_files=False)
-        git_ops(operation='commit', repo_path='.', message='Fix typo')
-        git_ops(operation='push', repo_path='.', remote='origin', branch='main')
-
-    Notes:
-        - Cross-platform (pathlib). repo_path accepts Windows and Unix paths.
-        - If push fails, run gh auth login. Use force=True for force push.
-    """
+async def _run_git_tool(operation: str, repo_path: str | None = None,
+                        message: str | None = None, files: list[str] | None = None,
+                        all_files: bool = False, amend: bool = False,
+                        remote: str = "origin", branch: str | None = None,
+                        force: bool = False, set_upstream: bool = False,
+                        repo_url: str | None = None, target_dir: str | None = None,
+                        initial_branch: str = "main", depth: int | None = None,
+                        max_count: int = 20,
+                        commit: str | None = None, commit2: str | None = None,
+                        oneline: bool = False, file_path: str | None = None,
+                        source_branch: str | None = None,
+                        stash_message: str | None = None, stash_index: int = 0,
+                        tag_name: str | None = None, tag_message: str | None = None,
+                        mode: str = "mixed", remote_url: str | None = None,
+                        remote_name: str | None = None, dry_run: bool = False,
+                        include_dirs: bool = False, submodule_url: str | None = None,
+                        submodule_path: str | None = None, recursive: bool = False,
+                        worktree_path: str | None = None) -> dict:
+    """Run git_ops (async) with an operation-aware timeout to catch hangs before the MCP client does."""
+    # Network ops (clone, push, pull, fetch) can be slow on large repos; local ops keep 25s.
+    _NETWORK_OPS = {"clone", "push", "pull", "fetch"}
+    _wall_timeout = 180 if operation in _NETWORK_OPS else 25
     start = time.perf_counter()
-    if ctx:
-        ctx.info("git_ops", operation=operation)
-    result = _run_git_ops(
-        operation=operation,
-        repo_path=repo_path,
-        message=message,
-        files=files,
-        remote=remote,
-        branch=branch,
-        force=force,
-        all_files=all_files,
-        target_dir=target_dir,
-        repo_url=repo_url,
-    )
-    result["execution_time_ms"] = (time.perf_counter() - start) * 1000
+    try:
+        result = await asyncio.wait_for(
+            _git_ops(
+                operation=operation, repo_path=repo_path, message=message,
+                files=files, all_files=all_files, amend=amend, remote=remote,
+                branch=branch, force=force, set_upstream=set_upstream,
+                repo_url=repo_url, target_dir=target_dir, initial_branch=initial_branch,
+                depth=depth, max_count=max_count, commit=commit, commit2=commit2, oneline=oneline,
+                file_path=file_path, source_branch=source_branch,
+                stash_message=stash_message, stash_index=stash_index,
+                tag_name=tag_name, tag_message=tag_message, mode=mode,
+                remote_url=remote_url, remote_name=remote_name, dry_run=dry_run,
+                include_dirs=include_dirs, submodule_url=submodule_url,
+                submodule_path=submodule_path, recursive=recursive,
+                worktree_path=worktree_path,
+            ),
+            timeout=_wall_timeout,
+        )
+    except TimeoutError:
+        from .utils.response import error_response
+        result = error_response(
+            operation=operation,
+            error=f"Git subprocess did not respond in {_wall_timeout}s",
+            recovery_options=[
+                "Restart the git-github-mcp server",
+                "Connect via HTTP: http://127.0.0.1:10702/mcp",
+                "Check that git works: git status"
+            ],
+            suggested_fixes=[
+                "Use git_core via the REST API at http://127.0.0.1:10702/api/git",
+                "Set MCP_TRANSPORT=http and connect to port 10702"
+            ],
+        )
+    except Exception as exc:
+        from .utils.response import error_response
+        result = error_response(
+            operation=operation,
+            error=str(exc),
+            recovery_options=["Check server logs", "Restart the MCP server"],
+        )
+    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
 
 
 @mcp.tool()
+async def git_core(
+    operation: str,
+    repo_path: str | None = None,
+    message: str | None = None,
+    files: list[str] | None = None,
+    all_files: bool = False,
+    amend: bool = False,
+    remote: str = "origin",
+    branch: str | None = None,
+    force: bool = False,
+    set_upstream: bool = False,
+    repo_url: str | None = None,
+    target_dir: str | None = None,
+    initial_branch: str = "main",
+    depth: int | None = None,
+    max_count: int = 20,
+    commit: str | None = None,
+    commit2: str | None = None,
+    oneline: bool = False,
+    file_path: str | None = None,
+) -> dict:
+    """Git core operations — status, log, diff, show, init, clone, add, commit, push, pull, fetch.
+
+    Core workflow tools. For branch/tag/stash operations use git_branch.
+    For remote/reset/clean/submodule/bisect/worktree use git_admin.
+    """
+    if operation not in CORE_OPS:
+        from .utils.response import error_response
+        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(CORE_OPS)}",
+                              recovery_options=["Use one of the listed operations"],)
+    return await _run_git_tool(
+        operation=operation, repo_path=repo_path, message=message, files=files,
+        all_files=all_files, amend=amend, remote=remote, branch=branch, force=force,
+        set_upstream=set_upstream, repo_url=repo_url, target_dir=target_dir,
+        initial_branch=initial_branch, depth=depth, max_count=max_count, commit=commit,
+        commit2=commit2, oneline=oneline, file_path=file_path,
+    )
+
+
+@mcp.tool()
+async def git_branch(
+    operation: str,
+    repo_path: str | None = None,
+    branch: str | None = None,
+    source_branch: str | None = None,
+    message: str | None = None,
+    force: bool = False,
+    stash_message: str | None = None,
+    stash_index: int = 0,
+    tag_name: str | None = None,
+    tag_message: str | None = None,
+) -> dict:
+    """Git branch operations — branch lifecycle, merge, rebase, stash, tag.
+
+    For core operations (status, log, commit, push) use git_core.
+    For admin operations (remote, reset, clean, submodule) use git_admin.
+    """
+    if operation not in BRANCH_OPS:
+        from .utils.response import error_response
+        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(BRANCH_OPS)}",
+                              recovery_options=["Use one of the listed operations"],)
+    return await _run_git_tool(
+        operation=operation, repo_path=repo_path, branch=branch, source_branch=source_branch,
+        message=message, force=force, stash_message=stash_message, stash_index=stash_index,
+        tag_name=tag_name, tag_message=tag_message,
+    )
+
+
+@mcp.tool()
+async def git_admin(
+    operation: str,
+    repo_path: str | None = None,
+    remote: str = "origin",
+    remote_url: str | None = None,
+    remote_name: str | None = None,
+    mode: str = "mixed",
+    commit: str | None = None,
+    force: bool = False,
+    dry_run: bool = False,
+    include_dirs: bool = False,
+    submodule_url: str | None = None,
+    submodule_path: str | None = None,
+    recursive: bool = False,
+    worktree_path: str | None = None,
+) -> dict:
+    """Git admin operations — remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree.
+
+    For core operations (status, log, commit, push) use git_core.
+    For branch operations use git_branch.
+    """
+    if operation not in ADMIN_OPS:
+        from .utils.response import error_response
+        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(ADMIN_OPS)}",
+                              recovery_options=["Use one of the listed operations"],)
+    return await _run_git_tool(
+        operation=operation, repo_path=repo_path, remote=remote, remote_url=remote_url,
+        remote_name=remote_name, mode=mode, commit=commit, force=force, dry_run=dry_run,
+        include_dirs=include_dirs, submodule_url=submodule_url, submodule_path=submodule_path,
+        recursive=recursive, worktree_path=worktree_path,
+    )
+
+
+@mcp.tool()
+async def git_blame(
+    repo_path: str | None = None,
+    file_path: str | None = None,
+    commit: str | None = None,
+) -> dict:
+    """Git blame — show blame info for a file.
+
+    Args:
+        repo_path: Repository path (default: current directory).
+        file_path: File to blame.
+        commit: Starting commit (default: HEAD).
+    """
+    if not file_path:
+        from .utils.response import error_response
+        return error_response("blame", "file_path is required for git blame",
+                              recovery_options=["Provide a file_path parameter"],
+                              suggested_fixes=['git_blame(file_path="src/main.py")'],)
+    return await _run_git_tool(
+        operation="blame", repo_path=repo_path, file_path=file_path, commit=commit,
+    )
+
+
+@mcp.tool()
 async def github_ops(
-    operation: Literal["create_issue", "list_issues", "create_pr", "list_prs", "search"],
+    operation: str,
     owner: str | None = None,
     repo: str | None = None,
     title: str | None = None,
     body: str | None = None,
     issue_number: int | None = None,
     pr_number: int | None = None,
-    query: str | None = None,
     state: str = "open",
-    limit: int = 10,
-    ctx: Context | None = None,
+    limit: int = 20,
+    label: str | None = None,
+    assignee: str | None = None,
+    description: str | None = None,
+    private: bool = False,
+    new_name: str | None = None,
+    base_branch: str | None = None,
+    head_branch: str | None = None,
+    draft: bool = False,
+    merge_method: str = "merge",
+    tag_name: str | None = None,
+    release_name: str | None = None,
+    prerelease: bool = False,
+    query: str | None = None,
+    workflow_id: str | None = None,
+    run_id: str | None = None,
+    ref: str | None = None,
+    target_dir: str | None = None,
+    secret_name: str | None = None,
+    secret_value: str | None = None,
+    username: str | None = None,
+    permission: str = "push",
+    label_name: str | None = None,
+    label_color: str | None = None,
+    label_description: str | None = None,
+    output_format: str = "markdown",
+    topic: str | None = None,
+    extension: str | None = None,
+    path_pattern: str | None = None,
+    search_scope: str | None = None,
+    pretty: bool = False,
+    project_number: int | None = None,
+    package_type: str | None = None,
+    package_name: str | None = None,
+    subpath: str | None = None,
+    github_url: str | None = None,
 ) -> dict:
-    """GitHub operations via gh CLI (portmanteau). Requires gh auth login.
+    """GitHub operations via gh CLI — 58 actions. Requires: gh auth login.
 
-    SUPPORTED OPERATIONS:
-    - create_issue: Create a new issue
-    - list_issues: List issues (open/closed/all)
-    - create_pr: Create a pull request
-    - list_prs: List pull requests
-    - search: Search repositories (GitHub search syntax)
+    REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
+                   repo_delete, repo_rename, repo_archive
+    ISSUES:        issue_list, issue_view, issue_create, issue_close, issue_comment
+    PRs:           pr_list, pr_view, pr_create, pr_merge, pr_checkout, pr_close, pr_comment
+    RELEASES:      release_list, release_view, release_create, release_delete, release_update
+    ACTIONS:       workflow_list, workflow_run, workflow_runs,
+                   workflow_cancel, workflow_disable, workflow_enable
+    LABELS:        label_list, label_create, label_delete
+    SECRETS:       secrets_list, secrets_set, secrets_delete
+    COLLABORATORS: collaborator_add, collaborator_remove
+    SEARCH:        search_repos, search_repos_topic, search_issues, search_code (pretty=),
+                   code_find_repos
+    PROJECTS:      project_list, project_view, project_create, project_delete, project_edit
+    PACKAGES:      package_list, package_view, package_delete
+    GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
+    MISC:          auth_status, gist_list
 
-    OPERATIONS DETAIL:
-
-    create_issue: Create a new GitHub issue
-    - Parameters: owner, repo, title (required), body (optional)
-    - Returns: Issue URL and title
-    - Example: github_ops(operation='create_issue', owner='x', repo='y', title='Bug', body='...')
-
-    list_issues: List issues in a repository
-    - Parameters: owner, repo (required), state (default: open), limit (default: 10)
-    - Returns: List of issues with number, title, state, url
-    - Example: github_ops(operation='list_issues', owner='sandraschi', repo='git-github-mcp')
-
-    create_pr: Create a pull request
-    - Parameters: owner, repo, title (required), body (optional)
-    - Returns: PR URL and title
-    - Example: github_ops(operation='create_pr', owner='x', repo='y', title='Feature', body='...')
-
-    list_prs: List pull requests
-    - Parameters: owner, repo (required), state (default: open), limit (default: 10)
-    - Returns: List of PRs with number, title, state, url
-
-    search: Search GitHub repositories
-    - Parameters: query (required), limit (default: 10)
-    - Returns: Matching repos with name, fullName, description, url
-    - Example: github_ops(operation='search', query='mcp server language:python', limit=10)
-
-    Args:
-        operation: One of create_issue, list_issues, create_pr, list_prs, search
-        owner: Repository owner (required for issue/PR operations)
-        repo: Repository name (required for issue/PR operations)
-        title: Issue or PR title (required for create_issue, create_pr)
-        body: Issue or PR body (optional)
-        query: Search query (required for search; GitHub search syntax)
-        state: open, closed, or all (default: open)
-        limit: Maximum results (default: 10)
-
-    Returns:
-        Dictionary with success, result, message, next_steps, execution_time_ms.
-        On error: success=False, error, recovery_options.
-
-    Examples:
-        github_ops(operation='list_issues', owner='sandraschi', repo='git-github-mcp')
-        github_ops(operation='create_issue', owner='x', repo='y', title='Bug report', body='...')
-        github_ops(operation='list_prs', owner='x', repo='y', state='open', limit=5)
-        github_ops(operation='search', query='mcp in:name', limit=10)
-
-    Notes:
-        - Requires gh CLI installed and authenticated (gh auth login).
-        - Set GITHUB_TOKEN env var if needed for automation.
-        - Search uses GitHub search syntax (e.g. language:python, org:owner).
+    Non-blocking: subprocess runs in thread pool, never freezes MCP server.
     """
     start = time.perf_counter()
-    if ctx:
-        ctx.info("github_ops", operation=operation)
-    result = _run_github_ops(
+    result = await asyncio.to_thread(
+        _github_ops,
         operation=operation,
         owner=owner,
         repo=repo,
@@ -225,65 +370,1082 @@ async def github_ops(
         body=body,
         issue_number=issue_number,
         pr_number=pr_number,
-        query=query,
         state=state,
         limit=limit,
+        label=label,
+        assignee=assignee,
+        description=description,
+        private=private,
+        new_name=new_name,
+        base_branch=base_branch,
+        head_branch=head_branch,
+        draft=draft,
+        merge_method=merge_method,
+        tag_name=tag_name,
+        release_name=release_name,
+        prerelease=prerelease,
+        query=query,
+        workflow_id=workflow_id,
+        run_id=run_id,
+        ref=ref,
+        target_dir=target_dir,
+        secret_name=secret_name,
+        secret_value=secret_value,
+        username=username,
+        permission=permission,
+        label_name=label_name,
+        label_color=label_color,
+        label_description=label_description,
+        output_format=output_format,
+        topic=topic,
+        extension=extension,
+        path_pattern=path_pattern,
+        search_scope=search_scope,
+        pretty=pretty,
+        project_number=project_number,
+        package_type=package_type,
+        package_name=package_name,
+        subpath=subpath,
+        github_url=github_url,
     )
-    result["execution_time_ms"] = (time.perf_counter() - start) * 1000
+    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
 
 
 @mcp.tool()
-async def mcp_help(
-    level: str = "basic", topic: str | None = None, ctx: Context | None = None
+async def fleet_morning_digest(
+    fleet_repos: str | None = None,
+    fleet_repos_file: str | None = None,
+    stale_days: int = 7,
+    include_issues: bool = True,
+    include_notifications: bool = True,
+    limit_per_repo: int = 30,
+    maintainer_login: str | None = None,
+    deliver: str | None = None,
+    output_file: str | None = None,
+    since_last_run: bool = True,
 ) -> dict:
-    """Contextual help for git-github-mcp tools.
+    """Breakfast runner: scan fleet repos for open PRs/issues, stale threads, and new notifications.
 
-    SUPPORTED OPERATIONS:
-    - level: basic | intermediate | advanced
-    - topic: git_ops | github_ops | None (overview)
+    Fleet list format (one per line): owner/repo — same as web /inbox fleet mode.
+    Sources: fleet_repos parameter, GIT_GITHUB_FLEET_REPOS_FILE, or config/fleet-repos.txt.
 
-    LEVELS:
-    - basic: Quick reference and common workflows
-    - intermediate: Full operation list with parameters
-    - advanced: Examples, error handling, recovery
+    deliver: comma-separated optional sinks — file, aiwatcher, robofang
+    (or set GIT_GITHUB_DIGEST_DELIVER). Schedule via scripts/install_morning_task.ps1.
 
-    Args:
-        level: Help detail level (basic, intermediate, advanced)
-        topic: Focus on git_ops, github_ops, or None for overview
-
-    Returns:
-        Dictionary with success, result.help_content, level, topic.
-
-    Examples:
-        mcp_help() - Basic overview
-        mcp_help(level='intermediate') - Full parameter reference
-        mcp_help(level='advanced', topic='git_ops') - Git examples and recovery
+    Requires: gh auth login. Non-blocking (runs in thread pool).
     """
-    if ctx:
-        ctx.info("help", level=level, topic=topic)
-    return _run_help(level=level, topic=topic)
+    start = time.perf_counter()
+    result = await asyncio.to_thread(
+        _run_morning_digest,
+        fleet_repos=fleet_repos,
+        fleet_repos_file=fleet_repos_file,
+        stale_days=stale_days,
+        include_issues=include_issues,
+        include_notifications=include_notifications,
+        limit_per_repo=limit_per_repo,
+        maintainer_login=maintainer_login,
+        deliver=deliver,
+        output_file=output_file,
+        since_last_run=since_last_run,
+    )
+    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
+    return result
 
 
 @mcp.tool()
-async def status(level: str = "basic", ctx: Context | None = None) -> dict:
-    """Report system status: git and gh CLI availability.
+async def fleet_ops(
+    operation: str,
+    fleet_repos: str | None = None,
+    fleet_repos_file: str | None = None,
+    use_registry: bool = True,
+    stale_days: int = 7,
+    maintainer_login: str | None = None,
+    deliver: str | None = None,
+    since_last_run: bool = True,
+    hours: int = 48,
+    days: int = 7,
+    owner: str | None = None,
+    registry_path: str | None = None,
+    repos_root: str | None = None,
+    scraper_url: str | None = None,
+    template: str | None = None,
+) -> dict:
+    """Fleet maintainer portmanteau for sandraschi MCP fleet.
 
-    LEVELS:
-    - basic: git/gh availability, versions, auth status
-    - detailed: + platform, Python version
+    Operations: registry_load, port_audit, docs_gate, quarantine_report,
+    ci_pulse, dependabot_digest, mention_inbox, ack_drafts, local_dirty,
+    release_drift, grade_snapshot, gitingest_bundle, runner_status,
+    weekly_retro, council_payload, full_suite.
 
-    Args:
-        level: basic or detailed
+    full_suite runs morning_digest plus all checks and returns a combined payload.
+    Requires gh auth for GitHub-backed ops. Non-blocking (thread pool).
+    """
+    start = time.perf_counter()
+    result = await asyncio.to_thread(
+        _fleet_ops,
+        operation,
+        fleet_repos=fleet_repos,
+        fleet_repos_file=fleet_repos_file,
+        use_registry=use_registry,
+        stale_days=stale_days,
+        maintainer_login=maintainer_login,
+        deliver=deliver,
+        since_last_run=since_last_run,
+        hours=hours,
+        days=days,
+        owner=owner,
+        registry_path=registry_path,
+        repos_root=repos_root,
+        scraper_url=scraper_url,
+        template=template,
+    )
+    result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
+    return result
+
+
+@mcp.tool()
+async def git_github_status(level: str = "basic") -> dict:
+    """System status: git and gh CLI availability, versions, and GitHub login state.
+
+    Use this to confirm **GitHub CLI authentication** before relying on `github_ops` or the
+    web dashboard. Checks `gh --version` and `gh auth status` (same credentials as your
+    interactive terminal if the MCP server runs as your user).
 
     Returns:
-        Dictionary with success, result (git, gh, tools).
-        On error: success=False if git or gh not found.
+        result.git / result.gh (version, available). When gh is installed, result.gh.auth
+        is either 'ok' or 'not logged in'. If auth is missing, the response is still
+        success=True with a clear message and recovery steps (install is different from
+        not-logged-in — see error vs message).
+    """
+    return await asyncio.to_thread(_get_status, level=level)
+
+
+@mcp.tool()
+async def git_github_help(level: str = "basic", topic: str | None = None) -> dict:
+    """Contextual help for git-github-mcp tools and operations.
+
+    level: basic | intermediate | advanced
+    topic: git_ops | github_ops | None (all)
+    """
+    return _get_help(level=level, topic=topic)
+
+
+@mcp.tool()
+async def git_agentic_workflow(
+    task: str,
+    repo_path: str | None = None,
+    owner: str | None = None,
+    repo: str | None = None,
+    ctx: Context = None,
+) -> dict:
+    """Agentic multi-step Git/GitHub workflow using LLM sampling.
+
+    Describe a high-level task in natural language. The tool reasons about
+    the required steps, executes them via git_ops/github_ops, and returns
+    a structured result with the plan and outcome.
 
     Examples:
-        status() - Basic availability check
-        status(level='detailed') - Full system info
+      task="Create a release branch from main, bump version, and open a PR"
+      task="List all open issues tagged 'bug' and create a summary"
+      task="Check repo status, stage all changes, commit and push"
     """
-    if ctx:
-        ctx.info("status", level=level)
-    return _run_status(level=level)
+    if ctx is None:
+        return {
+            "success": False,
+            "error": "Context not available — sampling requires an active MCP session",
+        }
+
+    await ctx.info(f"git_agentic_workflow: planning task: {task}")
+
+    repo_ctx = f"repo_path={repo_path}" if repo_path else "repo_path=. (cwd)"
+    gh_ctx = f"owner={owner}, repo={repo}" if owner and repo else "no GitHub repo specified"
+
+    plan_prompt = f"""You are a Git/GitHub operations planner. Given a task, output a JSON plan.
+
+Available tools:
+- git_ops(operation, repo_path, ...): 43 local git actions (init, clone, status, add,
+  commit, push, pull, fetch, log, diff, show, blame, branch lifecycle, rebase, remote,
+  stash, tag, reset, revert, cherry_pick, submodule_*, bisect_*, worktree_*, clean).
+- github_ops(operation, owner, repo, ...): 58 GitHub actions via gh CLI:
+  repos (list/view/create/fork/clone/delete/rename/archive),
+  issues (list/view/create/close/comment), PRs (list/view/create/merge/checkout/close/comment),
+  releases (full CRUD), Actions workflows (list/run/runs/cancel/enable/disable),
+  labels, secrets, collaborators,
+  search (search_repos, search_repos_topic, search_issues, search_code with pretty=,
+  code_find_repos for extension/path-scoped hunts),
+  Projects (project_*), Packages (package_*),
+  Gitingest helpers (gitingest_link, gitingest_convert_url with github_url, gitingest_help;
+  optional ref, subpath on link),
+  auth_status, gist_list.
+
+Context:
+- {repo_ctx}
+- {gh_ctx}
+
+Task: {task}
+
+Respond with ONLY valid JSON:
+{{
+  "plan": "brief human-readable plan",
+  "steps": [
+    {{
+      "tool": "git_ops",
+      "args": {{"operation": "status", "repo_path": "."}},
+      "description": "Check repo status"
+    }}
+  ]
+}}
+"""
+
+    try:
+        plan_response = await ctx.sample(
+            messages=[{"role": "user", "content": plan_prompt}],
+            max_tokens=1024,
+        )
+        plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Planning failed: {e}",
+            "hint": "Sampling requires MCP client support (e.g. Antigravity, Claude Desktop).",
+        }
+
+    import json
+
+    try:
+        clean = plan_text.strip()
+        if clean.startswith("```"):
+            clean = "\n".join(clean.split("\n")[1:])
+            clean = clean.rsplit("```", 1)[0].strip()
+        plan_data = json.loads(clean)
+    except json.JSONDecodeError:
+        return {
+            "success": False,
+            "error": "Could not parse plan JSON",
+            "raw_plan": plan_text,
+        }
+
+    await ctx.info(f"Plan: {plan_data.get('plan', '?')} — {len(plan_data.get('steps', []))} steps")
+
+    results = []
+    for i, step in enumerate(plan_data.get("steps", [])):
+        tool_name = step.get("tool")
+        args = step.get("args", {})
+        description = step.get("description", f"Step {i + 1}")
+
+        await ctx.info(f"Step {i + 1}/{len(plan_data['steps'])}: {description}")
+
+        try:
+            if tool_name == "git_ops":
+                result = await _git_ops(**args)
+            elif tool_name == "github_ops":
+                result = await asyncio.to_thread(_github_ops, **args)
+            else:
+                from .utils.response import error_response
+                result = error_response(tool_name or "unknown", f"Unknown tool: {tool_name}")
+        except Exception as e:
+            from .utils.response import error_response
+            result = error_response(tool_name or "unknown", str(e))
+
+        results.append(
+            {
+                "step": i + 1,
+                "description": description,
+                "tool": tool_name,
+                "args": args,
+                "result": result,
+                "success": result.get("success", False),
+            }
+        )
+
+        if not result.get("success", False):
+            await ctx.warning(f"Step {i + 1} failed: {result.get('error', 'unknown')}")
+            break
+
+    completed = sum(1 for r in results if r["success"])
+    return {
+        "success": completed == len(plan_data.get("steps", [])),
+        "task": task,
+        "plan": plan_data.get("plan"),
+        "steps_total": len(plan_data.get("steps", [])),
+        "steps_completed": completed,
+        "results": results,
+    }
+
+
+@mcp.tool()
+async def git_github_search_workflow(
+    task: str,
+    owner: str | None = None,
+    repo: str | None = None,
+    limit: int = 30,
+    ctx: Context = None,
+) -> dict:
+    """Agentic GitHub discovery/search workflow (sampling-first).
+
+    Purpose:
+    - Turn natural-language discovery tasks into multi-step github_ops calls.
+    - Best for questions like:
+      - "find repos with bak file dross"
+      - "show me stale projects and archived repos"
+      - "find repos tagged mcp with low maintenance activity"
+    """
+    if ctx is None:
+        return {
+            "success": False,
+            "error": "Context not available — sampling requires an active MCP session",
+        }
+
+    await ctx.info(f"git_github_search_workflow: planning task: {task}")
+    gh_ctx = f"owner={owner}, repo={repo}" if owner and repo else f"owner={owner}" if owner else "no owner/repo"
+
+    plan_prompt = f"""You are a GitHub discovery planner.
+Prefer the smallest chain of github_ops calls.
+
+Available github_ops groups (all require valid gh auth unless read-only search fails first):
+- Search & scan: search_repos, search_repos_topic (topic + optional owner/query),
+  search_issues, search_code (set pretty=true for markdown + unique_repositories),
+  code_find_repos (extension/path_pattern/owner scoped code hunt)
+- Repos: repo_list, repo_view, show_repo (output_format markdown for human skim)
+- Signals: issue_list, pr_list, release_list, workflow_list, workflow_runs
+- Ecosystem: project_list/view, package_list/view
+- LLM digest URLs (public repos / PAT for private): gitingest_link (owner, repo, ref?,
+  subpath?), gitingest_convert_url (github_url= full tree URL), gitingest_help
+- Sanity: auth_status when authentication might be the blocker
+
+Context:
+- {gh_ctx}
+- limit={limit}
+
+Task: {task}
+
+Return ONLY valid JSON:
+{{
+  "plan": "short plan",
+  "steps": [
+    {{
+      "tool": "github_ops",
+      "args": {{"operation": "search_repos", "query": "topic:mcp", "limit": 20}},
+      "description": "What this step does"
+    }}
+  ],
+  "final_summary_strategy": "How to summarize findings for a human"
+}}
+"""
+    try:
+        plan_response = await ctx.sample(
+            messages=[{"role": "user", "content": plan_prompt}],
+            max_tokens=1200,
+        )
+        plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Planning failed: {e}",
+            "hint": "Sampling requires MCP client support (e.g. Antigravity, Claude Desktop).",
+        }
+
+    import json
+
+    try:
+        clean = plan_text.strip()
+        if clean.startswith("```"):
+            clean = "\n".join(clean.split("\n")[1:])
+            clean = clean.rsplit("```", 1)[0].strip()
+        plan_data = json.loads(clean)
+    except json.JSONDecodeError:
+        from .utils.response import error_response
+        return error_response("plan", "Could not parse plan JSON from LLM",
+                              recovery_options=["Try again with a more specific task"],
+                              suggested_fixes=["Shorten your task description"])
+
+    steps = plan_data.get("steps", [])
+    await ctx.info(f"Discovery plan: {plan_data.get('plan', '?')} — {len(steps)} steps")
+
+    results = []
+    for i, step in enumerate(steps):
+        args = step.get("args", {})
+        desc = step.get("description", f"Step {i + 1}")
+        await ctx.info(f"Step {i + 1}/{len(steps)}: {desc}")
+        try:
+            result = await asyncio.to_thread(_github_ops, **args)
+        except Exception as e:
+            from .utils.response import error_response
+            result = error_response(args.get("operation", "unknown"), str(e))
+        results.append(
+            {
+                "step": i + 1,
+                "description": desc,
+                "args": args,
+                "result": result,
+                "success": result.get("success", False),
+            }
+        )
+        if not result.get("success", False):
+            await ctx.warning(f"Step {i + 1} failed: {result.get('error', 'unknown')}")
+            break
+
+    completed = sum(1 for r in results if r["success"])
+    return {
+        "success": completed == len(steps),
+        "task": task,
+        "context": {"owner": owner, "repo": repo, "limit": limit},
+        "plan": plan_data.get("plan"),
+        "summary_strategy": plan_data.get("final_summary_strategy"),
+        "steps_total": len(steps),
+        "steps_completed": completed,
+        "results": results,
+    }
+
+
+# ── Resources ─────────────────────────────────────────────────────────────────
+
+
+@mcp.resource(
+    "git://repo/status",
+    description="Current git status of the default repo (cwd). Shows branch, changes, remote URL.",
+)
+async def resource_git_status() -> dict:
+    """Live git status of the current working directory."""
+    return await _git_ops(operation="status", repo_path=None)
+
+
+@mcp.resource(
+    "git://repo/log",
+    description="Recent git commit log (last 20 commits) for the current repo.",
+)
+async def resource_git_log() -> dict:
+    """Recent commit history of the current working directory."""
+    return await _git_ops(operation="log", repo_path=None, max_count=20, oneline=True)
+
+
+@mcp.resource(
+    "git://{repo_path}/status",
+    description="Git status for a specific repo path.",
+)
+async def resource_repo_status(repo_path: str) -> dict:
+    """Live git status for a given repo path."""
+    return await _git_ops(operation="status", repo_path=repo_path)
+
+
+@mcp.resource(
+    "git://{repo_path}/log",
+    description="Recent commit log for a specific repo path.",
+)
+async def resource_repo_log(repo_path: str) -> dict:
+    """Recent commits for a given repo path."""
+    return await _git_ops(operation="log", repo_path=repo_path, max_count=20, oneline=True)
+
+
+@mcp.resource(
+    "github://{owner}/{repo}/issues",
+    description="Open issues for a GitHub repository.",
+)
+def resource_github_issues(owner: str, repo: str) -> dict:
+    """Open issues for owner/repo."""
+    return _github_ops(operation="issue_list", owner=owner, repo=repo, state="open", limit=50)
+
+
+@mcp.resource(
+    "github://{owner}/{repo}/prs",
+    description="Open pull requests for a GitHub repository.",
+)
+def resource_github_prs(owner: str, repo: str) -> dict:
+    """Open PRs for owner/repo."""
+    return _github_ops(operation="pr_list", owner=owner, repo=repo, state="open", limit=20)
+
+
+@mcp.resource(
+    "git://skills/concepts",
+    description="Git/GitHub concept index for tutoring and quick lookup.",
+)
+def resource_git_skills_concepts() -> dict:
+    """Concept index for the webapp/chat to ground explanations."""
+    return {
+        "concepts": [
+            "rebase",
+            "merge-vs-rebase",
+            "cherry-pick",
+            "revert-vs-reset",
+            "stash",
+            "worktree",
+            "bisect",
+            "interactive-rebase",
+            "release-flow",
+            "github-projects",
+            "github-packages",
+            "github-actions-debugging",
+            "gitingest",
+            "agentic-workflows",
+        ],
+        "hint": "Use git://skills/{topic} for a focused cheat-sheet.",
+    }
+
+
+@mcp.resource(
+    "git://skills/{topic}",
+    description="Focused Git/GitHub lecture notes for a topic (e.g., rebase).",
+)
+def resource_git_skill_topic(topic: str) -> dict:
+    """Short, practical lecture note blocks keyed by topic."""
+    t = topic.strip().lower()
+    notes = {
+        "rebase": {
+            "what": "Reapply your commits onto a new base for a linear history.",
+            "when": "Before opening/updating a PR; keeping feature branch current.",
+            "commands": [
+                "git fetch origin",
+                "git rebase origin/main",
+                "git rebase --continue | --abort",
+            ],
+            "danger": "Never rebase shared/published branch history unless team agrees.",
+        },
+        "merge-vs-rebase": {
+            "what": "Merge preserves branch topology; rebase rewrites commit ancestry.",
+            "when": "Merge for shared history clarity; rebase for cleaner PR branch history.",
+            "commands": ["git merge main", "git rebase main"],
+            "danger": "Rebase changes commit SHAs.",
+        },
+        "cherry-pick": {
+            "what": "Copy specific commit(s) onto current branch.",
+            "when": "Backporting fixes across release branches.",
+            "commands": ["git cherry-pick <sha>", "git cherry-pick --abort"],
+            "danger": "Can duplicate logical changes if also merged later.",
+        },
+        "gitingest": {
+            "what": ("Turn a GitHub repo (or subpath) into one LLM-friendly text digest via gitingest.com."),
+            "when": (
+                "Quick full-repo or folder context without a local clone; check token size before pasting into prompts."
+            ),
+            "commands": [
+                "github_ops(operation='gitingest_link', owner='ORG', repo='REPO')",
+                "github_ops(operation='gitingest_convert_url', github_url='https://github.com/...')",
+                "gitingest https://github.com/ORG/REPO --output -",
+            ],
+            "danger": (
+                "Public by default; private repos need PAT. Complements llms.txt; does not replace llms-full.txt."
+            ),
+        },
+        "agentic-workflows": {
+            "what": ("Sampling tools that plan multi-step git_ops/github_ops chains from natural language."),
+            "when": (
+                "git_agentic_workflow: mixed local Git + GitHub tasks. "
+                "git_github_search_workflow: discovery, search, repo intelligence only."
+            ),
+            "commands": [
+                "git_agentic_workflow(task='…', repo_path?, owner?, repo?)",
+                "git_github_search_workflow(task='…', owner?, repo?, limit?)",
+            ],
+            "danger": (
+                "Prefer git_github_search_workflow / git_agentic_workflow in MCP hosts with "
+                "full sampling (e.g. Antigravity) — LLM-planned steps are the superior path. "
+                "POST /api/discovery presets are a portable fallback for web UI or hosts "
+                "without sampling."
+            ),
+        },
+    }
+    if t not in notes:
+        return {
+            "topic": t,
+            "found": False,
+            "message": "Unknown topic. Start with git://skills/concepts",
+        }
+    return {"topic": t, "found": True, **notes[t]}
+
+
+# ── Prompts ───────────────────────────────────────────────────────────────────
+
+
+@mcp.prompt()
+def git_commit_message(diff: str, context: str = "") -> str:
+    """Generate a conventional commit message from a git diff.
+
+    Args:
+        diff: Output of git diff --staged
+        context: Optional extra context (ticket number, feature description)
+    """
+    ctx_line = f"\nContext: {context}" if context else ""
+    return (
+        f"Write a conventional commit message for the following staged diff.{ctx_line}\n\n"
+        "Rules:\n"
+        "- Format: <type>(<scope>): <short description>\n"
+        "- Types: feat, fix, docs, style, refactor, test, chore, ci, perf\n"
+        "- Subject line max 72 chars, imperative mood\n"
+        "- Add body if changes are non-trivial\n"
+        "- Add BREAKING CHANGE footer if applicable\n"
+        "- If the user has git-github-mcp: git_ops(operation='diff', repo_path=…) for unstaged\n\n"
+        f"Diff:\n```\n{diff}\n```"
+    )
+
+
+@mcp.prompt()
+def git_release_notes(
+    commits: str,
+    version: str,
+    repo: str = "",
+) -> str:
+    """Generate release notes from a list of commits.
+
+    Args:
+        commits: Output of git log --oneline <prev_tag>..HEAD
+        version: The new version tag (e.g. v1.2.0)
+        repo: GitHub repo slug owner/repo (optional, for PR links)
+    """
+    repo_line = f"\nGitHub repo: {repo}" if repo else ""
+    return (
+        f"Write release notes for version {version}.{repo_line}\n\n"
+        "Format:\n"
+        "## What's Changed\n"
+        "Group commits into: Features, Bug Fixes, Documentation, Internal.\n"
+        "Skip trivial commits (chore: bump, style: format).\n"
+        "Link PRs if GitHub repo provided.\n"
+        "Optional: cross-check with github_ops release_list / pr_list for the repo.\n\n"
+        f"Commits:\n```\n{commits}\n```"
+    )
+
+
+@mcp.prompt()
+def git_pr_description(
+    branch: str,
+    commits: str,
+    diff_stat: str = "",
+) -> str:
+    """Generate a pull request description.
+
+    Args:
+        branch: Feature branch name
+        commits: Commit log for the branch
+        diff_stat: Output of git diff --stat (optional)
+    """
+    stat_section = f"\nChanged files:\n```\n{diff_stat}\n```" if diff_stat else ""
+    return (
+        f"Write a pull request description for branch `{branch}`.\n\n"
+        "Include:\n"
+        "- ## Summary (what and why)\n"
+        "- ## Changes (bullet list)\n"
+        "- ## Testing (how to verify)\n"
+        "- ## Notes (breaking changes, migration steps, TODOs)\n"
+        f"{stat_section}\n\n"
+        f"Commits:\n```\n{commits}\n```"
+    )
+
+
+@mcp.prompt()
+def git_review_diff(diff: str, focus: str = "") -> str:
+    """Code review prompt for a git diff.
+
+    Args:
+        diff: The diff to review (git diff or PR diff)
+        focus: Optional focus area (security, performance, style, logic)
+    """
+    focus_line = f"\nFocus especially on: {focus}" if focus else ""
+    return (
+        f"Review the following code diff.{focus_line}\n\n"
+        "For each issue found:\n"
+        "- File and line reference\n"
+        "- Severity: critical / major / minor / nit\n"
+        "- Explanation and suggested fix\n\n"
+        "Also note: what's done well.\n"
+        "If the change touches GitHub config, mention whether Actions/workflows need updates.\n\n"
+        f"Diff:\n```\n{diff}\n```"
+    )
+
+
+@mcp.prompt()
+def github_issue_template(
+    title: str,
+    type: str = "bug",
+    context: str = "",
+) -> str:
+    """Generate a well-structured GitHub issue body.
+
+    Args:
+        title: Issue title
+        type: bug | feature | docs | question
+        context: Any relevant context to include
+    """
+    templates = {
+        "bug": (
+            "Write a GitHub issue body for a bug report.\n"
+            "Sections: Description, Steps to Reproduce, Expected Behavior, "
+            "Actual Behavior, Environment, Additional Context."
+        ),
+        "feature": (
+            "Write a GitHub issue body for a feature request.\n"
+            "Sections: Problem Statement, Proposed Solution, Alternatives Considered, "
+            "Implementation Notes."
+        ),
+        "docs": (
+            "Write a GitHub issue body for a documentation improvement.\n"
+            "Sections: Current Documentation, What's Missing or Wrong, Suggested Content."
+        ),
+        "question": (
+            "Write a GitHub issue body for a question/discussion.\nSections: Question, What I've Tried, Relevant Code."
+        ),
+    }
+    template = templates.get(type, templates["bug"])
+    ctx_line = f"\nContext provided: {context}" if context else ""
+    return f"{template}\n\nTitle: {title}{ctx_line}"
+
+
+@mcp.prompt()
+def github_debug_workflow(
+    workflow_name: str,
+    error_output: str,
+    repo: str = "",
+) -> str:
+    """Debug a failing GitHub Actions workflow.
+
+    Args:
+        workflow_name: Name of the workflow file (e.g. ci.yml)
+        error_output: The error output from the failing run
+        repo: GitHub repo slug (optional)
+    """
+    repo_line = f"\nRepo: {repo}" if repo else ""
+    return (
+        f"Debug this failing GitHub Actions workflow: {workflow_name}{repo_line}\n\n"
+        "Before guessing, prefer facts: workflow_runs, workflow_list, and recent commits "
+        "if github_ops is available.\n\n"
+        "Analyse the error, identify root cause, and provide:\n"
+        "1. Root cause explanation\n"
+        "2. Exact fix (YAML snippet or command)\n"
+        "3. How to verify the fix\n\n"
+        f"Error output:\n```\n{error_output}\n```"
+    )
+
+
+@mcp.prompt()
+def git_github_explain_concept(concept: str, level: str = "intermediate") -> str:
+    """Teaching prompt for Git/GitHub concepts with practical examples.
+
+    Args:
+        concept: e.g. rebase, cherry-pick, worktree, GitHub Projects, Packages, gitingest,
+          agentic-workflows (git_agentic_workflow vs git_github_search_workflow)
+        level: beginner | intermediate | advanced
+    """
+    return (
+        f"Teach the concept '{concept}' at level '{level}'.\n\n"
+        "Output structure:\n"
+        "1. What it is (1-2 sentences)\n"
+        "2. When to use it / when not to use it\n"
+        "3. 2-4 practical commands/examples "
+        "(include gh or git-github-mcp tool names when relevant)\n"
+        "4. Common failure modes and recovery commands\n"
+        "5. One short checklist the user can follow\n"
+        "If the topic is Gitingest: contrast with committed llms.txt + llms-full.txt "
+        "(curated vs live raw digest).\n"
+        "Keep the explanation practical and non-fluffy."
+    )
+
+
+# ── FastAPI web bridge ────────────────────────────────────────────────────────
+
+_mcp_http = mcp.http_app(path="/mcp")
+
+web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
+web_app.include_router(_build_logs_router())
+
+web_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:10703",
+        "http://127.0.0.1:10703",
+        "http://localhost:10702",
+        "http://127.0.0.1:10702",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@web_app.get("/health")
+async def web_health():
+    return {"ok": True, "service": "git-github-mcp", "version": VERSION, "port": WEB_PORT}
+
+
+@web_app.get("/api/capabilities")
+async def api_capabilities():
+    return await build_capabilities(mcp, version=VERSION)
+
+
+@web_app.get("/api/apps")
+async def api_apps():
+    """Fleet apps hub — entries with webapp ports from fleet registry."""
+    from .services.fleet_catalog import load_registry
+
+    apps: list[dict] = []
+    for row in load_registry():
+        if not isinstance(row, dict):
+            continue
+        rid = str(row.get("id") or "")
+        port = int(row.get("frontend_port") or row.get("port") or 0)
+        if port <= 0:
+            continue
+        apps.append(
+            {
+                "id": rid,
+                "name": rid,
+                "description": str(row.get("description") or row.get("category") or "fleet MCP"),
+                "port": port,
+                "category": str(row.get("category") or "mcp"),
+                "url": f"http://127.0.0.1:{port}",
+            }
+        )
+    apps.sort(key=lambda a: a["port"])
+    log_activity("api", f"apps hub listed {len(apps)} entries", level="INFO")
+    return {"apps": apps, "fleet_total": len(load_registry())}
+
+
+@web_app.get("/api/status")
+async def api_status():
+    return await asyncio.to_thread(_get_status, level="basic")
+
+
+# Mount MCP HTTP transport alongside the web API
+web_app.mount("/mcp", _mcp_http)
+
+
+@web_app.get("/api/tools")
+async def api_tools():
+    return {
+        "tools": [
+            {"name": "git_core", "operations": 11, "description": "status/log/diff/add/commit/push/pull/fetch"},
+            {"name": "git_branch", "operations": 14, "description": "branch lifecycle, merge, rebase, stash, tag"},
+            {"name": "git_admin", "operations": 16, "description": "remote/reset/revert/clean/submodule/bisect"},
+            {"name": "git_blame", "operations": 1, "description": "annotate file lines with commit info"},
+            {"name": "github_ops", "operations": 58, "description": "GitHub API via gh CLI"},
+            {
+                "name": "git_agentic_workflow",
+                "description": "Agentic multi-step Git/GitHub operations",
+            },
+            {
+                "name": "git_github_search_workflow",
+                "description": "Agentic multi-step GitHub discovery/search workflow",
+            },
+            {
+                "name": "web_discovery",
+                "description": (
+                    f"HTTP POST /api/discovery — {len(DISCOVERY_PRESETS)} preset chains "
+                    "(fallback when MCP sampling unavailable; prefer git_github_search_workflow "
+                    "in full-sampling clients e.g. Antigravity)"
+                ),
+                "presets": list(DISCOVERY_PRESETS),
+            },
+            {
+                "name": "fleet_morning_digest",
+                "description": "Daily fleet PR/issue/notification breakfast summary",
+            },
+            {
+                "name": "fleet_ops",
+                "description": "Fleet maintainer toolkit (16 ops incl. full_suite)",
+                "operations": [
+                    "registry_load",
+                    "port_audit",
+                    "docs_gate",
+                    "quarantine_report",
+                    "ci_pulse",
+                    "dependabot_digest",
+                    "mention_inbox",
+                    "ack_drafts",
+                    "local_dirty",
+                    "release_drift",
+                    "grade_snapshot",
+                    "gitingest_bundle",
+                    "runner_status",
+                    "weekly_retro",
+                    "council_payload",
+                    "full_suite",
+                ],
+            },
+            {"name": "git_github_status", "description": "System status"},
+            {"name": "git_github_help", "description": "Contextual help"},
+        ]
+    }
+
+
+@web_app.post("/api/git")
+async def api_git(body: dict):
+    args = body.get("arguments", body)
+    op = args.get("operation", "?")
+    log_activity("git_ops", f"operation={op}", level="INFO", meta={"operation": op})
+    return await _git_ops(**args)
+
+
+@web_app.post("/api/github")
+async def api_github(body: dict):
+    args = body.get("arguments", body)
+    op = args.get("operation", "?")
+    log_activity("github_ops", f"operation={op}", level="INFO", meta={"operation": op})
+    return await github_ops(**args)
+
+
+@web_app.post("/api/morning-digest")
+async def api_morning_digest(body: dict | None = None):
+    """Run fleet morning digest (same as fleet_morning_digest MCP tool)."""
+    args = body or {}
+    return await asyncio.to_thread(_run_morning_digest, **args)
+
+
+@web_app.post("/api/fleet-ops")
+async def api_fleet_ops(body: dict | None = None):
+    """Run a single fleet_ops operation (same as fleet_ops MCP tool)."""
+    args = body or {}
+    operation = args.pop("operation", "")
+    return await asyncio.to_thread(_fleet_ops, operation, **args)
+
+
+@web_app.post("/api/fleet-suite")
+async def api_fleet_suite(body: dict | None = None):
+    """Run full fleet maintainer suite (fleet_ops operation=full_suite)."""
+    args = body or {}
+
+    def _run_and_cache() -> dict:
+        result = _fleet_ops("full_suite", **args)
+        if isinstance(result, dict):
+            _cache_suite_result(result)
+        return result
+
+    return await asyncio.to_thread(_run_and_cache)
+
+
+_suite_last: dict | None = None
+_suite_last_lock = threading.Lock()
+
+
+def _cache_suite_result(result: dict) -> None:
+    global _suite_last
+    with _suite_last_lock:
+        _suite_last = result
+
+
+@web_app.get("/api/fleet-suite/last")
+async def api_fleet_suite_last():
+    """Latest full_suite result (populated by /api/fleet-suite/stream)."""
+    with _suite_last_lock:
+        if _suite_last is None:
+            return {"success": False, "error": "No fleet suite result cached yet"}
+        return _suite_last
+
+
+def _fleet_suite_stream_args(body: dict | None) -> dict:
+    args = body or {}
+    return {
+        "fleet_repos": args.get("fleet_repos"),
+        "fleet_repos_file": args.get("fleet_repos_file"),
+        "use_registry": bool(args.get("use_registry", True)),
+        "stale_days": int(args.get("stale_days", 7) or 7),
+        "deliver": args.get("deliver"),
+        "maintainer_login": args.get("maintainer_login"),
+        "since_last_run": bool(args.get("since_last_run", True)),
+    }
+
+
+@web_app.post("/api/fleet-suite/stream")
+async def api_fleet_suite_stream(body: dict | None = None):
+    """Stream NDJSON progress events while running full_suite; final line is done or error."""
+    stream_args = _fleet_suite_stream_args(body)
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue[dict] = asyncio.Queue(maxsize=512)
+
+    def progress(event: dict) -> None:
+        loop.call_soon_threadsafe(queue.put_nowait, {"type": "progress", **event})
+
+    def worker() -> None:
+        try:
+            result = _run_full_suite(**stream_args, on_progress=progress)
+            _cache_suite_result(result)
+            # Lightweight done — full payload is huge; client fetches /api/fleet-suite/last
+            loop.call_soon_threadsafe(
+                queue.put_nowait,
+                {
+                    "type": "done",
+                    "success": bool(result.get("success")),
+                    "message": result.get("message"),
+                },
+            )
+        except Exception as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "error": str(exc)})
+
+    async def generate():
+        threading.Thread(target=worker, daemon=True).start()
+        while True:
+            item = await queue.get()
+            yield json.dumps(item, default=str) + "\n"
+            if item.get("type") in ("done", "error"):
+                break
+
+    return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+
+@web_app.post("/api/discovery")
+async def api_discovery(body: dict):
+    """Preset GitHub discovery for the HTTP bridge.
+
+    Prefer MCP git_github_search_workflow when the client supports full sampling
+    (e.g. Antigravity): LLM-planned steps are the superior path. This route is for
+    the web UI and for MCP hosts without sampling.
+    """
+    args = body.get("arguments", body)
+    preset = args.get("preset", "")
+    raw_lim = args.get("limit", 25)
+    try:
+        lim = int(raw_lim)
+    except (TypeError, ValueError):
+        lim = 25
+    return await asyncio.to_thread(
+        _run_discovery_workflow,
+        preset,
+        owner=args.get("owner"),
+        repo=args.get("repo"),
+        query=args.get("query"),
+        topic=args.get("topic"),
+        extension=args.get("extension"),
+        limit=lim,
+    )
+
+
+# Serve React webapp from web/dist if built
+_dist = os.path.join(os.path.dirname(__file__), "..", "..", "..", "web", "dist")
+if os.path.isdir(_dist):
+    web_app.mount("/", StaticFiles(directory=_dist, html=True), name="static")
+
+
+def main():
+    import threading
+    import time
+
+    from .transport import run_server, get_transport_config
+
+    # Start the HTTP bridge on port 10702 in a background thread
+    http_thread = threading.Thread(
+        target=lambda: uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT, log_level="warning"),
+        daemon=True,
+    )
+    http_thread.start()
+    logger.info(f"HTTP bridge running on {WEB_HOST}:{WEB_PORT}")
+
+    cfg = get_transport_config()
+    transport = cfg.get("transport", "stdio")
+
+    if transport == "http":
+        # HTTP mode: run the MCP server via the transport module (blocks)
+        run_server(mcp, server_name="git-github-mcp")
+    else:
+        # STDIO mode: run in a thread, keep main alive for HTTP bridge
+        import asyncio
+
+        stdio_thread = threading.Thread(
+            target=lambda: asyncio.run(mcp.run_stdio_async()),
+            daemon=True,
+        )
+        stdio_thread.start()
+        logger.info("MCP STDIO listener started in background thread")
+
+        # Keep main thread alive so daemon threads (HTTP bridge) survive
+        try:
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            logger.info("Shutdown requested by user")

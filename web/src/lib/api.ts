@@ -1,5 +1,7 @@
 /** Shared API client — dev uses Vite proxy (/api → :10702); prod uses VITE_API_URL or :10702 */
 
+export const API_BASE = "http://127.0.0.1:10702";
+
 const BASE =
   import.meta.env.VITE_API_URL ??
   (import.meta.env.DEV ? '' : 'http://127.0.0.1:10702');

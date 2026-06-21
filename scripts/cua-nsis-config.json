@@ -1,0 +1,14 @@
+{
+  "product_name": "Git GitHub MCP",
+  "install_dir": "%LOCALAPPDATA%\\Git GitHub MCP",
+  "operator_exe": "git-github-mcp-native.exe",
+  "backend_process_names": ["git-github-mcp-native", "git-github-mcp-backend"],
+  "backend_port": 10702,
+  "health_path": "/api/v1/health",
+  "diagnostics_path": "/api/v1/diagnostics",
+  "feature_smoke_path": "/api/v1/system/info",
+  "window_title_re": "Git GitHub MCP",
+  "nsis_glob": "native/target/release/bundle/nsis/Git GitHub MCP_*_x64-setup.exe",
+  "bridge_ok_text": "REST bridge reachable",
+  "uninstall_registry_filter": "*Git GitHub MCP*"
+}

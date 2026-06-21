@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
+import { API_BASE } from '../lib/api';
 
 type FleetApp = {
   id: string;
@@ -16,7 +17,7 @@ export function AppsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('/api/apps')
+    fetch(API_BASE + '/api/apps')
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

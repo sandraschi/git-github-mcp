@@ -1,9 +1,9 @@
-﻿param(
+param(
     [switch]$Headless,
     [switch]$BackendOnly,
     [switch]$FrontendOnly,
-    [switch]$NoBrowser
-)
+    [switch]$NoBrowser,
+    [switch]$ReuseIfRunning)
 
 $ScriptRoot = Split-Path -Parent $PSCommandPath
 $WebRoot = Join-Path $ScriptRoot "web"
@@ -21,12 +21,24 @@ if (-not (Test-Path -LiteralPath $FleetStartPath)) {
 $FleetStart = Initialize-FleetStartMode @PSBoundParameters
 Enter-FleetHeadlessConsole -Headless:$Headless -BackendOnly:$BackendOnly
 
+$portResolve = @{
+    Ports      = @($BackendPort, $FrontendPort)
+    Label      = "git-github-mcp"
+    AllowReuse = $ReuseIfRunning
+}
+if ($ReuseIfRunning) {
+    $portResolve.HealthChecks = @{
+        $BackendPort = "http://127.0.0.1:$BackendPort/health"
+        $FrontendPort = "http://127.0.0.1:$FrontendPort/"
+    }
+}
+$portState = Resolve-FleetPortConflict @portResolve
+if ($portState.Action -eq 'Blocked') { exit 1 }
+if ($portState.Reuse) { return }
 Write-Host "Starting git-github-mcp (fleet SOTA)..." -ForegroundColor Cyan
 Write-Host "Frontend $FrontendPort | Backend $BackendPort | MCP /mcp" -ForegroundColor Gray
 
-Stop-FleetPortSquatters -Ports @($BackendPort, $FrontendPort) -Label "git-github-mcp"
 
-if (-not (Assert-FleetPortsAvailable -Ports @($BackendPort, $FrontendPort) -Label "git-github-mcp")) { exit 1 }
 
 $uvExe = Require-FleetCommand -Cmd "uv" -WingetId "Astral.uv" -Label "uv"
 $npmExe = Require-FleetCommand -Cmd "npm" -WingetId "OpenJS.NodeJS.LTS" -Label "npm"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLogger } from '@/context/logger-context';
 import { useCapabilities } from '@/hooks/use-capabilities';
+import { API_BASE } from '../lib/api';
 
 type ToolRow = {
   name: string;
@@ -15,7 +16,7 @@ export function ToolsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/tools')
+    fetch(API_BASE + '/api/tools')
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

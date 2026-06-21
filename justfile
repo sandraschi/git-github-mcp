@@ -1,4 +1,5 @@
-﻿set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
+set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
+import 'scripts/just/fleet.just'
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,20 @@ audit-deps:
 
 # Build .mcpb from mcpb/ layout (sync src, uv export, pack, validate)
 mcpb-pack:
-    Set-Location '{{justfile_directory()}}'
-    pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\mcpb\pack.ps1
+	Set-Location '{{justfile_directory()}}'
+	pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\mcpb\pack.ps1
 
+# ── Tauri NSIS ─────────────────────────────────────────────────────────────────
+
+# Build the Tauri NSIS desktop installer (full pipeline: frontend -> Rust -> NSIS)
+build-native:
+	$env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
+	$vcvars = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+	$envOutput = cmd /c "`"$vcvars`" > nul & set" | Where-Object { $_ -match '^(INCLUDE|LIB|LIBPATH|VCToolsVersion|WindowsSdkDir|UniversalCRTSdkDir|UCRTVersion)=' }
+	foreach ($line in $envOutput) { $parts = $line.Split('=', 2); Set-Item -Path "env:$($parts[0])" -Value $parts[1] -ErrorAction SilentlyContinue }
+	Set-Location '{{justfile_directory()}}\native'
+	npx @tauri-apps/cli build --bundles nsis
+
+# Run the CUA smoke test against the installed NSIS app
+cua-nsis-test:
+	C:\Windows\py.exe scripts/cua-smoke.py

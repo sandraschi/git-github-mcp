@@ -9,8 +9,8 @@ from typing import Any
 from ..tools.github_ops import github_ops
 from ..utils.gh_cli import run_gh
 from ..utils.response import success_response
-from .fleet_common import DEFAULT_FLEET_OWNER, load_fleet_repos, parse_iso
-from .fleet_catalog import registry_to_github_slugs, load_registry
+from .fleet_catalog import load_registry, registry_to_github_slugs
+from .fleet_common import load_fleet_repos, parse_iso
 
 
 def _resolve_repos(
