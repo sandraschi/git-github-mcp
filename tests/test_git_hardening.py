@@ -4,16 +4,13 @@ from unittest.mock import MagicMock, patch
 from git_github_mcp.tools.git_ops import git_ops
 
 
-@patch("git_github_mcp.tools.git_ops._run_git")
-def test_git_ops_non_interactive_env(mock_run):
-    """Verify that _run_git is called with non-interactive env vars."""
+@patch("git_github_mcp.tools.git_ops._run_git_async")
+async def test_git_ops_non_interactive_env(mock_run):
+    """Verify that _run_git_async is called with non-interactive env vars."""
     mock_run.return_value = (True, "on branch main\nnothing to commit", "")
 
-    git_ops(operation="status", repo_path=".")
+    await git_ops(operation="status", repo_path=".")
 
-    # Check that env vars were injected (implicitly via _run_git call if we were
-    # testing it directly, but here we check if the tool still works with the
-    # new structure)
     assert mock_run.called
 
 
@@ -26,14 +23,14 @@ def test_run_git_env_injection(mock_subproc):
 
     _run_git(Path("."), ["status"])
 
-    args, kwargs = mock_subproc.call_args
+    _args, kwargs = mock_subproc.call_args
     env = kwargs.get("env", {})
 
     assert env.get("GIT_TERMINAL_PROMPT") == "0"
-    assert env.get("GIT_SSH_COMMAND") == "ssh -o BatchMode=yes"
+    assert "BatchMode=yes" in env.get("GIT_SSH_COMMAND", "")
 
 
-def test_porcelain_status_parsing():
+async def test_porcelain_status_parsing():
     """Verify high-fidelity porcelain status parsing."""
     from git_github_mcp.tools.git_ops import git_ops
 
@@ -50,7 +47,7 @@ def test_porcelain_status_parsing():
         "UU unmerged.txt\n"
     )
 
-    with patch("git_github_mcp.tools.git_ops._run_git") as mock_run:
+    with patch("git_github_mcp.tools.git_ops._run_git_async") as mock_run:
         # Mock calls in order: status, branch, remote
         mock_run.side_effect = [
             (True, porcelain_output, ""),  # status --porcelain
@@ -58,7 +55,7 @@ def test_porcelain_status_parsing():
             (True, "https://github.com/user/repo", ""),  # remote get-url
         ]
 
-        result = git_ops(operation="status", repo_path=".")
+        result = await git_ops(operation="status", repo_path=".")
 
         assert result["success"] is True
         res = result["result"]

@@ -1,4 +1,4 @@
-﻿"""git-github-mcp server — FastMCP 3.1+, portmanteau pattern.
+"""git-github-mcp server — FastMCP 3.1+, portmanteau pattern.
 
 Tools:     git_ops (43), github_ops (58), git_github_status, git_github_help,
            git_agentic_workflow, git_github_search_workflow (sampling / agentic)
@@ -89,34 +89,80 @@ if bridge_urls:
 
 
 CORE_OPS = {"init", "clone", "add", "commit", "push", "pull", "fetch", "status", "log", "diff", "show"}
-BRANCH_OPS = {"branch_list", "branch_create", "branch_switch", "branch_delete", "branch_rename",
-              "branch_merge", "rebase", "stash", "stash_pop", "stash_list", "stash_drop",
-              "tag_list", "tag_create", "tag_delete"}
-ADMIN_OPS = {"remote_list", "remote_add", "remote_remove", "reset", "revert", "cherry_pick",
-             "clean", "submodule_add", "submodule_update", "submodule_sync", "submodule_status",
-             "bisect_start", "bisect_bad", "bisect_good", "bisect_reset",
-             "worktree_add", "worktree_list", "worktree_remove"}
+BRANCH_OPS = {
+    "branch_list",
+    "branch_create",
+    "branch_switch",
+    "branch_delete",
+    "branch_rename",
+    "branch_merge",
+    "rebase",
+    "stash",
+    "stash_pop",
+    "stash_list",
+    "stash_drop",
+    "tag_list",
+    "tag_create",
+    "tag_delete",
+}
+ADMIN_OPS = {
+    "remote_list",
+    "remote_add",
+    "remote_remove",
+    "reset",
+    "revert",
+    "cherry_pick",
+    "clean",
+    "submodule_add",
+    "submodule_update",
+    "submodule_sync",
+    "submodule_status",
+    "bisect_start",
+    "bisect_bad",
+    "bisect_good",
+    "bisect_reset",
+    "worktree_add",
+    "worktree_list",
+    "worktree_remove",
+}
 BLAME_OPS = {"blame"}
 
 
-async def _run_git_tool(operation: str, repo_path: str | None = None,
-                        message: str | None = None, files: list[str] | None = None,
-                        all_files: bool = False, amend: bool = False,
-                        remote: str = "origin", branch: str | None = None,
-                        force: bool = False, set_upstream: bool = False,
-                        repo_url: str | None = None, target_dir: str | None = None,
-                        initial_branch: str = "main", depth: int | None = None,
-                        max_count: int = 20,
-                        commit: str | None = None, commit2: str | None = None,
-                        oneline: bool = False, file_path: str | None = None,
-                        source_branch: str | None = None,
-                        stash_message: str | None = None, stash_index: int = 0,
-                        tag_name: str | None = None, tag_message: str | None = None,
-                        mode: str = "mixed", remote_url: str | None = None,
-                        remote_name: str | None = None, dry_run: bool = False,
-                        include_dirs: bool = False, submodule_url: str | None = None,
-                        submodule_path: str | None = None, recursive: bool = False,
-                        worktree_path: str | None = None) -> dict:
+async def _run_git_tool(
+    operation: str,
+    repo_path: str | None = None,
+    message: str | None = None,
+    files: list[str] | None = None,
+    all_files: bool = False,
+    amend: bool = False,
+    remote: str = "origin",
+    branch: str | None = None,
+    force: bool = False,
+    set_upstream: bool = False,
+    repo_url: str | None = None,
+    target_dir: str | None = None,
+    initial_branch: str = "main",
+    depth: int | None = None,
+    max_count: int = 20,
+    commit: str | None = None,
+    commit2: str | None = None,
+    oneline: bool = False,
+    file_path: str | None = None,
+    source_branch: str | None = None,
+    stash_message: str | None = None,
+    stash_index: int = 0,
+    tag_name: str | None = None,
+    tag_message: str | None = None,
+    mode: str = "mixed",
+    remote_url: str | None = None,
+    remote_name: str | None = None,
+    dry_run: bool = False,
+    include_dirs: bool = False,
+    submodule_url: str | None = None,
+    submodule_path: str | None = None,
+    recursive: bool = False,
+    worktree_path: str | None = None,
+) -> dict:
     """Run git_ops (async) with an operation-aware timeout to catch hangs before the MCP client does."""
     # Network ops (clone, push, pull, fetch) can be slow on large repos; local ops keep 25s.
     _NETWORK_OPS = {"clone", "push", "pull", "fetch"}
@@ -125,38 +171,61 @@ async def _run_git_tool(operation: str, repo_path: str | None = None,
     try:
         result = await asyncio.wait_for(
             _git_ops(
-                operation=operation, repo_path=repo_path, message=message,
-                files=files, all_files=all_files, amend=amend, remote=remote,
-                branch=branch, force=force, set_upstream=set_upstream,
-                repo_url=repo_url, target_dir=target_dir, initial_branch=initial_branch,
-                depth=depth, max_count=max_count, commit=commit, commit2=commit2, oneline=oneline,
-                file_path=file_path, source_branch=source_branch,
-                stash_message=stash_message, stash_index=stash_index,
-                tag_name=tag_name, tag_message=tag_message, mode=mode,
-                remote_url=remote_url, remote_name=remote_name, dry_run=dry_run,
-                include_dirs=include_dirs, submodule_url=submodule_url,
-                submodule_path=submodule_path, recursive=recursive,
+                operation=operation,
+                repo_path=repo_path,
+                message=message,
+                files=files,
+                all_files=all_files,
+                amend=amend,
+                remote=remote,
+                branch=branch,
+                force=force,
+                set_upstream=set_upstream,
+                repo_url=repo_url,
+                target_dir=target_dir,
+                initial_branch=initial_branch,
+                depth=depth,
+                max_count=max_count,
+                commit=commit,
+                commit2=commit2,
+                oneline=oneline,
+                file_path=file_path,
+                source_branch=source_branch,
+                stash_message=stash_message,
+                stash_index=stash_index,
+                tag_name=tag_name,
+                tag_message=tag_message,
+                mode=mode,
+                remote_url=remote_url,
+                remote_name=remote_name,
+                dry_run=dry_run,
+                include_dirs=include_dirs,
+                submodule_url=submodule_url,
+                submodule_path=submodule_path,
+                recursive=recursive,
                 worktree_path=worktree_path,
             ),
             timeout=_wall_timeout,
         )
     except TimeoutError:
         from .utils.response import error_response
+
         result = error_response(
             operation=operation,
             error=f"Git subprocess did not respond in {_wall_timeout}s",
             recovery_options=[
                 "Restart the git-github-mcp server",
                 "Connect via HTTP: http://127.0.0.1:10702/mcp",
-                "Check that git works: git status"
+                "Check that git works: git status",
             ],
             suggested_fixes=[
                 "Use git_core via the REST API at http://127.0.0.1:10702/api/git",
-                "Set MCP_TRANSPORT=http and connect to port 10702"
+                "Set MCP_TRANSPORT=http and connect to port 10702",
             ],
         )
     except Exception as exc:
         from .utils.response import error_response
+
         result = error_response(
             operation=operation,
             error=str(exc),
@@ -195,14 +264,32 @@ async def git_core(
     """
     if operation not in CORE_OPS:
         from .utils.response import error_response
-        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(CORE_OPS)}",
-                              recovery_options=["Use one of the listed operations"],)
+
+        return error_response(
+            operation,
+            f"Unknown operation '{operation}'. Valid: {sorted(CORE_OPS)}",
+            recovery_options=["Use one of the listed operations"],
+        )
     return await _run_git_tool(
-        operation=operation, repo_path=repo_path, message=message, files=files,
-        all_files=all_files, amend=amend, remote=remote, branch=branch, force=force,
-        set_upstream=set_upstream, repo_url=repo_url, target_dir=target_dir,
-        initial_branch=initial_branch, depth=depth, max_count=max_count, commit=commit,
-        commit2=commit2, oneline=oneline, file_path=file_path,
+        operation=operation,
+        repo_path=repo_path,
+        message=message,
+        files=files,
+        all_files=all_files,
+        amend=amend,
+        remote=remote,
+        branch=branch,
+        force=force,
+        set_upstream=set_upstream,
+        repo_url=repo_url,
+        target_dir=target_dir,
+        initial_branch=initial_branch,
+        depth=depth,
+        max_count=max_count,
+        commit=commit,
+        commit2=commit2,
+        oneline=oneline,
+        file_path=file_path,
     )
 
 
@@ -226,12 +313,23 @@ async def git_branch(
     """
     if operation not in BRANCH_OPS:
         from .utils.response import error_response
-        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(BRANCH_OPS)}",
-                              recovery_options=["Use one of the listed operations"],)
+
+        return error_response(
+            operation,
+            f"Unknown operation '{operation}'. Valid: {sorted(BRANCH_OPS)}",
+            recovery_options=["Use one of the listed operations"],
+        )
     return await _run_git_tool(
-        operation=operation, repo_path=repo_path, branch=branch, source_branch=source_branch,
-        message=message, force=force, stash_message=stash_message, stash_index=stash_index,
-        tag_name=tag_name, tag_message=tag_message,
+        operation=operation,
+        repo_path=repo_path,
+        branch=branch,
+        source_branch=source_branch,
+        message=message,
+        force=force,
+        stash_message=stash_message,
+        stash_index=stash_index,
+        tag_name=tag_name,
+        tag_message=tag_message,
     )
 
 
@@ -259,13 +357,27 @@ async def git_admin(
     """
     if operation not in ADMIN_OPS:
         from .utils.response import error_response
-        return error_response(operation, f"Unknown operation '{operation}'. Valid: {sorted(ADMIN_OPS)}",
-                              recovery_options=["Use one of the listed operations"],)
+
+        return error_response(
+            operation,
+            f"Unknown operation '{operation}'. Valid: {sorted(ADMIN_OPS)}",
+            recovery_options=["Use one of the listed operations"],
+        )
     return await _run_git_tool(
-        operation=operation, repo_path=repo_path, remote=remote, remote_url=remote_url,
-        remote_name=remote_name, mode=mode, commit=commit, force=force, dry_run=dry_run,
-        include_dirs=include_dirs, submodule_url=submodule_url, submodule_path=submodule_path,
-        recursive=recursive, worktree_path=worktree_path,
+        operation=operation,
+        repo_path=repo_path,
+        remote=remote,
+        remote_url=remote_url,
+        remote_name=remote_name,
+        mode=mode,
+        commit=commit,
+        force=force,
+        dry_run=dry_run,
+        include_dirs=include_dirs,
+        submodule_url=submodule_url,
+        submodule_path=submodule_path,
+        recursive=recursive,
+        worktree_path=worktree_path,
     )
 
 
@@ -284,11 +396,18 @@ async def git_blame(
     """
     if not file_path:
         from .utils.response import error_response
-        return error_response("blame", "file_path is required for git blame",
-                              recovery_options=["Provide a file_path parameter"],
-                              suggested_fixes=['git_blame(file_path="src/main.py")'],)
+
+        return error_response(
+            "blame",
+            "file_path is required for git blame",
+            recovery_options=["Provide a file_path parameter"],
+            suggested_fixes=['git_blame(file_path="src/main.py")'],
+        )
     return await _run_git_tool(
-        operation="blame", repo_path=repo_path, file_path=file_path, commit=commit,
+        operation="blame",
+        repo_path=repo_path,
+        file_path=file_path,
+        commit=commit,
     )
 
 
@@ -643,9 +762,11 @@ Respond with ONLY valid JSON:
                 result = await asyncio.to_thread(_github_ops, **args)
             else:
                 from .utils.response import error_response
+
                 result = error_response(tool_name or "unknown", f"Unknown tool: {tool_name}")
         except Exception as e:
             from .utils.response import error_response
+
             result = error_response(tool_name or "unknown", str(e))
 
         results.append(
@@ -756,9 +877,13 @@ Return ONLY valid JSON:
         plan_data = json.loads(clean)
     except json.JSONDecodeError:
         from .utils.response import error_response
-        return error_response("plan", "Could not parse plan JSON from LLM",
-                              recovery_options=["Try again with a more specific task"],
-                              suggested_fixes=["Shorten your task description"])
+
+        return error_response(
+            "plan",
+            "Could not parse plan JSON from LLM",
+            recovery_options=["Try again with a more specific task"],
+            suggested_fixes=["Shorten your task description"],
+        )
 
     steps = plan_data.get("steps", [])
     await ctx.info(f"Discovery plan: {plan_data.get('plan', '?')} — {len(steps)} steps")
@@ -772,6 +897,7 @@ Return ONLY valid JSON:
             result = await asyncio.to_thread(_github_ops, **args)
         except Exception as e:
             from .utils.response import error_response
+
             result = error_response(args.get("operation", "unknown"), str(e))
         results.append(
             {

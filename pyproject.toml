@@ -24,6 +24,13 @@ dev = [
     "ruff>=0.4",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+
 [project.scripts]
 git-github-mcp = "git_github_mcp.__main__:main"
 
@@ -41,6 +48,9 @@ ignore = ["S101", "B008"]
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"

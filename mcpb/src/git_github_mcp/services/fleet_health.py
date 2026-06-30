@@ -9,8 +9,8 @@ from typing import Any
 from ..tools.github_ops import github_ops
 from ..utils.gh_cli import run_gh
 from ..utils.response import success_response
-from .fleet_common import DEFAULT_FLEET_OWNER, load_fleet_repos, parse_iso
-from .fleet_catalog import registry_to_github_slugs, load_registry
+from .fleet_catalog import load_registry, registry_to_github_slugs
+from .fleet_common import load_fleet_repos, parse_iso
 
 
 def _resolve_repos(
@@ -34,9 +34,7 @@ def op_ci_pulse(
     limit_per_repo: int = 8,
     on_repo_progress: Any = None,
 ) -> dict[str, Any]:
-    repos = _resolve_repos(
-        fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry
-    )
+    repos = _resolve_repos(fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry)
     cutoff = datetime.now(UTC) - timedelta(hours=hours)
     failures: list[dict[str, Any]] = []
     scanned = 0
@@ -124,9 +122,7 @@ def op_dependabot_digest(
     open_only: bool = True,
     on_repo_progress: Any = None,
 ) -> dict[str, Any]:
-    repos = _resolve_repos(
-        fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry
-    )
+    repos = _resolve_repos(fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry)
     all_alerts: list[dict[str, Any]] = []
     errors: list[str] = []
     total = len(repos)

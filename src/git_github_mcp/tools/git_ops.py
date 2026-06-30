@@ -124,7 +124,8 @@ async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tupl
     """Async git subprocess using asyncio.create_subprocess_exec — no thread pool."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            _GIT_EXE, *args,
+            _GIT_EXE,
+            *args,
             cwd=path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

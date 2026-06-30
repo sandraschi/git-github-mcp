@@ -73,9 +73,7 @@ def op_ack_drafts(
     template: str | None = None,
     on_repo_progress: Any = None,
 ) -> dict[str, Any]:
-    repos = _resolve_repos(
-        fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry
-    )
+    repos = _resolve_repos(fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry)
     maintainer = resolve_maintainer_login(maintainer_login)
     body_template = (template or _ACK_TEMPLATE).strip()
     drafts: list[dict[str, Any]] = []

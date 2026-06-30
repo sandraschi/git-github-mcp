@@ -85,19 +85,22 @@ def get_status(level: str = "basic") -> dict:
     gh_auth_ok = result["gh"].get("auth") == "ok"
 
     if not git_ok:
-        return error_response("status", "Git not found",
-                              recovery_options=["Install Git: https://git-scm.com/"])
+        return error_response("status", "Git not found", recovery_options=["Install Git: https://git-scm.com/"])
     if not gh_ok:
-        return error_response("status", "gh CLI not found",
-                              recovery_options=["Install gh: https://cli.github.com/"])
+        return error_response("status", "gh CLI not found", recovery_options=["Install gh: https://cli.github.com/"])
     if not gh_auth_ok:
-        return success_response(result, "status",
-                                message="Git OK; gh installed but no token — run: gh auth login",
-                                next_steps=["gh auth login"])
-    return success_response(result, "status",
-                            message="git and gh available; token present",
-                            next_steps=["git_ops(operation='status')",
-                                        "github_ops(operation='repo_list', owner='YOUR_USER')"])
+        return success_response(
+            result,
+            "status",
+            message="Git OK; gh installed but no token — run: gh auth login",
+            next_steps=["gh auth login"],
+        )
+    return success_response(
+        result,
+        "status",
+        message="git and gh available; token present",
+        next_steps=["git_ops(operation='status')", "github_ops(operation='repo_list', owner='YOUR_USER')"],
+    )
 
 
 def _resolve_git_exe() -> str | None:

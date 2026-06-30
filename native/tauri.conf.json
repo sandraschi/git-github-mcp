@@ -25,7 +25,8 @@
         "targets": ["nsis"],
         "icon": ["icons/icon.png", "icons/icon.ico"],
         "resources": [
-            "resources/git-github-mcp-backend.exe"
+            "resources/git-github-mcp-backend.exe",
+            "resources/.env"
         ],
         "windows": {
             "webviewInstallMode": {
@@ -34,10 +35,10 @@
             "nsis": {
                 "installerHooks": "./windows/hooks.nsh",
                 "installMode": "currentUser",
-                "createDesktopShortcut": true,
-                "createStartMenuShortcut": true
-            }
+}
         }
     },
     "plugins": {}
 }
+
+

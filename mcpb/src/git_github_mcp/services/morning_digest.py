@@ -242,19 +242,19 @@ def scan_fleet_repo(
 
 def build_markdown_digest(summary: dict[str, Any]) -> str:
     lines = [
-        f"# GitHub fleet morning digest",
-        f"",
+        "# GitHub fleet morning digest",
+        "",
         f"Generated: {summary['generated_at']}",
         f"Maintainer: {summary.get('maintainer') or 'unknown'}",
         f"Repos scanned: {summary['repo_count']}",
-        f"",
-        f"## Totals",
+        "",
+        "## Totals",
         f"- Open PRs: **{summary['totals']['open_prs']}**",
         f"- Open issues: **{summary['totals']['open_issues']}**",
         f"- Stale PRs (≥{summary['stale_days']}d): **{summary['totals']['stale_prs']}**",
         f"- Stale issues: **{summary['totals']['stale_issues']}**",
         f"- New notifications: **{summary['totals']['notifications']}**",
-        f"",
+        "",
     ]
     if summary.get("notifications"):
         lines.append("## Notifications (since last run)")
@@ -272,7 +272,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
 
     stale_prs = summary.get("all_stale_prs") or []
     if stale_prs:
-        lines.append(f"## Stale PRs (needs acknowledgment)")
+        lines.append("## Stale PRs (needs acknowledgment)")
         for pr in stale_prs[:30]:
             lines.append(
                 f"- **{pr.get('repo_slug')}** #{pr.get('number')} — {pr.get('title')} "
@@ -346,7 +346,9 @@ def deliver_digest(markdown: str, summary: dict[str, Any], deliver: list[str]) -
                 "summary": markdown[:4000],
                 "source": "git-github-mcp",
                 "url": "http://127.0.0.1:10703/breakfast",
-                "urgency_hint": min(10.0, 3.0 + summary["totals"]["stale_prs"] + summary["totals"]["notifications"] / 5),
+                "urgency_hint": min(
+                    10.0, 3.0 + summary["totals"]["stale_prs"] + summary["totals"]["notifications"] / 5
+                ),
             },
         )
         results["aiwatcher"] = {"ok": ok, "detail": detail}
@@ -503,9 +505,7 @@ def run_morning_digest(
             "notifications": len([n for n in notifications if not n.get("error")]),
         },
         "all_stale_prs": sorted(all_stale_prs, key=lambda p: days_since(p.get("updatedAt")) or 0, reverse=True),
-        "all_stale_issues": sorted(
-            all_stale_issues, key=lambda i: days_since(i.get("updatedAt")) or 0, reverse=True
-        ),
+        "all_stale_issues": sorted(all_stale_issues, key=lambda i: days_since(i.get("updatedAt")) or 0, reverse=True),
         "notifications": notifications,
         "repo_errors": repo_errors,
         "output_file": output_file,

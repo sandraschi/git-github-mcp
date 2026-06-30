@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from git_github_mcp.services.fleet_catalog import (
     _parse_webapp_ports_md,
     load_registry,

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import urllib.request
+from datetime import UTC, datetime
 from typing import Any
 
 _PORTMANTEAU = frozenset(
@@ -16,6 +16,7 @@ _PORTMANTEAU = frozenset(
         "git_github_search_workflow",
     }
 )
+
 
 def _probe_local_llm() -> bool:
     for url in ("http://127.0.0.1:11434/api/tags", "http://127.0.0.1:1234/v1/models"):

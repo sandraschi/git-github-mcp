@@ -418,12 +418,16 @@ def github_ops(
 
     if operation == "user_repos_full":
         args = [
-            "repo", "list",
-            "--limit", str(max(1, min(int(limit), 1000))),
+            "repo",
+            "list",
+            "--limit",
+            str(max(1, min(int(limit), 1000))),
             "--json",
-            ("name,description,isPrivate,isFork,isArchived,isTemplate,"
-             "stargazerCount,forkCount,watchers,updatedAt,pushedAt,"
-             "url,sshUrl,primaryLanguage,languages,repositoryTopics,defaultBranchRef"),
+            (
+                "name,description,isPrivate,isFork,isArchived,isTemplate,"
+                "stargazerCount,forkCount,watchers,updatedAt,pushedAt,"
+                "url,sshUrl,primaryLanguage,languages,repositoryTopics,defaultBranchRef"
+            ),
         ]
         if owner:
             args.insert(2, owner)
@@ -456,12 +460,13 @@ def github_ops(
                 },
                 "owner": owner or "@me",
             },
-            message=(f"{total} repos ({public_count} public, {private_count} private, "
-                     f"{archived_count} archived, {fork_count} forks)"),
+            message=(
+                f"{total} repos ({public_count} public, {private_count} private, "
+                f"{archived_count} archived, {fork_count} forks)"
+            ),
             next_steps=[
                 f"github_ops(operation='show_repo', owner='{owner or 'YOU'}', repo='REPO_NAME')",
-                ("github_ops(operation='user_repos_full', owner='YOU', limit=200) "
-                 "for larger lists"),
+                ("github_ops(operation='user_repos_full', owner='YOU', limit=200) for larger lists"),
             ],
         )
 
@@ -901,8 +906,10 @@ def github_ops(
                 "--limit",
                 str(limit),
                 "--json",
-                ("name,fullName,description,url,stargazerCount,language,"
-                 "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"),
+                (
+                    "name,fullName,description,url,stargazerCount,language,"
+                    "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"
+                ),
             ]
         )
         if not ok:
@@ -974,8 +981,10 @@ def github_ops(
                 "--limit",
                 str(limit),
                 "--json",
-                ("name,fullName,description,url,stargazerCount,language,"
-                 "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"),
+                (
+                    "name,fullName,description,url,stargazerCount,language,"
+                    "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"
+                ),
             ]
         )
         if not ok:
@@ -998,8 +1007,7 @@ def github_ops(
                 "built_query": qtopic,
                 "topic": topic,
             },
-            message=(f"{total} repos matching topic `{topic}` "
-                     f"({archived_count} archived, {fork_count} forks)"),
+            message=(f"{total} repos matching topic `{topic}` ({archived_count} archived, {fork_count} forks)"),
         )
 
     if operation == "search_repos_by_topic":

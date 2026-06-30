@@ -129,13 +129,9 @@ def op_port_audit(*, registry_path: str | None = None, webapp_ports_path: str | 
                 port_to_ids[p].append(rid)
         doc_list = doc_ports.get(rid.lower(), [])
         if port > 0 and doc_list and port not in doc_list:
-            mismatches.append(
-                {"id": rid, "registry_port": port, "webapp_ports_doc": doc_list, "kind": "backend"}
-            )
+            mismatches.append({"id": rid, "registry_port": port, "webapp_ports_doc": doc_list, "kind": "backend"})
         if fport > 0 and doc_list and fport not in doc_list:
-            mismatches.append(
-                {"id": rid, "registry_port": fport, "webapp_ports_doc": doc_list, "kind": "frontend"}
-            )
+            mismatches.append({"id": rid, "registry_port": fport, "webapp_ports_doc": doc_list, "kind": "frontend"})
 
     for p, ids in port_to_ids.items():
         if len(ids) > 1:
@@ -218,9 +214,7 @@ def op_quarantine_report(*, registry_path: str | None = None, owner: str = DEFAU
         open_prs = 0
         open_issues = 0
         last_push = None
-        ok, out, _ = run_gh(
-            ["api", f"repos/{slug}", "-q", "{pushedAt, openIssuesCount, openPullsCount, htmlUrl}"]
-        )
+        ok, out, _ = run_gh(["api", f"repos/{slug}", "-q", "{pushedAt, openIssuesCount, openPullsCount, htmlUrl}"])
         if ok and out.strip():
             try:
                 meta = json.loads(out) if out.strip().startswith("{") else {}

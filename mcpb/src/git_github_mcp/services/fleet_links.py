@@ -49,9 +49,7 @@ def op_gitingest_bundle(
     use_registry: bool = True,
     ref: str | None = None,
 ) -> dict[str, Any]:
-    repos = _resolve_repos(
-        fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry
-    )
+    repos = _resolve_repos(fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry)
     links: list[dict[str, str]] = []
     for owner, repo in repos:
         url = build_gitingest_url(owner, repo, ref=ref)

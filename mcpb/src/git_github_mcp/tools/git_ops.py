@@ -9,7 +9,9 @@ from typing import Any
 
 from ..utils.response import error_response, success_response
 
-_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW only — CREATE_BREAKAWAY_FROM_JOB (0x01000000) breaks under Electron job objects
+_NO_WINDOW = (
+    0x08000000 if sys.platform == "win32" else 0
+)  # CREATE_NO_WINDOW only — CREATE_BREAKAWAY_FROM_JOB (0x01000000) breaks under Electron job objects
 
 # Hardcode real git.exe — bin\git.exe is the actual binary; cmd\git.exe is a shell wrapper
 # that can deadlock when spawned from a consoleless process (e.g. MCP stdio).
@@ -123,7 +125,8 @@ async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tupl
     """Async git subprocess using asyncio.create_subprocess_exec — no thread pool."""
     try:
         proc = await asyncio.create_subprocess_exec(
-            _GIT_EXE, *args,
+            _GIT_EXE,
+            *args,
             cwd=path,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

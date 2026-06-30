@@ -98,9 +98,7 @@ def op_release_drift(
     repos_root: str | None = None,
     on_repo_progress: Any = None,
 ) -> dict[str, Any]:
-    repos = _resolve_repos(
-        fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry
-    )
+    repos = _resolve_repos(fleet_repos=fleet_repos, fleet_repos_file=fleet_repos_file, use_registry=use_registry)
     root = Path(repos_root) if repos_root else DEFAULT_REPOS_ROOT
     entries = load_registry()
     path_by_id = {

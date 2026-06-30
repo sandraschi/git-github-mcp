@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from git_github_mcp.services.morning_digest import (
     build_markdown_digest,
-    classify_issue_stale,
     classify_pr_stale,
     parse_fleet_repos,
     run_morning_digest,

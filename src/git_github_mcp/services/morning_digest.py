@@ -497,9 +497,7 @@ def run_morning_digest(
             "notifications": len([n for n in notifications if not n.get("error")]),
         },
         "all_stale_prs": sorted(all_stale_prs, key=lambda p: days_since(p.get("updatedAt")) or 0, reverse=True),
-        "all_stale_issues": sorted(
-            all_stale_issues, key=lambda i: days_since(i.get("updatedAt")) or 0, reverse=True
-        ),
+        "all_stale_issues": sorted(all_stale_issues, key=lambda i: days_since(i.get("updatedAt")) or 0, reverse=True),
         "notifications": notifications,
         "repo_errors": repo_errors,
         "output_file": output_file,
