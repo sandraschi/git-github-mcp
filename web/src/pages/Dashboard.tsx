@@ -28,7 +28,7 @@ export function Dashboard() {
   const ghAuth = sysStatus?.gh_authenticated;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-700">
+    <div className="space-y-8 animate-in fade-in duration-700" data-testid="dashboard">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-1">
@@ -40,7 +40,7 @@ export function Dashboard() {
           </div>
           <p className="text-sm text-muted-foreground font-mono flex items-center gap-2">
             <Terminal className="w-3 h-3" />
-            git·github·mcp — hardened orchestration substrate
+            git-github-mcp -- hardened orchestration substrate
           </p>
         </div>
 
@@ -89,6 +89,7 @@ export function Dashboard() {
           icon={GitBranch} 
           loading={loading}
           color="text-gh-green"
+          testid="kpi-branch"
         />
         <MetricCard 
           label="Pending Sync" 
@@ -96,6 +97,7 @@ export function Dashboard() {
           icon={AlertCircle} 
           loading={loading}
           color="text-amber-500"
+          testid="kpi-pending"
         />
         <MetricCard 
           label="Commit History" 
@@ -103,6 +105,7 @@ export function Dashboard() {
           icon={GitCommit} 
           loading={loading}
           color="text-gh-blue"
+          testid="kpi-commits"
         />
         <MetricCard 
           label="Cloud Repos" 
@@ -110,6 +113,7 @@ export function Dashboard() {
           icon={GitPullRequest} 
           loading={loading}
           color="text-purple-400"
+          testid="kpi-cloud"
         />
       </div>
 
@@ -205,15 +209,16 @@ function StatusBadge({ label, online, icon: Icon, offIcon: OffIcon, colorClass }
   );
 }
 
-function MetricCard({ label, value, icon: Icon, loading, color }: { 
+function MetricCard({ label, value, icon: Icon, loading, color, testid }: { 
   label: string; 
   value?: string | number; 
   icon: React.ElementType; 
   loading: boolean; 
   color: string; 
+  testid?: string;
 }) {
   return (
-    <div className="glass p-5 rounded-2xl relative overflow-hidden group hover:border-gh-green/30 transition-all">
+    <div className="glass p-5 rounded-2xl relative overflow-hidden group hover:border-gh-green/30 transition-all" data-testid={testid}>
       <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
         <Icon className="w-12 h-12" />
       </div>
@@ -223,7 +228,7 @@ function MetricCard({ label, value, icon: Icon, loading, color }: {
           {loading ? (
             <div className="h-8 w-16 bg-white/5 animate-pulse rounded" />
           ) : (
-            <span className="truncate">{String(value ?? '—')}</span>
+            <span className="truncate">{String(value ?? '--')}</span>
           )}
           {!loading && value === 'main' && <div className="h-1.5 w-1.5 rounded-full bg-gh-green shadow-[0_0_8px_rgba(34,197,94,0.6)]" />}
         </div>

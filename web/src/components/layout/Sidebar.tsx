@@ -13,6 +13,8 @@ import {
     Github,
     Inbox,
     Coffee,
+    Activity,
+    HelpCircle,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,11 +28,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
     const navItems = [
         { label: 'Dashboard', icon: LayoutDashboard, href: '/' },
+        { label: 'Tools', icon: GitBranch, href: '/tools' },
+        { label: 'Apps', icon: LayoutDashboard, href: '/apps' },
         { label: 'Repositories', icon: GitBranch, href: '/repos' },
         { label: 'Commits', icon: GitCommit, href: '/commits' },
         { label: 'PRs & Issues', icon: Inbox, href: '/inbox' },
         { label: 'Breakfast', icon: Coffee, href: '/breakfast' },
         { label: 'Chat', icon: MessageSquare, href: '/chat' },
+        { label: 'Logs', icon: Activity, href: '/logs' },
+        { label: 'Help', icon: HelpCircle, href: '/help' },
         { label: 'Settings', icon: Settings, href: '/settings' },
     ];
 
@@ -90,7 +96,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             <div className="border-t border-slate-800 p-4">
                 {!collapsed && (
                     <div className="text-xs text-slate-500">
-                        v1.0.0 SOTA
+                        v0.5.0
                     </div>
                 )}
             </div>

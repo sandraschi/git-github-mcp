@@ -16,6 +16,7 @@ import os
 import threading
 import time
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
@@ -45,6 +46,7 @@ install_log_handler()
 VERSION = "0.5.0"
 WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
 WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
+_START_TIME = time.time()
 
 
 @asynccontextmanager
@@ -1267,7 +1269,7 @@ def git_github_explain_concept(concept: str, level: str = "intermediate") -> str
 
 # ── FastAPI web bridge ────────────────────────────────────────────────────────
 
-_mcp_http = mcp.http_app(path="/mcp")
+_mcp_http = mcp.http_app(path="/")
 
 web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
 web_app.include_router(_build_logs_router())
@@ -1285,6 +1287,7 @@ web_app.add_middleware(
         "https://tauri.localhost",
         "tauri://localhost",
     ],
+    allow_origin_regex=r"https?://(?:[a-zA-Z0-9-]+\.ts\.net|.*?\.tail-[a-f0-9]+\.ts\.net|tauri\.localhost|localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|100\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?$|^tauri://localhost$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1294,6 +1297,209 @@ web_app.add_middleware(
 @web_app.get("/health")
 async def web_health():
     return {"ok": True, "service": "git-github-mcp", "version": VERSION, "port": WEB_PORT}
+
+
+@web_app.get("/api/skills")
+async def api_skills():
+    return {
+        "skills": [
+            {
+                "name": "github-expert",
+                "title": "GitHub Expert",
+                "description": (
+                    "Expert Git and GitHub workflows -- "
+                    "use git_ops, github_ops, agentic workflows, Gitingest helpers."
+                ),
+            }
+        ]
+    }
+
+
+@web_app.get("/api/skill/{skill_name}")
+async def api_skill(skill_name: str):
+    skill_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "..",
+        ".cursor", "skills", "github-expert", "SKILL.md",
+    )
+    try:
+        return {"content": Path(skill_path).read_text(encoding="utf-8")}
+    except FileNotFoundError:
+        return {
+            "content": (
+                "## Git GitHub MCP Expert\n\n"
+                "You have 101+ operations across 11 tools. "
+                "Use git_core/git_branch/git_admin/git_blame for local Git "
+                "and github_ops for GitHub via gh CLI. "
+                "Prefer agentic tools (git_agentic_workflow, "
+                "git_github_search_workflow) for complex multi-step tasks."
+            )
+        }
+
+
+# ── LLM / Chat ────────────────────────────────────────────────────────────────
+
+_OLLAMA_BASE = "http://127.0.0.1:11434"
+_LM_STUDIO_BASE = "http://127.0.0.1:1234"
+
+
+def _probe_ollama_models() -> list[str]:
+    import httpx
+
+    try:
+        r = httpx.get(f"{_OLLAMA_BASE}/api/tags", timeout=2.0)
+        if r.status_code == 200:
+            models = r.json().get("models", [])
+            return [m["name"] for m in models]
+    except Exception as exc:
+        logger.debug("Ollama tags probe failed: %s", exc)
+    return []
+
+
+@web_app.get("/api/llm/discover")
+async def api_llm_discover():
+    import httpx
+
+    providers = []
+    ollama_available = False
+    lm_studio_available = False
+    ollama_models: list[str] = []
+
+    try:
+        r = httpx.get(f"{_OLLAMA_BASE}/api/tags", timeout=2.0)
+        ollama_available = r.status_code == 200
+        if ollama_available:
+            ollama_models = [m["name"] for m in r.json().get("models", [])]
+    except Exception as exc:
+        logger.debug("Ollama discover probe failed: %s", exc)
+
+    try:
+        r = httpx.get(f"{_LM_STUDIO_BASE}/v1/models", timeout=2.0)
+        lm_studio_available = r.status_code == 200
+    except Exception as exc:
+        logger.debug("LM Studio discover probe failed: %s", exc)
+
+    if ollama_available:
+        providers.append({
+            "id": "ollama",
+            "name": "Ollama",
+            "base_url": _OLLAMA_BASE,
+            "models": ollama_models,
+            "endpoint": "/api/chat",
+        })
+    if lm_studio_available:
+        providers.append({
+            "id": "lmstudio",
+            "name": "LM Studio",
+            "base_url": _LM_STUDIO_BASE,
+            "models": [],
+            "endpoint": "/v1/chat/completions",
+        })
+
+    return {
+        "success": True,
+        "any_available": len(providers) > 0,
+        "providers": providers,
+        "ollama_models": ollama_models,
+    }
+
+
+@web_app.post("/api/chat")
+async def api_chat(body: dict):
+    import httpx
+
+    messages = body.get("messages", [])
+    model = body.get("model", "") or os.getenv("OLLAMA_MODEL", "gemma3:12b")
+    provider = body.get("provider", "ollama")
+    stream = body.get("stream", False)
+    system_prompt = body.get("system_prompt", "")
+
+    if provider == "lmstudio":
+        base = _LM_STUDIO_BASE
+        endpoint = "/v1/chat/completions"
+    else:
+        base = _OLLAMA_BASE
+        endpoint = "/api/chat"
+
+    if system_prompt:
+        ollama_msgs = [{"role": "system", "content": system_prompt}, *messages]
+    else:
+        ollama_msgs = list(messages)
+
+    payload = {"model": model, "messages": ollama_msgs, "stream": stream}
+    if not stream:
+        payload["options"] = {"temperature": 0.7}
+
+    async def _generate():
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=5.0)) as client:
+                async with client.stream("POST", f"{base}{endpoint}", json=payload, timeout=120.0) as resp:
+                    if resp.status_code != 200:
+                        yield json.dumps({"type": "error", "error": f"LLM returned {resp.status_code}"}) + "\n"
+                        return
+                    if not stream:
+                        body_data = await resp.aread()
+                        data = json.loads(body_data)
+                        if provider == "ollama":
+                            content = data.get("message", {}).get("content", "")
+                        else:
+                            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                        yield json.dumps({"type": "token", "content": content}) + "\n"
+                        yield json.dumps({"type": "done"}) + "\n"
+                        return
+                    async for line in resp.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            chunk = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        if provider == "ollama":
+                            content = chunk.get("message", {}).get("content", "")
+                            done = chunk.get("done", False)
+                        else:
+                            content = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            done = chunk.get("choices", [{}])[0].get("finish_reason") is not None
+                        if content:
+                            yield json.dumps({"type": "token", "content": content}) + "\n"
+                        if done:
+                            yield json.dumps({"type": "done"}) + "\n"
+                            break
+        except Exception as e:
+            yield json.dumps({"type": "error", "error": str(e)}) + "\n"
+
+    return StreamingResponse(_generate(), media_type="application/x-ndjson")
+
+
+@web_app.get("/api/v1/health")
+async def api_v1_health():
+    return {
+        "status": "ok",
+        "server": "git-github-mcp",
+        "version": VERSION,
+        "uptime_seconds": round(time.time() - _START_TIME, 1),
+        "tool_count": len([t for t in mcp._tool_manager._tools if not t.name.startswith("_")]),
+        "providers": {
+            "git": "available",
+            "github": "available",
+        },
+    }
+
+
+@web_app.get("/api/v1/diagnostics")
+async def api_v1_diagnostics():
+    import platform as _platform
+
+    tool_names = [t.name for t in mcp._tool_manager._tools if not t.name.startswith("_")]
+    return {
+        "status": "ok",
+        "server": "git-github-mcp",
+        "version": VERSION,
+        "uptime_seconds": round(time.time() - _START_TIME, 1),
+        "tool_count": len(tool_names),
+        "tools": [{"name": n} for n in tool_names],
+        "system": {"windows": _platform.system() == "Windows", "python": _platform.python_version()},
+        "errors": [],
+    }
 
 
 @web_app.get("/api/capabilities")

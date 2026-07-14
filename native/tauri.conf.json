@@ -4,7 +4,9 @@
     "version": "0.5.0",
     "identifier": "ai.fleet.git-github-mcp",
     "build": {
-        "frontendDist": "../web/dist"
+        "frontendDist": "../web/dist",
+        "devUrl": "http://localhost:10703",
+        "beforeDevCommand": "npm --prefix ../web run dev"
     },
     "app": {
         "windows": [
@@ -26,7 +28,7 @@
         "icon": ["icons/icon.png", "icons/icon.ico"],
         "resources": [
             "resources/git-github-mcp-backend.exe",
-            "resources/.env"
+            "resources/.env.example"
         ],
         "windows": {
             "webviewInstallMode": {
@@ -34,7 +36,7 @@
             },
             "nsis": {
                 "installerHooks": "./windows/hooks.nsh",
-                "installMode": "currentUser",
+                "installMode": "currentUser"
 }
         }
     },

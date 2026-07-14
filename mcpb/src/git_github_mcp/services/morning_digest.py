@@ -8,8 +8,8 @@ import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib import error as urlerror
-from urllib import request as urlrequest
+
+import httpx
 
 from ..tools.github_ops import github_ops
 from ..utils.gh_cli import run_gh
@@ -310,18 +310,11 @@ def _normalize_deliver(deliver: str | list[str] | None) -> list[str]:
 
 
 def _post_json(url: str, body: dict[str, Any], timeout: float = 12.0) -> tuple[bool, str]:
-    data = json.dumps(body).encode("utf-8")
-    req = urlrequest.Request(
-        url,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
     try:
-        with urlrequest.urlopen(req, timeout=timeout) as resp:
-            return True, resp.read().decode("utf-8", errors="replace")[:500]
-    except urlerror.URLError as exc:
-        return False, str(exc.reason if hasattr(exc, "reason") else exc)
+        resp = httpx.post(url, json=body, timeout=timeout)
+        return True, resp.text[:500]
+    except httpx.HTTPError as exc:
+        return False, str(exc)
 
 
 def deliver_digest(markdown: str, summary: dict[str, Any], deliver: list[str]) -> dict[str, Any]:
@@ -347,7 +340,8 @@ def deliver_digest(markdown: str, summary: dict[str, Any], deliver: list[str]) -
                 "source": "git-github-mcp",
                 "url": "http://127.0.0.1:10703/breakfast",
                 "urgency_hint": min(
-                    10.0, 3.0 + summary["totals"]["stale_prs"] + summary["totals"]["notifications"] / 5
+                    10.0,
+                    3.0 + summary["totals"]["stale_prs"] + summary["totals"]["notifications"] / 5,
                 ),
             },
         )
@@ -356,16 +350,14 @@ def deliver_digest(markdown: str, summary: dict[str, Any], deliver: list[str]) -
     if "robofang" in deliver:
         base = os.getenv("ROBOFANG_BRIDGE_URL", "http://127.0.0.1:10871").rstrip("/")
         try:
-            with urlrequest.urlopen(f"{base}/supervisor/pulse", timeout=8) as resp:
-                ping = resp.read().decode("utf-8", errors="replace")[:300]
+            resp = httpx.get(f"{base}/supervisor/pulse", timeout=8)
             results["robofang"] = {
                 "ok": True,
-                "ping": ping,
+                "ping": resp.text[:300],
                 "note": "Bridge reachable; council can read digest from file or aiwatcher ingest",
             }
-        except urlerror.URLError as exc:
-            reason = str(exc.reason if hasattr(exc, "reason") else exc)
-            results["robofang"] = {"ok": False, "error": reason}
+        except httpx.HTTPError as exc:
+            results["robofang"] = {"ok": False, "error": str(exc)}
 
     return results
 

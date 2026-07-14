@@ -19,7 +19,7 @@ export function LoggerProvider({ children }: { children: ReactNode }) {
 export function useLogger() {
   const ctx = useContext(LoggerContext);
   if (!ctx) {
-    return { lines: [], append: (_l: string, _m: string) => {} };
+    return { lines: [], append: () => {} };
   }
   return ctx;
 }

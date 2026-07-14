@@ -17,16 +17,7 @@ export function Settings() {
       .finally(() => setLoading(false));
   }, []);
 
-  const Row = ({ label, ok, detail }: { label: string; ok?: boolean; detail?: string }) => (
-    <div className="flex items-center gap-3 py-2.5 px-4"
-      style={{ borderBottom: '1px solid var(--border)' }}>
-      {ok
-        ? <CheckCircle size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
-        : <XCircle size={14} style={{ color: 'var(--red)', flexShrink: 0 }} />}
-      <span className="text-sm flex-1">{label}</span>
-      {detail && <span className="mono text-xs" style={{ color: 'var(--text-dim)' }}>{detail}</span>}
-    </div>
-  );
+  const hasGhAuth = status?.gh_authenticated;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -42,10 +33,10 @@ export function Settings() {
           <div className="flex justify-center py-8"><Loader2 className="animate-spin" size={18} style={{ color: 'var(--text-dim)' }} /></div>
         ) : (
           <div style={{ background: 'var(--bg-2)' }}>
-            <Row label="git CLI" ok={status?.git_available} detail={status?.git_version} />
-            <Row label="gh CLI" ok={status?.gh_available} detail={status?.gh_version} />
+            <StatusRow label="git CLI" ok={status?.git_available} detail={status?.git_version} />
+            <StatusRow label="gh CLI" ok={status?.gh_available} detail={status?.gh_version} />
             <div className="flex items-center gap-3 py-2.5 px-4">
-              {status?.gh_authenticated
+              {hasGhAuth
                 ? <CheckCircle size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
                 : <XCircle size={14} style={{ color: 'var(--amber)', flexShrink: 0 }} />}
               <span className="text-sm flex-1">gh authenticated</span>
@@ -86,6 +77,19 @@ export function Settings() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function StatusRow({ label, ok, detail }: { label: string; ok?: boolean; detail?: string }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5 px-4"
+      style={{ borderBottom: '1px solid var(--border)' }}>
+      {ok
+        ? <CheckCircle size={14} style={{ color: 'var(--green)', flexShrink: 0 }} />
+        : <XCircle size={14} style={{ color: 'var(--red)', flexShrink: 0 }} />}
+      <span className="text-sm flex-1">{label}</span>
+      {detail && <span className="mono text-xs" style={{ color: 'var(--text-dim)' }}>{detail}</span>}
     </div>
   );
 }

@@ -1,0 +1,14 @@
+assess-fix run: 2026-07-14T$(Get-Date -Format 'HH:mm:ss')
+repo: git-github-mcp (v0.5.0)
+
+## Fixes Applied
+1. CORS: Added allow_origin_regex (Tailscale/LAN/Tauri) to server.py
+2. requirements.txt: Regenerated (was stale: fastmcp==3.2.0 -> 3.4.2)
+3. MCPB pack: Built dist/git-github-mcp-v0.5.0.mcpb
+
+## Gates
+- 15 required files: ALL PRESENT
+- CORS ["*"]: NOT FOUND (was already explicit origins, just missing regex)
+- fastmcp: 3.4.2 (matches pyproject constraint >=3.4.2) ✓
+- ruff check src/: CLEAN (0 errors) ✓
+- mcpb pack: SUCCESS (101.3 KB)

@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { LoggerPanel } from '@/components/logger-panel';
 import { Topbar } from '@/components/layout/topbar';
+import { useBackendHealth } from '@/hooks/use-backend-health';
+import { useZoom } from '@/hooks/use-zoom';
 
 const FLEET_NAV = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
@@ -62,6 +64,8 @@ export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const pageLabel = PAGE_LABELS[location.pathname] ?? 'git-github-mcp';
+  const backendOk = useBackendHealth();
+  useZoom();
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center h-10 px-3 rounded-md transition-all duration-200 group relative ${
@@ -89,7 +93,7 @@ export function AppLayout() {
               <span className="font-heading font-black text-sm tracking-tighter text-gh-green uppercase truncate">
                 git·hub·mcp
               </span>
-              <span className="text-[10px] text-muted-foreground font-mono leading-none">v0.4.0 · fleet SOTA</span>
+              <span className="text-[10px] text-muted-foreground font-mono leading-none">v0.5.0</span>
             </div>
           )}
           <ChevronRight
@@ -128,14 +132,26 @@ export function AppLayout() {
           {!collapsed ? (
             <div className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-gh-green animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Online</span>
+                <div
+                  data-testid="backend-dot"
+                  className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)] ${
+                    backendOk === null ? 'bg-gray-500' : backendOk ? 'bg-gh-green' : 'bg-red-500'
+                  }`}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  {backendOk === null ? 'Connecting...' : backendOk ? 'Online' : 'Offline'}
+                </span>
               </div>
               <span className="text-[9px] font-mono text-muted-foreground/60">:10702 / :10703</span>
             </div>
           ) : (
             <div className="flex justify-center">
-              <div className="w-2 h-2 rounded-full bg-gh-green animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+              <div
+                data-testid="backend-dot"
+                className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)] ${
+                  backendOk === null ? 'bg-gray-500' : backendOk ? 'bg-gh-green' : 'bg-red-500'
+                }`}
+              />
             </div>
           )}
         </div>

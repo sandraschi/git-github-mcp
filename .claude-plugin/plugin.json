@@ -1,0 +1,6 @@
+{
+  "name": "git-github-mcp",
+  "version": "0.5.0",
+  "description": "Git/GitHub MCP server — 101+ operations, fleet ops, breakfast runner",
+  "hooks": "../hooks/hooks.json"
+}

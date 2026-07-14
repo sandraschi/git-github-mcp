@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "text",
+            "text": "## Session Context (Git GitHub MCP)\n\nYou have access to a hardened Git/GitHub MCP server with 101+ operations across 11 tools.\nYour local git and GitHub (gh CLI) operations persist across sessions.\n\n**Before starting work:**\n1. Check git/gh availability: git_github_status(level=\"basic\")\n2. Check current repo state: git_core(operation=\"status\", repo_path=\".\")\n3. For GitHub tasks, verify auth: github_ops(operation=\"auth_status\")\n\n**When working with repositories:**\n- Use git_core for status/log/commit/push/pull (11 ops)\n- Use git_branch for branch/merge/rebase/stash/tag (14 ops)\n- Use git_admin for remote/reset/clean/submodule/bisect/worktree (16 ops)\n- Use github_ops for all GitHub operations via gh CLI (58 ops)\n\n**For complex multi-step tasks, prefer agentic tools:**\n- git_agentic_workflow(task=\"...\") -- plans + executes mixed git+github chains\n- git_github_search_workflow(task=\"...\") -- discovery/search with LLM planning\n\n**At end of work:**\n- Review unstaged changes: git_core(operation=\"status\")\n- Commit and push if the user asked for it\n- Check for fleet-level impacts: fleet_ops(operation=\"local_dirty\") for multi-repo changes"
+          }
+        ]
+      }
+    ]
+  }
+}

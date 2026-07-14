@@ -8,12 +8,27 @@ New-Item -ItemType Directory -Force -Path $ResourceDir, $DevDir | Out-Null
 
 Write-Host "=== ${RepoName} Tauri Release Build ===" -ForegroundColor Cyan
 
+# Step 0: Verify API_BASE matches backend port
+Write-Host "-> [0/5] Verifying API_BASE port..." -ForegroundColor Yellow
+$apiFile = Join-Path $Root "web\src\lib\api.ts"
+if (Test-Path $apiFile) {
+    $apiContent = Get-Content $apiFile -Raw
+    if ($apiContent -match "127.0.0.1:(\d+)") {
+        $apiPort = [int]$Matches[1]
+        $BACKEND_PORT = 10702
+        if ($apiPort -ne $BACKEND_PORT) {
+            throw "API_BASE in $apiFile points to port $apiPort but backend serves on $BACKEND_PORT"
+        }
+        Write-Host "  API_BASE port: $apiPort (matches backend) ✓" -ForegroundColor Green
+    }
+}
+
 # Step 1: TypeScript lint gate + frontend build
 $frontendDirs = @("web_sota", "webapp/frontend", "webapp")
 foreach ($dir in $frontendDirs) {
     $frontend = Join-Path $Root $dir
     if (Test-Path "$frontend\package.json") {
-        Write-Host "-> [1/4] Building frontend ($dir)..." -ForegroundColor Yellow
+        Write-Host "-> [1/5] Building frontend ($dir)..." -ForegroundColor Yellow
         Push-Location $frontend
         npm install --silent 2>$null
 
@@ -23,18 +38,19 @@ foreach ($dir in $frontendDirs) {
         if ($tscExit -ne 0) {
             Write-Host "  TypeScript compilation FAILED — fix errors before building NSIS" -ForegroundColor Red
             Write-Host $tscOut
+            Pop-Location
             throw "TypeScript compilation failed — fix all errors before building NSIS installer"
         }
 
         npm run build
-        if ($LASTEXITCODE -ne 0) { throw "Frontend build failed" }
+        if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Frontend build failed" }
         Pop-Location
         break
     }
 }
 
 # Step 2: PyInstaller backend (onefile)
-Write-Host "-> [2/4] PyInstaller backend..." -ForegroundColor Yellow
+Write-Host "-> [2/5] PyInstaller backend..." -ForegroundColor Yellow
 $specFile = "$Root\${RepoName}-backend.spec"
 if (Test-Path $specFile) {
     Push-Location $Root
@@ -52,33 +68,45 @@ if (Test-Path $specFile) {
             Write-Host "  Patched fastmcp metadata fallback" -ForegroundColor Yellow
         }
     }
-    uv run pyinstaller "$specFile" --clean --noconfirm
+    $pyiExe = "$Root\.venv\Scripts\pyinstaller.exe"
+    if (-not (Test-Path $pyiExe)) {
+        Write-Host "  Installing pyinstaller in project venv..." -ForegroundColor Yellow
+        uv add --dev pyinstaller
+    }
+    # Pre-clean stale exe to avoid PermissionError on rebuild
+    Remove-Item "$Root\dist\${RepoName}-backend.exe" -Force -ErrorAction SilentlyContinue
+    & $pyiExe "$specFile" --clean --noconfirm
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
     Pop-Location
 } else {
     Write-Host "  WARNING: spec file not found at $specFile — using existing backend exe if present" -ForegroundColor DarkYellow
 }
 
-# Step 3: Embed in Tauri resources (+ dev fallback)
-Write-Host "-> [3/4] Embedding backend..." -ForegroundColor Yellow
+# Step 3: Embed in Tauri resources (+ dev fallback) with size gate
+Write-Host "-> [3/5] Embedding backend..." -ForegroundColor Yellow
 $src = "$Root\dist\${RepoName}-backend.exe"
 if (-not (Test-Path $src)) { throw "Backend exe not found at $src — PyInstaller step failed" }
+
+# Size gate: a real onefile PyInstaller binary is >= 5 MB.
+$sizeMB = (Get-Item $src).Length / 1MB
+if ($sizeMB -lt 5) {
+    throw "Backend exe is only $([math]::Round($sizeMB, 1)) MB at $src — PyInstaller produced an empty/broken binary."
+}
 Copy-Item $src "$ResourceDir\${RepoName}-backend.exe" -Force
 Copy-Item $src "$DevDir\${RepoName}-backend-$Triple.exe" -Force
-Write-Host "  Backend exe: $((Get-Item $src).Length / 1MB) MB"
+Write-Host "  Backend exe: $([math]::Round($sizeMB, 1)) MB" -ForegroundColor Green
 
-# Bundle .env into installer if it exists (survives reinstall, no manual copy needed)
-$envSrc = "$Root\.env"
-if (Test-Path $envSrc) {
-    Copy-Item $envSrc "$ResourceDir\.env" -Force
-    Write-Host "  Bundled .env ($((Get-Item $envSrc).Length) bytes)" -ForegroundColor Green
+# Bundle .env.example (NOT .env — dev .env has personal API keys)
+$envExample = "$Root\.env.example"
+if (Test-Path $envExample) {
+    Copy-Item $envExample "$ResourceDir\.env.example" -Force
+    Write-Host "  Bundled .env.example ✓" -ForegroundColor Green
 } else {
-    Write-Host "  WARNING: No .env at repo root - create one from .env.example for credentials" -ForegroundColor DarkYellow
-    Set-Content -Path "$ResourceDir\.env" -Value "# Empty - configure via Settings page" -Encoding utf8
-} -ForegroundColor Green
+    Write-Host "  WARNING: .env.example not found at repo root" -ForegroundColor DarkYellow
+}
 
 # Step 4: Single NSIS installer
-Write-Host "-> [4/4] Tauri NSIS bundle..." -ForegroundColor Yellow
+Write-Host "-> [4/5] Tauri NSIS bundle..." -ForegroundColor Yellow
 Push-Location $PSScriptRoot
 $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 npx @tauri-apps/cli build --bundles nsis

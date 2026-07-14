@@ -1,62 +1,93 @@
 # git-github-mcp
-> FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety enforced. - **git_ops**: clone, status (high-fidelity), add, commit, push, pull, branch, tag, stash - **github_ops**: repo_list, repo_create, pr_list, issue_list.
+> Hardened FastMCP 3.4+ substrate for Git/GitHub operations. 101+ operations (43 git + 58 github) via portmanteau pattern. Fleet ops toolkit, breakfast runner, agentic workflows via LLM sampling. v0.5.0.
 
-Generated on: 2026-04-02 02:40:00
+Generated on: 2026-07-03
 
-## Docs - Full Content
+## Tools (11 registered)
 
-### Readme
-Source: README.md
-```markdown
-# git-github-mcp
+| Tool | Ops | Description |
+|------|-----|-------------|
+| git_core | 11 | Core Git: status, log, diff, init, clone, add, commit, push, pull, fetch |
+| git_branch | 14 | Branch lifecycle, merge, rebase, stash, tag |
+| git_admin | 16 | Remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree |
+| git_blame | 1 | File blame annotation |
+| github_ops | 58 | GitHub via gh CLI: repos, issues, PRs, releases, Actions, labels, secrets, collaborators, search, Projects, Packages, Gitingest |
+| git_agentic_workflow | - | Multi-step Git/GitHub workflow via LLM sampling (ctx.sample) |
+| git_github_search_workflow | - | Agentic GitHub discovery/search via LLM sampling |
+| fleet_morning_digest | - | Daily fleet PR/issue/notification breakfast summary |
+| fleet_ops | 16 | Fleet maintainer: registry_load, port_audit, ci_pulse, full_suite, etc. |
+| git_github_status | - | System status: git/gh availability, versions, auth |
+| git_github_help | - | Contextual help at basic/intermediate/advanced levels |
 
-FastMCP 3.1.1+ hardened substrate for Git and GitHub operations. v1.20 non-interactive safety enforced for reliable AI orchestration.
+## Resources (8)
+- `git://repo/status` — Live git status (cwd)
+- `git://repo/log` — Recent commits (last 20)
+- `git://{repo_path}/status` — Status for specific repo
+- `git://{repo_path}/log` — Log for specific repo
+- `github://{owner}/{repo}/issues` — Open issues
+- `github://{owner}/{repo}/prs` — Open pull requests
+- `git://skills/concepts` — Concept index for tutoring
+- `git://skills/{topic}` — Focused lecture notes (rebase, cherry-pick, gitingest, etc.)
 
-## Features
+## Prompts (7)
+- `git_commit_message` — Generate conventional commit message from diff
+- `git_release_notes` — Generate release notes from commit history
+- `git_pr_description` — Generate PR description
+- `git_review_diff` — Code review prompt for a diff
+- `github_issue_template` — Generate structured issue body
+- `github_debug_workflow` — Debug failing GitHub Actions
+- `git_github_explain_concept` — Teaching prompt for Git/GitHub concepts
 
-- **git_ops**: clone, status (High-Fidelity Porcelain), add, commit, push, pull, branch, tag, stash
-- **github_ops**: repo_list, repo_create, pr_list, issue_list, pr_view, issue_view (via `gh` CLI)
-- **v1.20 Hardening**: Injected non-interactive environment variables (`GH_PROMPT_DISABLED=1`, `GIT_TERMINAL_PROMPT=0`) to eliminate process hangs.
-- **Fleet Standard v1.20 UI**: Premium glassmorphism dashboard with real-time health indicators.
+## Fleet Operations
+- **Breakfast runner**: Daily scan of fleet repos — open PRs, issues, stale threads, notifications
+- **Full suite**: Morning digest + CI pulse + Dependabot + registry audit + workspace scan + release drift + grade snapshot
+- **Delivery**: file (markdown), aiwatcher (POST /api/fleet/ingest), robofang (bridge pulse)
+- **Web UI**: `/breakfast` page with tabs for CI, security, registry, workspace, grades, retro
+
+## REST API Endpoints
+- `GET /health` — Basic health check
+- `GET /api/v1/health` — Full health with uptime, tool count, providers
+- `GET /api/v1/diagnostics` — CUA-NSIS smoke test diagnostics
+- `GET /api/capabilities` — Auto-discovered tools, prompts, resources, LLM
+- `GET /api/status` — git/gh availability and auth
+- `GET /api/tools` — Tool list with operation counts
+- `GET /api/apps` — Fleet apps hub (registry-based)
+- `POST /api/git` — git_ops via REST
+- `POST /api/github` — github_ops via REST
+- `POST /api/morning-digest` — Breakfast runner via REST
+- `POST /api/fleet-ops` — Single fleet operation via REST
+- `POST /api/fleet-suite` — Full fleet suite
+- `POST /api/fleet-suite/stream` — Streaming NDJSON full suite
+- `GET /api/fleet-suite/last` — Last full suite result
+- `POST /api/discovery` — Preset GitHub discovery chains
+- `GET /api/logs` — Activity log query, stats, export
+
+## Tech Stack
+- **Backend**: Python 3.12+, FastMCP 3.4.2+, FastAPI, uvicorn, prefab-ui>=0.14.0
+- **Frontend**: React 19, Vite 7, Tailwind 3, React Router 7, Lucide React
+- **Native**: Tauri 2.0, NSIS installer (native/)
+- **Ports**: Backend 10702, Frontend 10703
+- **Transport**: Dual — stdio (Claude Desktop) + HTTP (webapp/Tauri)
+
+## Installation
+```powershell
+git clone https://github.com/sandraschi/git-github-mcp
+cd git-github-mcp
+uv sync
+npm --prefix web install && npm --prefix web run build
+.\start.bat
+```
 
 ## Requirements
-
 - Python 3.12+
-- Git
-- [gh CLI](https://cli.github.com/) (must be authenticated)
+- Git (https://git-scm.com)
+- gh CLI (https://cli.github.com) — must be authenticated
 
-## Webapp
-
-**Fleet v1.20 Standard:** Premium React/Tailwind UI with glassmorphism, HSL theme tokens, and real-time health indicators.
-
-**Ports (fleet):** backend **10702**, Vite frontend **10703**.
-```
-
-### Changelog
-Source: CHANGELOG.md
-```markdown
-# Changelog
-
-## 0.3.0 (2026-04-02)
-- FastMCP 3.1.1+ Modernization
-- v1.20 Hardening: Non-interactive CLI safety enforced
-- High-Fidelity Status: Porcelain parsing for staged/unstaged/unmerged visibility
-- Fleet Standard v1.20 UI: Glassmorphism transformation
-```
-
-## Configuration - Full Content
-
-### Pyproject
-Source: pyproject.toml
-```toml
-[project]
-name = "git-github-mcp"
-version = "0.3.0"
-description = "FastMCP 3.1.1+ hardened substrate for Git and GitHub operations"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi>=0.115.0",
-    "fastmcp>=3.1.1",
-    "uvicorn[standard]>=0.32.0",
-]
-```
+## Environment Variables
+- `GH_TOKEN` — GitHub Personal Access Token (optional, gh uses its own auth otherwise)
+- `WEB_PORT` / `WEB_HOST` — Backend listen address (default 10702 / 127.0.0.1)
+- `MCP_TRANSPORT` — `stdio` (default) or `http`
+- `MCP_BRIDGE_URLS` — Comma-separated proxy URLs for other MCP servers
+- `GIT_GITHUB_FLEET_REPOS_FILE` — Fleet repo list for breakfast runner
+- `GIT_GITHUB_DIGEST_DELIVER` — Delivery targets: file, aiwatcher, robofang
+- `GIT_GITHUB_WEB_USER` / `GIT_GITHUB_WEB_PASS` — Optional web auth

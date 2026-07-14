@@ -1,30 +1,64 @@
 {
   "name": "git-github-mcp",
-  "version": "0.4.0",
-  "description": "Hardened FastMCP 3.2+ substrate for Git/GitHub — fleet SOTA webapp with breakfast runner.",
+  "version": "0.5.0",
+  "description": "Hardened FastMCP 3.4+ substrate for Git/GitHub — fleet SOTA webapp, 101+ operations, breakfast runner, fleet ops toolkit.",
   "homepage": "https://github.com/sandraschi/git-github-mcp",
   "repository": "https://github.com/sandraschi/git-github-mcp",
   "author": "sandraschi",
   "license": "MIT",
   "mcp": {
-    "version": "3.2+",
+    "version": "3.4+",
     "runtime": "python",
     "tools": [
       {
-        "name": "git_ops",
-        "description": "Local Git operations with high-fidelity status parsing.",
-        "capabilities": ["status", "commit", "push", "pull", "clone"]
+        "name": "git_core",
+        "description": "Core Git operations: status, log, diff, init, clone, add, commit, push, pull, fetch (11 ops)"
+      },
+      {
+        "name": "git_branch",
+        "description": "Branch lifecycle, merge, rebase, stash, tag (14 ops)"
+      },
+      {
+        "name": "git_admin",
+        "description": "Remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree (16 ops)"
+      },
+      {
+        "name": "git_blame",
+        "description": "Annotate file lines with commit info"
       },
       {
         "name": "github_ops",
-        "description": "GitHub CLI operations with non-interactive safety.",
-        "capabilities": ["pr_list", "issue_list", "repo_create"]
+        "description": "GitHub API via gh CLI: repos, issues, PRs, releases, Actions, labels, secrets, collaborators, search, Projects, Packages, Gitingest (58 ops)"
+      },
+      {
+        "name": "git_agentic_workflow",
+        "description": "Agentic multi-step Git/GitHub workflow via LLM sampling"
+      },
+      {
+        "name": "git_github_search_workflow",
+        "description": "Agentic GitHub discovery/search via LLM sampling"
+      },
+      {
+        "name": "fleet_morning_digest",
+        "description": "Daily fleet PR/issue/notification breakfast summary"
+      },
+      {
+        "name": "fleet_ops",
+        "description": "Fleet maintainer toolkit: registry_load, port_audit, ci_pulse, full_suite (16 ops)"
+      },
+      {
+        "name": "git_github_status",
+        "description": "System status: git/gh availability, version, auth"
+      },
+      {
+        "name": "git_github_help",
+        "description": "Contextual help at basic/intermediate/advanced levels"
       }
     ]
   },
   "webapp": {
     "frontend_port": 10703,
     "backend_port": 10702,
-    "theme": "Fleet v1.20 Glassmorphism"
+    "theme": "Zinc/Blue Dark Glassmorphism"
   }
 }

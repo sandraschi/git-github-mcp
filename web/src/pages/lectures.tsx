@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { BookOpen, GitBranch, Github, GraduationCap, Search, Sparkles } from 'lucide-react';
 import { Link } from 'react-router-dom';
 

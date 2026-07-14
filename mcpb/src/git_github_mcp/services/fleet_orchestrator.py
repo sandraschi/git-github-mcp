@@ -20,6 +20,25 @@ from .fleet_workspace import op_local_dirty, op_release_drift
 from .morning_digest import run_morning_digest
 
 _TASK_NAME = "GitHub-Fleet-Morning-Digest"
+_SCHTASKS = r"C:\Windows\System32\schtasks.exe"
+
+
+def _check_scheduled_task() -> str | None:
+    try:
+        result = subprocess.run(  # noqa: S603 — list-based, no shell
+            [_SCHTASKS, "/Query", "/TN", _TASK_NAME, "/FO", "LIST"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15,
+            creationflags=0x08000000,
+        )
+        if result.returncode == 0:
+            return result.stdout[:1500]
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        pass
+    return None
 
 
 def op_runner_status() -> dict[str, Any]:
@@ -33,21 +52,10 @@ def op_runner_status() -> dict[str, Any]:
 
     scheduled: dict[str, Any] = {"installed": False}
     if os.name == "nt":
-        try:
-            result = subprocess.run(
-                ["schtasks", "/Query", "/TN", _TASK_NAME, "/FO", "LIST"],
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=15,
-                creationflags=0x08000000,
-            )
-            if result.returncode == 0:
-                scheduled["installed"] = True
-                scheduled["raw"] = result.stdout[:1500]
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            scheduled["installed"] = False
+        task_check = _check_scheduled_task()
+        if task_check is not None:
+            scheduled["installed"] = True
+            scheduled["raw"] = task_check
 
     digest_file = state_dir() / "morning-digest.md"
     return success_response(
