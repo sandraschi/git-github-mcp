@@ -79,3 +79,45 @@ def test_registry_load_missing(tmp_path: Path) -> None:
 
 def test_load_registry_empty_when_missing(tmp_path: Path) -> None:
     assert load_registry(tmp_path / "missing.json") == []
+
+
+def test_local_dirty_fleet_repos_precedence(tmp_path: Path, monkeypatch) -> None:
+    """Scoped fleet_repos must not expand to the full registry (hang risk)."""
+    from git_github_mcp.services import fleet_workspace as fw
+
+    clean = tmp_path / "clean-mcp"
+    dirty = tmp_path / "dirty-mcp"
+    clean.mkdir()
+    dirty.mkdir()
+    for p in (clean, dirty):
+        (p / ".git").mkdir()
+
+    def fake_run_git(args: list[str], cwd: Path, timeout: int = 30):
+        if args[:2] == ["status", "--porcelain"]:
+            if cwd.name == "dirty-mcp":
+                return True, " M README.md\n", ""
+            return True, "", ""
+        if args[:3] == ["rev-list", "--left-right", "--count"]:
+            return True, "0\t0\n", ""
+        return False, "", "unsupported"
+
+    monkeypatch.setattr(fw, "run_git", fake_run_git)
+    monkeypatch.setattr(
+        fw,
+        "load_registry",
+        lambda _path: [
+            {"id": "clean-mcp", "repo_path": str(clean), "status": "active"},
+            {"id": "dirty-mcp", "repo_path": str(dirty), "status": "active"},
+            {"id": "other-mcp", "repo_path": str(tmp_path / "missing"), "status": "active"},
+        ],
+    )
+
+    res = fw.op_local_dirty(
+        fleet_repos="sandraschi/dirty-mcp\n",
+        use_registry=True,
+        repos_root=str(tmp_path),
+    )
+    assert res["success"] is True
+    assert res["result"]["dirty_count"] == 1
+    assert res["result"]["dirty"][0]["id"] == "dirty-mcp"
+    assert res["result"]["missing_paths"] == []

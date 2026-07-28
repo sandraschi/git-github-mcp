@@ -24,15 +24,24 @@ def op_local_dirty(
     root = Path(repos_root) if repos_root else DEFAULT_REPOS_ROOT
     by_id = {str(r.get("id")): r for r in entries if isinstance(r, dict) and r.get("id")}
 
-    if use_registry and entries:
+    # Explicit fleet_repos always wins (scoped scans). Full registry only when
+    # no list is provided and use_registry is true — avoids 150-repo hangs.
+    from .fleet_common import load_fleet_repos
+
+    scoped = load_fleet_repos(fleet_repos=fleet_repos) if (fleet_repos and fleet_repos.strip()) else []
+    if scoped:
+        targets = []
+        for _owner, repo in scoped:
+            entry = by_id.get(repo) or {}
+            repo_path = Path(str(entry.get("repo_path") or root / repo))
+            targets.append((repo, repo_path))
+    elif use_registry and entries:
         targets = [
             (str(r.get("id")), Path(str(r.get("repo_path") or root / str(r.get("id")))))
             for r in entries
             if isinstance(r, dict) and str(r.get("status") or "active").lower() not in ("quarantined",)
         ]
     else:
-        from .fleet_common import load_fleet_repos
-
         repos = load_fleet_repos(fleet_repos=fleet_repos)
         targets = [(repo, root / repo) for _, repo in repos]
 

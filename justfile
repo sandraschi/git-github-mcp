@@ -1,4 +1,4 @@
-set windows-shell := ["pwsh.exe", "-NoLogo", "-Command"]
+set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
 import 'scripts/just/fleet.just'
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -6,6 +6,12 @@ import 'scripts/just/fleet.just'
 # Open the interactive recipe dashboard in the browser
 default:
     @just --list
+
+bootstrap:
+    uv sync --group dev
+    uv run pre-commit install
+    Set-Location '{{justfile_directory()}}\web'; npm ci; if ($LASTEXITCODE -ne 0) { npm install }
+    Write-Host "Pre-commit hooks installed." -ForegroundColor Green
 
 # ── Quality ───────────────────────────────────────────────────────────────────
 
@@ -38,11 +44,6 @@ audit-deps:
 
 # ── MCPB (Claude Desktop bundle) ─────────────────────────────────────────────
 
-# Build .mcpb from mcpb/ layout (sync src, uv export, pack, validate)
-mcpb-pack:
-	Set-Location '{{justfile_directory()}}'
-	pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\mcpb\pack.ps1
-
 # ── Tauri NSIS ─────────────────────────────────────────────────────────────────
 
 # Build the Tauri NSIS desktop installer (full pipeline: frontend -> Rust -> NSIS)
@@ -54,18 +55,14 @@ build-native:
 	Set-Location '{{justfile_directory()}}\native'
 	npx @tauri-apps/cli build --bundles nsis
 
-# Run the CUA smoke test against the installed NSIS app
-cua-nsis-test:
-	C:\Windows\py.exe scripts/cua-smoke.py
 # ── Playwright E2E ─────────────────────────────────────────────────────
 
 # Install Playwright browsers (one-time)
 e2e-install:
-    cd {{REPO}}\web
+    Set-Location '{{justfile_directory()}}\web'
     npx playwright install chromium
 
 # Run Playwright E2E smoke tests (start backend first: just serve)
 e2e:
-    cd {{REPO}}\web
+    Set-Location '{{justfile_directory()}}\web'
     npx playwright test
-

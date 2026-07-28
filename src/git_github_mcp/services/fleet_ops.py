@@ -90,7 +90,12 @@ def fleet_ops(
             template=template,
         )
     if op == "local_dirty":
-        return op_local_dirty(registry_path=registry_path, repos_root=repos_root, use_registry=use_registry)
+        return op_local_dirty(
+            registry_path=registry_path,
+            repos_root=repos_root,
+            fleet_repos=fleet_repos,
+            use_registry=use_registry,
+        )
     if op == "release_drift":
         return op_release_drift(**common, repos_root=repos_root)
     if op == "grade_snapshot":

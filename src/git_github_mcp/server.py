@@ -1271,7 +1271,7 @@ def git_github_explain_concept(concept: str, level: str = "intermediate") -> str
 
 _mcp_http = mcp.http_app(path="/")
 
-web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
+web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}", lifespan=_mcp_http.lifespan)
 web_app.include_router(_build_logs_router())
 
 web_app.add_middleware(
@@ -1307,8 +1307,7 @@ async def api_skills():
                 "name": "github-expert",
                 "title": "GitHub Expert",
                 "description": (
-                    "Expert Git and GitHub workflows -- "
-                    "use git_ops, github_ops, agentic workflows, Gitingest helpers."
+                    "Expert Git and GitHub workflows -- use git_ops, github_ops, agentic workflows, Gitingest helpers."
                 ),
             }
         ]
@@ -1318,8 +1317,14 @@ async def api_skills():
 @web_app.get("/api/skill/{skill_name}")
 async def api_skill(skill_name: str):
     skill_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "..",
-        ".cursor", "skills", "github-expert", "SKILL.md",
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        ".cursor",
+        "skills",
+        "github-expert",
+        "SKILL.md",
     )
     try:
         return {"content": Path(skill_path).read_text(encoding="utf-8")}
@@ -1379,21 +1384,25 @@ async def api_llm_discover():
         logger.debug("LM Studio discover probe failed: %s", exc)
 
     if ollama_available:
-        providers.append({
-            "id": "ollama",
-            "name": "Ollama",
-            "base_url": _OLLAMA_BASE,
-            "models": ollama_models,
-            "endpoint": "/api/chat",
-        })
+        providers.append(
+            {
+                "id": "ollama",
+                "name": "Ollama",
+                "base_url": _OLLAMA_BASE,
+                "models": ollama_models,
+                "endpoint": "/api/chat",
+            }
+        )
     if lm_studio_available:
-        providers.append({
-            "id": "lmstudio",
-            "name": "LM Studio",
-            "base_url": _LM_STUDIO_BASE,
-            "models": [],
-            "endpoint": "/v1/chat/completions",
-        })
+        providers.append(
+            {
+                "id": "lmstudio",
+                "name": "LM Studio",
+                "base_url": _LM_STUDIO_BASE,
+                "models": [],
+                "endpoint": "/v1/chat/completions",
+            }
+        )
 
     return {
         "success": True,
@@ -1477,7 +1486,7 @@ async def api_v1_health():
         "server": "git-github-mcp",
         "version": VERSION,
         "uptime_seconds": round(time.time() - _START_TIME, 1),
-        "tool_count": len([t for t in mcp._tool_manager._tools if not t.name.startswith("_")]),
+        "tool_count": len(await mcp.list_tools()),
         "providers": {
             "git": "available",
             "github": "available",
@@ -1489,7 +1498,8 @@ async def api_v1_health():
 async def api_v1_diagnostics():
     import platform as _platform
 
-    tool_names = [t.name for t in mcp._tool_manager._tools if not t.name.startswith("_")]
+    tools_list = await mcp.list_tools()
+    tool_names = [t.name for t in tools_list if not t.name.startswith("_")]
     return {
         "status": "ok",
         "server": "git-github-mcp",
@@ -1754,41 +1764,31 @@ def main():
 
     from .transport import get_transport_config, run_server
 
-    # Start the HTTP bridge on port 10702 in a background thread
-    http_thread = threading.Thread(
-        target=lambda: uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT, log_level="warning"),
-        daemon=True,
-    )
-    http_thread.start()
-    logger.info(f"HTTP bridge running on {WEB_HOST}:{WEB_PORT}")
-
     cfg = get_transport_config()
     transport = cfg.get("transport", "stdio")
 
     if transport == "http":
-        # HTTP mode: run the MCP server via the transport module (blocks)
+        # Pure HTTP mode: run the MCP server via the transport module (blocks)
+        # FastMCP 3.4.4 lifespan is already wired into web_app via FastAPI(lifespan=...)
         run_server(mcp, server_name="git-github-mcp")
     else:
-        # STDIO mode: run in a thread, keep main alive for HTTP bridge
-        import asyncio
-
-        stdio_thread = threading.Thread(
-            target=lambda: asyncio.run(mcp.run_stdio_async()),
-            daemon=True,
+        # Dual mode: HTTP bridge + optional stdio for MCP clients.
+        # The HTTP bridge includes the FastMCP lifespan — do NOT run stdio on the same
+        # mcp instance (FastMCP 3.4.4 lifespan is exclusive to the HTTP transport).
+        http_thread = threading.Thread(
+            target=lambda: uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT, log_level="warning"),
+            daemon=False,
         )
-        stdio_thread.start()
-        logger.info("MCP STDIO listener started in background thread")
+        http_thread.start()
+        logger.info(f"HTTP bridge running on {WEB_HOST}:{WEB_PORT}")
 
-        # Orphan-process fix (2026-06-11): previously this was an
-        # unconditional `while True: sleep(1)`, which kept the process
-        # alive forever after the client died (stdio EOF). One zombie
-        # leaked per client restart. Now: stay alive only while the
-        # STDIO transport is connected; when it ends, exit — the daemon
-        # HTTP bridge dies with us. For a standalone HTTP server, run
-        # with transport=http instead.
         try:
-            while stdio_thread.is_alive():
-                stdio_thread.join(timeout=1.0)
-            logger.info("STDIO transport ended (client disconnected) — shutting down")
+            http_thread.join()
         except KeyboardInterrupt:
             logger.info("Shutdown requested by user")
+
+    logger.info("git-github-mcp stopped")
+
+
+if __name__ == "__main__":
+    main()

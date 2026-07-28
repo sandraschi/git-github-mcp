@@ -11,9 +11,8 @@ requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
     "fastapi>=0.115.0",
-    "fastmcp>=3.4.2",
+    "fastmcp>=3.4.4,<4",
     "uvicorn[standard]>=0.32.0",
-    "ruff>=0.15.2",
     "prefab-ui>=0.14.0",
 ]
 
@@ -21,7 +20,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.4",
+    "ruff>=0.16.0,<0.17",
+    "pre-commit>=4.6.1",
 ]
 
 [dependency-groups]
@@ -29,7 +29,8 @@ dev = [
     "pyinstaller>=6.21.0",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.4",
+    "ruff>=0.16.0,<0.17",
+    "pre-commit>=4.6.1",
 ]
 
 [project.scripts]
