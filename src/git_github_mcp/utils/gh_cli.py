@@ -55,7 +55,7 @@ def run_gh(
     try:
         gh_path = _get_gh_path()
 
-        result = subprocess.run(  # noqa: S603 — list-based, no shell
+        result = subprocess.run(
             [gh_path, *args],
             cwd=cwd,
             capture_output=True,

@@ -86,7 +86,7 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
 
     cmd = [_GIT_EXE, "-C", str(path), *args]
     try:
-        r = sp.run(  # noqa: S603 — list-based, no shell
+        r = sp.run(
             cmd,
             capture_output=True,
             text=True,

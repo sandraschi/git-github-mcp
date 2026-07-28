@@ -25,7 +25,7 @@ _SCHTASKS = r"C:\Windows\System32\schtasks.exe"
 
 def _check_scheduled_task() -> str | None:
     try:
-        result = subprocess.run(  # noqa: S603 — list-based, no shell
+        result = subprocess.run(
             [_SCHTASKS, "/Query", "/TN", _TASK_NAME, "/FO", "LIST"],
             capture_output=True,
             text=True,

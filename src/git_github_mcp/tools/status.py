@@ -35,7 +35,7 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str, str]:
     label = " ".join(cmd[:2])
     logger.info(f"_run start: {label} (timeout={timeout})")
     try:
-        r = subprocess.run(  # noqa: S603 — list-based, no shell
+        r = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
