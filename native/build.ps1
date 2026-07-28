@@ -19,7 +19,7 @@ if (Test-Path $apiFile) {
         if ($apiPort -ne $BACKEND_PORT) {
             throw "API_BASE in $apiFile points to port $apiPort but backend serves on $BACKEND_PORT"
         }
-        Write-Host "  API_BASE port: $apiPort (matches backend) ✓" -ForegroundColor Green
+        Write-Host "  API_BASE port: $apiPort (matches backend) OK" -ForegroundColor Green
     }
 }
 
@@ -36,10 +36,10 @@ foreach ($dir in $frontendDirs) {
         $tscOut = npx tsc --noEmit 2>&1
         $tscExit = $LASTEXITCODE
         if ($tscExit -ne 0) {
-            Write-Host "  TypeScript compilation FAILED — fix errors before building NSIS" -ForegroundColor Red
+            Write-Host "  TypeScript compilation FAILED - fix errors before building NSIS" -ForegroundColor Red
             Write-Host $tscOut
             Pop-Location
-            throw "TypeScript compilation failed — fix all errors before building NSIS installer"
+            throw "TypeScript compilation failed - fix all errors before building NSIS installer"
         }
 
         npm run build
@@ -79,28 +79,28 @@ if (Test-Path $specFile) {
     if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with exit code $LASTEXITCODE" }
     Pop-Location
 } else {
-    Write-Host "  WARNING: spec file not found at $specFile — using existing backend exe if present" -ForegroundColor DarkYellow
+    Write-Host "  WARNING: spec file not found at $specFile - using existing backend exe if present" -ForegroundColor DarkYellow
 }
 
 # Step 3: Embed in Tauri resources (+ dev fallback) with size gate
 Write-Host "-> [3/5] Embedding backend..." -ForegroundColor Yellow
 $src = "$Root\dist\${RepoName}-backend.exe"
-if (-not (Test-Path $src)) { throw "Backend exe not found at $src — PyInstaller step failed" }
+if (-not (Test-Path $src)) { throw "Backend exe not found at $src - PyInstaller step failed" }
 
 # Size gate: a real onefile PyInstaller binary is >= 5 MB.
 $sizeMB = (Get-Item $src).Length / 1MB
 if ($sizeMB -lt 5) {
-    throw "Backend exe is only $([math]::Round($sizeMB, 1)) MB at $src — PyInstaller produced an empty/broken binary."
+    throw "Backend exe is only $([math]::Round($sizeMB, 1)) MB at $src - PyInstaller produced an empty/broken binary."
 }
 Copy-Item $src "$ResourceDir\${RepoName}-backend.exe" -Force
 Copy-Item $src "$DevDir\${RepoName}-backend-$Triple.exe" -Force
 Write-Host "  Backend exe: $([math]::Round($sizeMB, 1)) MB" -ForegroundColor Green
 
-# Bundle .env.example (NOT .env — dev .env has personal API keys)
+# Bundle .env.example (NOT .env - dev .env has personal API keys)
 $envExample = "$Root\.env.example"
 if (Test-Path $envExample) {
     Copy-Item $envExample "$ResourceDir\.env.example" -Force
-    Write-Host "  Bundled .env.example ✓" -ForegroundColor Green
+    Write-Host "  Bundled .env.example OK" -ForegroundColor Green
 } else {
     Write-Host "  WARNING: .env.example not found at repo root" -ForegroundColor DarkYellow
 }
@@ -123,4 +123,3 @@ if (Test-Path $strayExe) { Remove-Item $strayExe -Force; Write-Host "  Cleaned s
 
 Write-Host "=== Build complete ===" -ForegroundColor Green
 Write-Host "Ship: $nsisDir\*.exe"
-
