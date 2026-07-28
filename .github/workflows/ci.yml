@@ -42,7 +42,7 @@ jobs:
         run: uv run ruff format --check src tests
 
       - name: Pytest
-        run: uv run python -m pytest tests/ -q --tb=short --no-cov
+        run: uv run python -m pytest tests/ -q --tb=short
 
       - name: Install web dependencies
         run: npm ci
