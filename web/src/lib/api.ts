@@ -48,7 +48,20 @@ export async function runDiscoveryWorkflow(args: Record<string, unknown>): Promi
 export async function getStatus(): Promise<unknown> {
   const res = await fetch(`${BASE}/api/status`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  const raw: any = await res.json();
+  if (raw?.result?.git || raw?.result?.gh) {
+    const g = raw.result.git ?? {};
+    const h = raw.result.gh ?? {};
+    return {
+      ...raw,
+      git_available: g.available,
+      gh_available: h.available,
+      gh_authenticated: h.auth === "ok",
+      git_version: g.version,
+      gh_version: h.version,
+    };
+  }
+  return raw;
 }
 
 /** Fleet morning digest — same as fleet_morning_digest MCP tool. */
