@@ -17,10 +17,10 @@ export function Dashboard() {
   useEffect(() => {
     Promise.allSettled([
       getStatus().then(d => setSysStatus(d as StatusData)),
-      (gitOps('status', { repo_path: repoPath }) as Promise<RepoStatus>).then(setRepoStatus),
-      (gitOps('log', { repo_path: repoPath, max_count: 5 }) as Promise<LogData>).then(setRecentLog),
-      (githubOps('repo_list', { limit: 5 }) as Promise<{ repos: typeof myRepos }>)
-        .then(d => setMyRepos(d?.repos ?? [])).catch(() => {}),
+      (gitOps('status', { repo_path: repoPath }) as Promise<{ result: any }>).then(d => { if (d?.result) setRepoStatus({ success: true, data: d.result }); }).catch(() => {}),
+      (gitOps('log', { repo_path: repoPath, max_count: 5 }) as Promise<{ result: any }>).then(d => { if (d?.result) setRecentLog({ success: true, data: d.result }); }).catch(() => {}),
+      (githubOps('repo_list', { limit: 5 }) as Promise<{ result: { repos: typeof myRepos } }>)
+        .then(d => setMyRepos(d?.result?.repos ?? [])).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [repoPath]);
 

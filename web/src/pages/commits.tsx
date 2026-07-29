@@ -14,8 +14,8 @@ export function Commits() {
 
   const fetchLog = () => {
     setLoading(true);
-    (gitOps('log', { repo_path: repoPath, max_count: count }) as Promise<LogData>)
-      .then(setLog).catch(e => setLog({ success: false, error: String(e) }))
+    (gitOps('log', { repo_path: repoPath, max_count: count }) as Promise<{ success: boolean; result: any }>)
+      .then(d => setLog({ success: d?.success ?? false, data: d?.result })).catch(e => setLog({ success: false, error: String(e) }))
       .finally(() => setLoading(false));
   };
 

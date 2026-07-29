@@ -22,10 +22,10 @@ export function Repositories() {
   const load = useCallback(() => {
     setLoading(true);
     Promise.allSettled([
-      (githubOps('repo_list', { limit: 50 }) as Promise<{ repos: GHRepo[] }>)
-        .then(d => setGhRepos(d?.repos ?? [])).catch(() => {}),
-      (gitOps('status', { repo_path: repoPath }) as Promise<LocalStatus>)
-        .then(setLocal).catch(() => {}),
+      (githubOps('repo_list', { limit: 50 }) as Promise<{ result: { repos: GHRepo[] } }>)
+        .then(d => setGhRepos(d?.result?.repos ?? [])).catch(() => {}),
+      (gitOps('status', { repo_path: repoPath }) as Promise<{ result: LocalStatus }>)
+        .then(d => { if (d) setLocal({ success: true, data: (d.result as any) }); }).catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [repoPath]);
 

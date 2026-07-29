@@ -22,8 +22,8 @@ export function PullRequests() {
 
   const load = useCallback(() => {
     setLoading(true); setError(null);
-    (githubOps('pr_list', { owner, repo, state, limit: 30 }) as Promise<{ success: boolean; data?: { prs: PR[] }; error?: string }>)
-      .then(d => { if (d.success) setPrs(d.data?.prs ?? []); else setError(d.error ?? 'Failed'); })
+    (githubOps('pr_list', { owner, repo, state, limit: 30 }) as Promise<{ success: boolean; result?: { prs: PR[] }; error?: string }>)
+      .then(d => { if (d.success) setPrs(d.result?.prs ?? []); else setError(d.error ?? 'Failed'); })
       .catch(e => setError(String(e)))
       .finally(() => setLoading(false));
   }, [owner, repo, state]);

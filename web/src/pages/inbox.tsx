@@ -92,9 +92,9 @@ export function InboxPage() {
           repo: r,
           state,
           limit: 50,
-        })) as { success: boolean; data?: { prs: PRRow[] }; error?: string };
+        })) as { success: boolean; result?: { prs: PRRow[] }; error?: string };
         if (!d.success) throw new Error(d.error ?? 'pr_list failed');
-        const list = d.data?.prs ?? [];
+        const list = d.result?.prs ?? [];
         for (const p of list) {
           rows.push({
             ...p,
@@ -128,9 +128,9 @@ export function InboxPage() {
           repo: r,
           state,
           limit: 50,
-        })) as { success: boolean; data?: { issues: IssueRow[] }; error?: string };
+        })) as { success: boolean; result?: { issues: IssueRow[] }; error?: string };
         if (!d.success) throw new Error(d.error ?? 'issue_list failed');
-        const list = d.data?.issues ?? [];
+        const list = d.result?.issues ?? [];
         for (const it of list) {
           rows.push({ ...it, repoSlug: `${o}/${r}` });
         }

@@ -22,9 +22,9 @@ export function Issues() {
 
   const fetch = useCallback(() => {
     setLoading(true); setError(null);
-    (githubOps('issue_list', { owner, repo, state, limit: 30 }) as Promise<{ success: boolean; data?: { issues: Issue[] }; error?: string }>)
+    (githubOps('issue_list', { owner, repo, state, limit: 30 }) as Promise<{ success: boolean; result?: { issues: Issue[] }; error?: string }>)
       .then(d => {
-        if (d.success) setIssues(d.data?.issues ?? []);
+        if (d.success) setIssues(d.result?.issues ?? []);
         else setError(d.error ?? 'Failed');
       })
       .catch(e => setError(String(e)))
