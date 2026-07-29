@@ -143,6 +143,19 @@ export function AppLayout() {
                 </span>
               </div>
               <span className="text-[9px] font-mono text-muted-foreground/60">:10702 / :10703</span>
+              {backendOk === false && (
+                <button
+                  onClick={async () => {
+                    try {
+                      const { invoke } = await import('@tauri-apps/api/core');
+                      await invoke('start_backend');
+                    } catch { /* not in Tauri */ }
+                  }}
+                  className="mt-1 text-[10px] font-mono px-2 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
+                >
+                  Restart Backend
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex justify-center">

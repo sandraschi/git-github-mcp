@@ -44,6 +44,9 @@ logger = logging.getLogger("git-github-mcp")
 install_log_handler()
 
 VERSION = "0.5.0"
+
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
 WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
 WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
 _START_TIME = time.time()
@@ -237,7 +240,7 @@ async def _run_git_tool(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_core(
     operation: str,
     repo_path: str | None = None,
@@ -295,7 +298,7 @@ async def git_core(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_branch(
     operation: str,
     repo_path: str | None = None,
@@ -335,7 +338,7 @@ async def git_branch(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_admin(
     operation: str,
     repo_path: str | None = None,
@@ -383,7 +386,7 @@ async def git_admin(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def git_blame(
     repo_path: str | None = None,
     file_path: str | None = None,
@@ -413,7 +416,7 @@ async def git_blame(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def github_ops(
     operation: str,
     owner: str | None = None,
@@ -533,7 +536,7 @@ async def github_ops(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def fleet_morning_digest(
     fleet_repos: str | None = None,
     fleet_repos_file: str | None = None,
@@ -574,7 +577,7 @@ async def fleet_morning_digest(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def fleet_ops(
     operation: str,
     fleet_repos: str | None = None,
@@ -625,7 +628,7 @@ async def fleet_ops(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def git_github_status(level: str = "basic") -> dict:
     """System status: git and gh CLI availability, versions, and GitHub login state.
 
@@ -642,7 +645,46 @@ async def git_github_status(level: str = "basic") -> dict:
     return await asyncio.to_thread(_get_status, level=level)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
+async def show_status_card() -> str:
+    """Show git/gh system health as a rich Prefab card in chat.
+
+    Use this to visualise whether git and gh CLI are available,
+    authenticated, and ready for use. Renders a structured card
+    with status indicators, not raw JSON.
+    """
+    status = await asyncio.to_thread(_get_status, level="detailed")
+    try:
+        from prefab_ui import PrefabApp
+        from prefab_ui.components import Div, Heading, Row
+
+        with PrefabApp(title="Git GitHub Status") as app:
+            Heading("System Health", level=2)
+            git = status.get("git", {})
+            gh = status.get("gh", {})
+            Row(label="git CLI", value="Detected" if git.get("available") else "Not found")
+            if gh.get("available"):
+                Row(label="gh CLI", value="Detected")
+                auth = gh.get("auth", "")
+                auth_str = "Authenticated" if auth == "ok" else "Not logged in"
+                Row(label="gh auth", value=auth_str)
+            else:
+                Row(label="gh CLI", value="Not found")
+            Div()
+            Row(label="Platform", value=f"{status.get('platform', '?')} {status.get('platform_release', '')}")
+        return app
+    except ImportError:
+        git_ok = status.get("git", {}).get("available", False)
+        gh_ok = status.get("gh", {}).get("available", False)
+        gh_auth = status.get("gh", {}).get("auth") == "ok"
+        lines = [f"git: {'OK' if git_ok else 'MISSING'}"]
+        lines.append(f"gh:  {'OK' if gh_ok else 'MISSING'}")
+        if gh_ok:
+            lines.append(f"auth: {'OK' if gh_auth else 'LOGIN REQUIRED'}")
+        return "\n".join(lines)
+
+
+@mcp.tool(annotations=_READ_ONLY)
 async def git_github_help(level: str = "basic", topic: str | None = None) -> dict:
     """Contextual help for git-github-mcp tools and operations.
 
@@ -652,7 +694,7 @@ async def git_github_help(level: str = "basic", topic: str | None = None) -> dic
     return _get_help(level=level, topic=topic)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_agentic_workflow(
     task: str,
     repo_path: str | None = None,
@@ -797,7 +839,7 @@ Respond with ONLY valid JSON:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def git_github_search_workflow(
     task: str,
     owner: str | None = None,
