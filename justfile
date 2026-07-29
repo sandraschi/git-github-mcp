@@ -66,3 +66,5 @@ e2e-install:
 e2e:
     Set-Location '{{justfile_directory()}}\web'
     npx playwright test
+
+# Bootstrap: install dev deps + pre-commit hook

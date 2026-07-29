@@ -1,15 +1,19 @@
 
-## [Unreleased] — 2026-06-14
+## [Unreleased] — 2026-07-29
+
+### Fixed
+- @tauri-apps/api added to web/package.json dependencies (Tauri event listener was silently failing)
+- transport.py run_http_async() replaced with uvicorn.Server + CORS middleware (was dropping CORS in CLI --http mode)
+- use-zoom.ts dev-browser fallback now uses CSS zoom instead of silent no-op
+- Settings page stale hardcoded values replaced with dynamic API data (version, op counts)
+- utils/response.py error_response() now auto-logs with logger.exception()
+- .bak files untracked from git index
+- .gitignore covers reports/, *.bak-*
 
 ### Added
-- Tauri native wrapper (native/ directory) with bundle.resources + std::process::Command
-- CUA-NSIS: just cua-nsis-test recipe, scripts/cua-smoke.py, scripts/cua-nsis-config.json
-- Tauri CORS: tauri://localhost origins for WebView API access
-- NSIS installer at dist/ and native/target/release/bundle/nsis/
+- .github/workflows/ci.yml ruff/pytest CI workflow
+- .github/copilot-instructions.md session context injection for GitHub Copilot
 
-### Changed
-- Frontend API calls use absolute http://127.0.0.1:{port} URLs in production build
-- CORS middleware includes allow_origin_regex for tauri.localhost
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -58,7 +62,7 @@ All notable changes to this project will be documented in this file.
 ## [0.4.0] - 2026-04-06
 
 ### Added
-- **Automatic gh Discovery**: Hardened Windows path discovery for `gh.exe` in `C:\Program Files\GitHub CLI` and `scoop` shims. 
+- **Automatic gh Discovery**: Hardened Windows path discovery for `gh.exe` in `C:\Program Files\GitHub CLI` and `scoop` shims.
 - **Environment Resilience**: Server now functions correctly even if the system `PATH` is missing key CLI tools (gh, just, winget).
 
 ### Changed
@@ -68,4 +72,3 @@ All notable changes to this project will be documented in this file.
 ## [0.3.0] - 2025-03-19
 - Initial FastMCP 3.1 implementation.
 - Support for 100+ Git and GitHub operations.
-

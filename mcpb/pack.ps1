@@ -1,4 +1,4 @@
-# MCPB pack script — sync src into mcpb/, then mcpb pack to dist/.
+# MCPB pack script - sync src into mcpb/, then mcpb pack to dist/.
 # Run from repo root:  .\mcpb\pack.ps1
 # Standards: mcp-central-docs/standards/MCPB_PACKAGING_STANDARDS.md
 $ErrorActionPreference = "Stop"

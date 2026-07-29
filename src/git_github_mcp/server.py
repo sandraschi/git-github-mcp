@@ -1547,7 +1547,14 @@ async def api_apps():
 
 @web_app.get("/api/status")
 async def api_status():
-    return await asyncio.to_thread(_get_status, level="basic")
+    result = await asyncio.to_thread(_get_status, level="basic")
+    if isinstance(result, dict):
+        result["version"] = VERSION
+        result["git_ops"] = len(CORE_OPS) + len(BRANCH_OPS) + len(ADMIN_OPS)
+        from .tools.github_ops import ACTION_TYPE
+
+        result["github_ops"] = len(ACTION_TYPE)
+    return result
 
 
 # Mount MCP HTTP transport alongside the web API

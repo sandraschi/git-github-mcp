@@ -5,6 +5,7 @@ import { getStatus } from '@/lib/api';
 interface Status {
   git_available?: boolean; gh_available?: boolean;
   gh_authenticated?: boolean; git_version?: string; gh_version?: string;
+  version?: string; git_ops?: number; github_ops?: number; fastmcp_version?: string;
 }
 
 export function Settings() {
@@ -52,12 +53,12 @@ export function Settings() {
       <div className="rounded p-4 space-y-2" style={{ background: 'var(--bg-2)', border: '1px solid var(--border)' }}>
         <p className="text-sm font-semibold">About</p>
         <div className="mono text-xs space-y-1" style={{ color: 'var(--text-muted)' }}>
-          <div><span style={{ color: 'var(--text-dim)' }}>version     </span>0.2.0</div>
-          <div><span style={{ color: 'var(--text-dim)' }}>fastmcp     </span>3.1+</div>
+          <div><span style={{ color: 'var(--text-dim)' }}>version     </span>{status?.version ?? '0.5.0'}</div>
+          <div><span style={{ color: 'var(--text-dim)' }}>fastmcp     </span>3.4.4+</div>
           <div><span style={{ color: 'var(--text-dim)' }}>mcp port    </span>stdio (Claude Desktop)</div>
           <div><span style={{ color: 'var(--text-dim)' }}>web port    </span>10702</div>
-          <div><span style={{ color: 'var(--text-dim)' }}>git ops     </span>30 actions</div>
-          <div><span style={{ color: 'var(--text-dim)' }}>github ops  </span>25 actions</div>
+          <div><span style={{ color: 'var(--text-dim)' }}>git ops     </span>{status?.git_ops ?? '43'} actions</div>
+          <div><span style={{ color: 'var(--text-dim)' }}>github ops  </span>{status?.github_ops ?? '58'} actions</div>
           <div><span style={{ color: 'var(--text-dim)' }}>repo        </span>
             <a href="https://github.com/sandraschi/git-github-mcp" target="_blank" rel="noreferrer"
               className="hover:underline" style={{ color: 'var(--blue)' }}>

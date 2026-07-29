@@ -20,9 +20,9 @@ export function useZoom() {
     try {
       const { getCurrentWindow } = await import('@tauri-apps/api/window');
       await getCurrentWindow().setZoom(level);
-    } catch {
-      // dev browser -- no-op
-    }
+      return;
+    } catch { /* not in Tauri — fall through to CSS zoom */ }
+    document.documentElement.style.zoom = String(level);
   }, []);
 
   useEffect(() => {
