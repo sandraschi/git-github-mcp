@@ -376,17 +376,86 @@ export function HelpPage() {
           <Lecture title="Branches, stash, and tags">
             <p>
               Feature work lives in <Code>git_branch</Code>: create/switch branches, merge, rebase, stash WIP, tag
-              releases. Prefer explicit branch names in tool args — don’t assume <Code>main</Code> vs <Code>master</Code>.
+              releases. Prefer explicit branch names in tool args - don't assume <Code>main</Code> vs <Code>master</Code>.
             </p>
           </Lecture>
 
-          <Lecture title="When things go wrong — admin tools">
+          <Lecture title="Blame - who wrote this line?">
             <p>
-              <Code>git_admin</Code> holds reset, revert, cherry-pick, clean, submodule, bisect, worktree. Destructive
-              modes (<Code>reset --hard</Code>, <Code>clean -fd</Code>, force push) require you to pass force flags —
-              never silently.
+              <Code>git_blame</Code> annotates a file line-by-line showing the commit hash, author, and date for each
+              line. It does not assign moral responsibility - it answers "which commit last touched this line, and who
+              authored it?" Useful when reviewing unfamiliar code: pick a suspicious line, blame it, then inspect the
+              linked commit for context.
             </p>
-            <p>If you only need attribution on one file, use <Code>git_blame</Code> instead of spelunking log.</p>
+            <TryThis>
+              <p><Code>git_blame(file_path="src/server.py")</Code></p>
+            </TryThis>
+          </Lecture>
+
+          <Lecture title="Merge vs rebase - two ways to integrate">
+            <p>
+              <Code>merge</Code> creates a new commit that joins two branch histories. It preserves exactly what
+              happened and when - the record is truthful but the graph can tangle fast with many contributors.
+            </p>
+            <p>
+              <Code>rebase</Code> rewrites your branch as if it started from the latest <Code>main</Code>. The
+              history reads linearly and cleanly, but every rebased commit gets a new hash - never rebase a branch
+              others have already pulled from. The server passes <Code>--rebase-merges</Code> by default so merge
+              commits from sub-branch merges are preserved.
+            </p>
+            <p><strong>Rule of thumb:</strong> rebase local cleanup branches, merge shared feature branches.</p>
+          </Lecture>
+
+          <Lecture title="Cherry-pick - take one commit, not the whole branch">
+            <p>
+              <Code>cherry_pick</Code> copies a single commit from one branch onto your current branch. Unlike
+              merge (which brings everything) or rebase (which replays a whole series), cherry-pick targets exactly
+              one fix. Common uses: backport a hotfix to a release branch, or grab a bugfix from a sibling branch
+              without merging its incomplete features.
+            </p>
+            <TryThis>
+              <p><Code>git_admin(operation="cherry_pick", commit="a1b2c3d")</Code></p>
+            </TryThis>
+          </Lecture>
+
+          <Lecture title="Force push - when and (mostly) when not">
+            <p>
+              Normal <Code>push</Code> refuses if your branch is behind the remote. <Code>push --force</Code>
+              overwrites the remote branch with your local state. Use it only on <strong>personal branches</strong>
+              you haven't shared - typically after rebasing a PR branch. Never force-push to <Code>main</Code>,
+              <Code>master</Code>, or any branch others collaborate on: you will delete their commits.
+            </p>
+            <p>
+              The server requires <Code>force=True</Code> to allow force push - it will never happen by accident.
+            </p>
+          </Lecture>
+
+          <Lecture title="When things go wrong - admin tools">
+            <p>
+              <Code>git_admin</Code> holds reset, revert, cherry-pick, clean, submodule, bisect, worktree.
+            </p>
+            <p>
+              <Code>reset</Code> moves the current branch pointer backwards, optionally discarding worktree
+              changes (<Code>mode="hard"</Code>). <Code>revert</Code> creates a new commit that undoes
+              a previous one - safer for shared branches because it doesn't rewrite history.
+            </p>
+            <p>
+              Destructive modes (<Code>reset mode="hard"</Code>, <Code>clean -fd</Code>, force push)
+              require you to pass explicit force flags - never silently.
+            </p>
+          </Lecture>
+
+          <Lecture title="Reset, revert, clean - undoing work">
+            <p>
+              <Code>reset</Code> moves the branch pointer. <Code>mode="soft"</Code> keeps your changes
+              staged; <Code>mode="mixed"</Code> (default) unstages them; <Code>mode="hard"</Code>
+              discards everything. There is no undo for hard reset - consider <Code>revert</Code> instead when the
+              commit is already pushed.
+            </p>
+            <p>
+              <Code>clean</Code> removes untracked files from the working tree. Use <Code>dry_run=True</Code>
+              first to see what would be deleted.
+            </p>
           </Lecture>
         </LectureStack>
       )}
