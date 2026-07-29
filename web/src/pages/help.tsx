@@ -86,8 +86,8 @@ function Lecture({
   );
 }
 
-function LectureStack({ lectures }: { lectures: ReactNode }) {
-  return <div className="space-y-5">{lectures}</div>;
+function LectureStack({ children }: { children: ReactNode }) {
+  return <div className="space-y-5">{children}</div>;
 }
 
 export function HelpPage() {
