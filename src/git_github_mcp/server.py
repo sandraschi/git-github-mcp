@@ -1809,32 +1809,28 @@ if os.path.isdir(_dist):
 
 
 def main():
-    import threading
-
     from .transport import get_transport_config, run_server
 
     cfg = get_transport_config()
     transport = cfg.get("transport", "stdio")
 
-    if transport == "http":
-        # Pure HTTP mode: run the MCP server via the transport module (blocks)
-        # FastMCP 3.4.4 lifespan is already wired into web_app via FastAPI(lifespan=...)
-        run_server(mcp, server_name="git-github-mcp")
-    else:
-        # Dual mode: HTTP bridge + optional stdio for MCP clients.
-        # The HTTP bridge includes the FastMCP lifespan — do NOT run stdio on the same
-        # mcp instance (FastMCP 3.4.4 lifespan is exclusive to the HTTP transport).
-        http_thread = threading.Thread(
+    if transport != "http" and os.getenv("GIT_GITHUB_WEB", "0") == "1":
+        # Opt-in only. web_app carries the FastMCP lifespan from mcp.http_app(),
+        # so running it alongside stdio can double-start the session manager.
+        # daemon=True so the process dies when the client closes stdin, which
+        # also prevents the orphan holding WEB_PORT across restarts (WinError 10048).
+        threading.Thread(
             target=lambda: uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT, log_level="warning"),
-            daemon=False,
-        )
-        http_thread.start()
+            daemon=True,
+        ).start()
         logger.info(f"HTTP bridge running on {WEB_HOST}:{WEB_PORT}")
 
-        try:
-            http_thread.join()
-        except KeyboardInterrupt:
-            logger.info("Shutdown requested by user")
+    # stdio: run_stdio_async owns the main thread (required for Claude Desktop).
+    # http:  the transport module serves MCP over streamable HTTP itself.
+    try:
+        run_server(mcp, server_name="git-github-mcp")
+    except KeyboardInterrupt:
+        logger.info("Shutdown requested by user")
 
     logger.info("git-github-mcp stopped")
 

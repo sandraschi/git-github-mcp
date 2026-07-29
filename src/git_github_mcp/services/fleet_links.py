@@ -19,15 +19,16 @@ def op_grade_snapshot(
     base = (scraper_url or os.getenv("SCRAPER_MCP_URL", "http://127.0.0.1:10998")).rstrip("/")
     ok, data, err = get_json(f"{base}/api/coverage?owner={owner}")
     if not ok or not isinstance(data, dict):
+        msg = "scraper-mcp offline" if err and "refused" in err.lower() else (err or "scraper-mcp unreachable")
         return success_response(
             {
                 "ok": False,
                 "scraper_url": base,
-                "error": err or "scraper-mcp unreachable",
+                "error": msg,
                 "matrix": None,
             },
             "grade_snapshot",
-            message="scraper-mcp offline — start scraper-mcp on 10998",
+            message="scraper-mcp offline - start scraper-mcp on 10998",
         )
     return success_response(
         {
