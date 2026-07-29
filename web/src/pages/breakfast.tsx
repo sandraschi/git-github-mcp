@@ -186,7 +186,7 @@ function loadCachedSuite(): SuiteResult | null {
 export function BreakfastPage() {
   const [fleetText, setFleetText] = useState(() => {
     try {
-      return localStorage.getItem(FLEET_KEY) ?? 'sandraschi/git-github-mcp\nsandraschi/scraper-mcp';
+      return localStorage.getItem(FLEET_KEY) ?? '';
     } catch {
       return 'sandraschi/git-github-mcp';
     }
@@ -309,19 +309,19 @@ export function BreakfastPage() {
     error: 'bg-red-500/20 text-red-200 border-red-500/40',
   };
 
-  const tabs: { id: TabId; label: string; Icon: typeof Bell }[] = [
-    { id: 'overview', label: 'Overview', Icon: Coffee },
-    { id: 'notifications', label: 'Activity', Icon: Bell },
-    { id: 'prs', label: 'PRs', Icon: GitPullRequest },
-    { id: 'issues', label: 'Issues', Icon: CircleDot },
-    { id: 'repos', label: 'Repos', Icon: ExternalLink },
-    { id: 'ci', label: 'CI', Icon: Workflow },
-    { id: 'security', label: 'Security', Icon: Shield },
-    { id: 'acks', label: 'Ack drafts', Icon: GitPullRequest },
-    { id: 'catalog', label: 'Registry', Icon: Database },
-    { id: 'workspace', label: 'Workspace', Icon: CircleDot },
-    { id: 'links', label: 'Links', Icon: ExternalLink },
-    { id: 'retro', label: 'Retro', Icon: RefreshCw },
+  const tabs: { id: TabId; label: string; icon: typeof Bell; title: string }[] = [
+    { id: 'overview', label: 'Overview', icon: Coffee, title: 'Summary: pass/fail per step, suggested actions' },
+    { id: 'notifications', label: 'Activity', icon: Bell, title: 'New GitHub notifications since last run' },
+    { id: 'prs', label: 'PRs', icon: GitPullRequest, title: 'Open pull requests across fleet, stale markers' },
+    { id: 'issues', label: 'Issues', icon: CircleDot, title: 'Open issues across fleet, stale markers' },
+    { id: 'repos', label: 'Repos', icon: ExternalLink, title: 'Scanned repo links with PR/issue counts' },
+    { id: 'ci', label: 'CI', icon: Workflow, title: 'Failed or cancelled workflow runs (48h)' },
+    { id: 'security', label: 'Security', icon: Shield, title: 'Open Dependabot alerts by severity' },
+    { id: 'acks', label: 'Ack drafts', icon: GitPullRequest, title: 'Stale PRs needing a maintainer reply — drafts ready to send' },
+    { id: 'catalog', label: 'Registry', icon: Database, title: 'Registry metadata, port collisions, docs compliance, quarantined' },
+    { id: 'workspace', label: 'Workspace', icon: CircleDot, title: 'Local clone dirtiness and pyproject version drift' },
+    { id: 'links', label: 'Links', icon: ExternalLink, title: 'Scraper grade matrix and gitingest URLs' },
+    { id: 'retro', label: 'Retro', icon: RefreshCw, title: 'Merged PRs and new issues in the last 7 days' },
   ];
 
   return (
@@ -444,7 +444,7 @@ export function BreakfastPage() {
                 disabled={running}
                 className="rounded"
               />
-              Use mcp-central-docs fleet registry when list is empty
+              Use mcp-central-docs fleet registry (~140 repos) instead of textarea
             </label>
             <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
               <input
@@ -539,21 +539,22 @@ export function BreakfastPage() {
       {suite && (
         <>
           <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
-            {tabs.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors border shrink-0 ${
-                  tab === id
-                    ? 'bg-amber-500/15 text-amber-200 border-amber-500/35'
-                    : 'bg-card/60 text-muted-foreground border-border hover:text-foreground'
-                }`}
-              >
-                <Icon className="h-4 w-4" />
-                {label}
-              </button>
-            ))}
+        {tabs.map(({ id, label, icon: Icon, title }) => (
+            <button
+              key={id}
+              type="button"
+              title={title}
+              onClick={() => setTab(id)}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors border shrink-0 flex items-center gap-1.5 ${
+                tab === id
+                  ? 'bg-amber-500/15 text-amber-200 border-amber-500/35'
+                  : 'bg-card/60 text-muted-foreground border-border hover:text-foreground'
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
           </div>
 
           {running ? (
