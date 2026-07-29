@@ -19,16 +19,23 @@ def op_grade_snapshot(
     base = (scraper_url or os.getenv("SCRAPER_MCP_URL", "http://127.0.0.1:10998")).rstrip("/")
     ok, data, err = get_json(f"{base}/api/coverage?owner={owner}")
     if not ok or not isinstance(data, dict):
-        msg = "scraper-mcp offline" if err and "refused" in err.lower() else (err or "scraper-mcp unreachable")
+        if err and "refused" in err.lower():
+            msg = "scraper-mcp not running"
+        else:
+            msg = err or "scraper-mcp unreachable"
         return success_response(
             {
                 "ok": False,
                 "scraper_url": base,
                 "error": msg,
+                "recovery_options": [
+                    "cd D:\\Dev\\repos\\scraper-mcp && .\\start.bat",
+                    "uv run --directory D:\\Dev\\repos\\scraper-mcp uvicorn scraper_mcp.server:app --port 10998",
+                ],
                 "matrix": None,
             },
             "grade_snapshot",
-            message="scraper-mcp offline - start scraper-mcp on 10998",
+            message="scraper-mcp not running — start it with the command below",
         )
     return success_response(
         {

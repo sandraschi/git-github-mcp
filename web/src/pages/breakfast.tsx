@@ -122,7 +122,7 @@ type SuiteResult = {
     sync_drift?: Record<string, unknown>[];
   }>;
   release_drift?: FleetOp<{ drift_count?: number; drifts?: Record<string, unknown>[] }>;
-  grade_snapshot?: FleetOp<{ ok?: boolean; matrix?: unknown; error?: string }>;
+  grade_snapshot?: FleetOp<{ ok?: boolean; matrix?: unknown; error?: string; recovery_options?: string[] }>;
   gitingest_bundle?: FleetOp<{ links?: { repo_slug: string; gitingest_url: string }[] }>;
   runner_status?: FleetOp<{ last_run_at?: string; scheduled_task?: { installed?: boolean } }>;
   weekly_retro?: FleetOp<{
@@ -896,7 +896,16 @@ function LinksPanel({
         {grades?.ok ? (
           <p className="text-muted-foreground">{grades.repo_count ?? '?'} repos in matrix</p>
         ) : (
-          <p className="text-amber-400">{grades?.error ?? 'scraper-mcp offline — start on 10998'}</p>
+          <div className="space-y-2">
+            <p className="text-amber-400">{grades?.error ?? 'scraper-mcp not running'}</p>
+            {grades?.recovery_options?.length > 0 && (
+              <div className="mono text-[11px] space-y-1">
+                {grades.recovery_options.map((cmd: string, i: number) => (
+                  <code key={i} className="block px-2 py-1 rounded bg-black/30 text-amber-300">{cmd}</code>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </Section>
       <Section title={`Gitingest (${gitingest?.links?.length ?? 0})`}>
