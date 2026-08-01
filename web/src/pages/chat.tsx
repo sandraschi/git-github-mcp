@@ -663,7 +663,9 @@ export function Chat() {
                     }}
                   >
                     {m.content ||
-                      (loading && m === messages[messages.length - 1] ? "▊" : "")}
+                      (loading && m === messages[messages.length - 1]
+                        ? "▊"
+                        : "")}
                   </pre>
                   <span
                     className="text-xs"
