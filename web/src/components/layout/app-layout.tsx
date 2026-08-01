@@ -1,84 +1,84 @@
-import { useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
+  BookOpen,
+  ChevronRight,
+  CircleDot,
+  Coffee,
   GitCommit,
   GitPullRequest,
-  CircleDot,
-  MessageSquare,
-  Settings,
-  ChevronRight,
-  Terminal,
-  LayoutDashboard,
-  BookOpen,
   GraduationCap,
-  Inbox,
-  Coffee,
-  Wrench,
-  ScrollText,
   Grid3X3,
   HelpCircle,
-} from 'lucide-react';
-import { LoggerPanel } from '@/components/logger-panel';
-import { Topbar } from '@/components/layout/topbar';
-import { useBackendHealth } from '@/hooks/use-backend-health';
-import { useZoom } from '@/hooks/use-zoom';
+  Inbox,
+  LayoutDashboard,
+  MessageSquare,
+  ScrollText,
+  Settings,
+  Terminal,
+  Wrench,
+} from "lucide-react";
+import { useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { Topbar } from "@/components/layout/topbar";
+import { LoggerPanel } from "@/components/logger-panel";
+import { useBackendHealth } from "@/hooks/use-backend-health";
+import { useZoom } from "@/hooks/use-zoom";
 
 const FLEET_NAV = [
-  { to: '/', icon: LayoutDashboard, label: 'Home' },
-  { to: '/tools', icon: Wrench, label: 'Tools' },
-  { to: '/logs', icon: ScrollText, label: 'Logs' },
-  { to: '/apps', icon: Grid3X3, label: 'Apps' },
-  { to: '/help', icon: HelpCircle, label: 'Help' },
+  { to: "/", icon: LayoutDashboard, label: "Home" },
+  { to: "/tools", icon: Wrench, label: "Tools" },
+  { to: "/logs", icon: ScrollText, label: "Logs" },
+  { to: "/apps", icon: Grid3X3, label: "Apps" },
+  { to: "/help", icon: HelpCircle, label: "Help" },
 ] as const;
 
 const DOMAIN_NAV = [
-  { to: '/repos', icon: BookOpen, label: 'Repos' },
-  { to: '/commits', icon: GitCommit, label: 'Commits' },
-  { to: '/inbox', icon: Inbox, label: 'PRs & Issues' },
-  { to: '/breakfast', icon: Coffee, label: 'Breakfast' },
-  { to: '/issues', icon: CircleDot, label: 'Issues' },
-  { to: '/prs', icon: GitPullRequest, label: 'Pull Requests' },
-  { to: '/chat', icon: MessageSquare, label: 'Command' },
-  { to: '/lectures', icon: GraduationCap, label: 'Lectures' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: "/repos", icon: BookOpen, label: "Repos" },
+  { to: "/commits", icon: GitCommit, label: "Commits" },
+  { to: "/inbox", icon: Inbox, label: "PRs & Issues" },
+  { to: "/breakfast", icon: Coffee, label: "Breakfast" },
+  { to: "/issues", icon: CircleDot, label: "Issues" },
+  { to: "/prs", icon: GitPullRequest, label: "Pull Requests" },
+  { to: "/chat", icon: MessageSquare, label: "Command" },
+  { to: "/lectures", icon: GraduationCap, label: "Lectures" },
+  { to: "/settings", icon: Settings, label: "Settings" },
 ] as const;
 
 const PAGE_LABELS: Record<string, string> = {
-  '/': 'Dashboard',
-  '/tools': 'MCP Tools',
-  '/logs': 'Event Logs',
-  '/apps': 'Fleet Apps',
-  '/help': 'Help',
-  '/repos': 'Repositories',
-  '/commits': 'Commits',
-  '/inbox': 'PRs & Issues',
-  '/breakfast': 'Breakfast Runner',
-  '/issues': 'Issues',
-  '/prs': 'Pull Requests',
-  '/chat': 'Command',
-  '/lectures': 'Lectures',
-  '/settings': 'Settings',
+  "/": "Dashboard",
+  "/tools": "MCP Tools",
+  "/logs": "Event Logs",
+  "/apps": "Fleet Apps",
+  "/help": "Help",
+  "/repos": "Repositories",
+  "/commits": "Commits",
+  "/inbox": "PRs & Issues",
+  "/breakfast": "Breakfast Runner",
+  "/issues": "Issues",
+  "/prs": "Pull Requests",
+  "/chat": "Command",
+  "/lectures": "Lectures",
+  "/settings": "Settings",
 };
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const pageLabel = PAGE_LABELS[location.pathname] ?? 'git-github-mcp';
+  const pageLabel = PAGE_LABELS[location.pathname] ?? "git-github-mcp";
   const backendOk = useBackendHealth();
   useZoom();
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center h-10 px-3 rounded-md transition-all duration-200 group relative ${
       isActive
-        ? 'bg-gh-green/10 text-gh-green border border-gh-green/20'
-        : 'text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent'
+        ? "bg-gh-green/10 text-gh-green border border-gh-green/20"
+        : "text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent"
     }`;
 
   return (
     <div className="flex h-screen bg-background text-foreground selection:bg-gh-green/30">
       <aside
         className={`flex flex-col transition-all duration-300 ease-in-out border-r border-border bg-card/50 backdrop-blur-xl z-20 ${
-          collapsed ? 'w-16' : 'w-64'
+          collapsed ? "w-16" : "w-64"
         }`}
       >
         <div
@@ -93,12 +93,14 @@ export function AppLayout() {
               <span className="font-heading font-black text-sm tracking-tighter text-gh-green uppercase truncate">
                 git·hub·mcp
               </span>
-              <span className="text-[10px] text-muted-foreground font-mono leading-none">v0.5.0</span>
+              <span className="text-[10px] text-muted-foreground font-mono leading-none">
+                v0.5.0
+              </span>
             </div>
           )}
           <ChevronRight
             className={`ml-auto w-4 h-4 text-muted-foreground transition-transform duration-300 ${
-              collapsed ? '' : 'rotate-180'
+              collapsed ? "" : "rotate-180"
             }`}
           />
         </div>
@@ -110,9 +112,19 @@ export function AppLayout() {
             </div>
           )}
           {FLEET_NAV.map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to} end={to === '/'} className={navLinkClass} title={label}>
+            <NavLink
+              key={to}
+              to={to}
+              end={to === "/"}
+              className={navLinkClass}
+              title={label}
+            >
               <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-              {!collapsed && <span className="ml-3 text-sm font-medium truncate">{label}</span>}
+              {!collapsed && (
+                <span className="ml-3 text-sm font-medium truncate">
+                  {label}
+                </span>
+              )}
             </NavLink>
           ))}
           {!collapsed && (
@@ -123,7 +135,11 @@ export function AppLayout() {
           {DOMAIN_NAV.map(({ to, icon: Icon, label }) => (
             <NavLink key={to} to={to} className={navLinkClass} title={label}>
               <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
-              {!collapsed && <span className="ml-3 text-sm font-medium truncate">{label}</span>}
+              {!collapsed && (
+                <span className="ml-3 text-sm font-medium truncate">
+                  {label}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -135,21 +151,33 @@ export function AppLayout() {
                 <div
                   data-testid="backend-dot"
                   className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)] ${
-                    backendOk === null ? 'bg-gray-500' : backendOk ? 'bg-gh-green' : 'bg-red-500'
+                    backendOk === null
+                      ? "bg-gray-500"
+                      : backendOk
+                        ? "bg-gh-green"
+                        : "bg-red-500"
                   }`}
                 />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  {backendOk === null ? 'Connecting...' : backendOk ? 'Online' : 'Offline'}
+                  {backendOk === null
+                    ? "Connecting..."
+                    : backendOk
+                      ? "Online"
+                      : "Offline"}
                 </span>
               </div>
-              <span className="text-[9px] font-mono text-muted-foreground/60">:10702 / :10703</span>
+              <span className="text-[9px] font-mono text-muted-foreground/60">
+                :10702 / :10703
+              </span>
               {backendOk === false && (
                 <button
                   onClick={async () => {
                     try {
-                      const { invoke } = await import('@tauri-apps/api/core');
-                      await invoke('start_backend');
-                    } catch { /* not in Tauri */ }
+                      const { invoke } = await import("@tauri-apps/api/core");
+                      await invoke("start_backend");
+                    } catch {
+                      /* not in Tauri */
+                    }
                   }}
                   className="mt-1 text-[10px] font-mono px-2 py-0.5 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors"
                 >
@@ -162,7 +190,11 @@ export function AppLayout() {
               <div
                 data-testid="backend-dot"
                 className={`w-2 h-2 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)] ${
-                  backendOk === null ? 'bg-gray-500' : backendOk ? 'bg-gh-green' : 'bg-red-500'
+                  backendOk === null
+                    ? "bg-gray-500"
+                    : backendOk
+                      ? "bg-gh-green"
+                      : "bg-red-500"
                 }`}
               />
             </div>

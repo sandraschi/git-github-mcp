@@ -1,4 +1,3 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CircleDot,
   GitPullRequest,
@@ -6,10 +5,11 @@ import {
   Loader2,
   RefreshCw,
   Ship,
-} from 'lucide-react';
-import { githubOps } from '@/lib/api';
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { githubOps } from "@/lib/api";
 
-const FLEET_KEY = 'git-github-mcp-inbox-fleet';
+const FLEET_KEY = "git-github-mcp-inbox-fleet";
 
 interface PRRow {
   number: number;
@@ -42,7 +42,7 @@ function parseFleet(text: string): { owner: string; repo: string }[] {
   const out: { owner: string; repo: string }[] = [];
   for (const line of text.split(/\r?\n/)) {
     const t = line.trim();
-    if (!t || t.startsWith('#')) continue;
+    if (!t || t.startsWith("#")) continue;
     const m = t.match(/^([\w.-]+)\/([\w.-]+)$/);
     if (m) out.push({ owner: m[1], repo: m[2] });
   }
@@ -57,18 +57,21 @@ function staleDays(iso: string | undefined): number | null {
 }
 
 export function InboxPage() {
-  const [tab, setTab] = useState<'prs' | 'issues'>('prs');
+  const [tab, setTab] = useState<"prs" | "issues">("prs");
   const [fleetMode, setFleetMode] = useState(false);
   const [fleetText, setFleetText] = useState(() => {
     try {
-      return localStorage.getItem(FLEET_KEY) ?? 'sandraschi/git-github-mcp\nsandraschi/pywinauto-mcp';
+      return (
+        localStorage.getItem(FLEET_KEY) ??
+        "sandraschi/git-github-mcp\nsandraschi/pywinauto-mcp"
+      );
     } catch {
-      return 'sandraschi/git-github-mcp\nsandraschi/pywinauto-mcp';
+      return "sandraschi/git-github-mcp\nsandraschi/pywinauto-mcp";
     }
   });
-  const [owner, setOwner] = useState('sandraschi');
-  const [repo, setRepo] = useState('git-github-mcp');
-  const [state, setState] = useState<'open' | 'closed'>('open');
+  const [owner, setOwner] = useState("sandraschi");
+  const [repo, setRepo] = useState("git-github-mcp");
+  const [state, setState] = useState<"open" | "closed">("open");
   const [prs, setPrs] = useState<PRRow[]>([]);
   const [issues, setIssues] = useState<IssueRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,7 +79,8 @@ export function InboxPage() {
 
   const slugs = useMemo(() => {
     if (fleetMode) return parseFleet(fleetText);
-    if (owner.trim() && repo.trim()) return [{ owner: owner.trim(), repo: repo.trim() }];
+    if (owner.trim() && repo.trim())
+      return [{ owner: owner.trim(), repo: repo.trim() }];
     return [];
   }, [fleetMode, fleetText, owner, repo]);
 
@@ -87,13 +91,13 @@ export function InboxPage() {
     try {
       const rows: PRRow[] = [];
       for (const { owner: o, repo: r } of slugs) {
-        const d = (await githubOps('pr_list', {
+        const d = (await githubOps("pr_list", {
           owner: o,
           repo: r,
           state,
           limit: 50,
         })) as { success: boolean; result?: { prs: PRRow[] }; error?: string };
-        if (!d.success) throw new Error(d.error ?? 'pr_list failed');
+        if (!d.success) throw new Error(d.error ?? "pr_list failed");
         const list = d.result?.prs ?? [];
         for (const p of list) {
           rows.push({
@@ -123,13 +127,17 @@ export function InboxPage() {
     try {
       const rows: IssueRow[] = [];
       for (const { owner: o, repo: r } of slugs) {
-        const d = (await githubOps('issue_list', {
+        const d = (await githubOps("issue_list", {
           owner: o,
           repo: r,
           state,
           limit: 50,
-        })) as { success: boolean; result?: { issues: IssueRow[] }; error?: string };
-        if (!d.success) throw new Error(d.error ?? 'issue_list failed');
+        })) as {
+          success: boolean;
+          result?: { issues: IssueRow[] };
+          error?: string;
+        };
+        if (!d.success) throw new Error(d.error ?? "issue_list failed");
         const list = d.result?.issues ?? [];
         for (const it of list) {
           rows.push({ ...it, repoSlug: `${o}/${r}` });
@@ -150,7 +158,7 @@ export function InboxPage() {
   }, [slugs, state]);
 
   const load = useCallback(() => {
-    if (tab === 'prs') return loadPrs();
+    if (tab === "prs") return loadPrs();
     return loadIssues();
   }, [tab, loadPrs, loadIssues]);
 
@@ -171,18 +179,22 @@ export function InboxPage() {
       <div className="flex items-start gap-3">
         <Inbox className="h-8 w-8 shrink-0 text-blue-400 mt-1" />
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Pull requests &amp; Issues</h1>
+          <h1 className="text-2xl font-bold text-slate-100">
+            Pull requests &amp; Issues
+          </h1>
           <p className="text-sm text-slate-400 mt-1 max-w-3xl">
-            Human triage view for the same operations as{' '}
-            <code className="text-slate-300">github_ops(pr_list)</code> /{' '}
-            <code className="text-slate-300">issue_list</code>. A{' '}
-            <strong className="text-slate-200">supervisor</strong> (OpenClaw, OpenManus, RoboFang, OpenClaude,
-            etc.) can run a daily heartbeat that lists open PRs/issues across your repo fleet — this page is
-            the dashboard for the same data. For the scheduled{' '}
+            Human triage view for the same operations as{" "}
+            <code className="text-slate-300">github_ops(pr_list)</code> /{" "}
+            <code className="text-slate-300">issue_list</code>. A{" "}
+            <strong className="text-slate-200">supervisor</strong> (OpenClaw,
+            OpenManus, RoboFang, OpenClaude, etc.) can run a daily heartbeat
+            that lists open PRs/issues across your repo fleet — this page is the
+            dashboard for the same data. For the scheduled{" "}
             <a href="/breakfast" className="text-amber-300 hover:underline">
               breakfast runner
-            </a>{' '}
-            digest, use <strong className="text-slate-200">Breakfast</strong> in the sidebar.
+            </a>{" "}
+            digest, use <strong className="text-slate-200">Breakfast</strong> in
+            the sidebar.
           </p>
         </div>
       </div>
@@ -193,26 +205,31 @@ export function InboxPage() {
       >
         <Ship className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" />
         <span>
-          <strong className="text-slate-300">Agentic prompt idea:</strong> &quot;Using github_ops, list open PRs
-          for each repo in our fleet (see fleet list), summarize anything with no maintainer reply in 7+ days,
+          <strong className="text-slate-300">Agentic prompt idea:</strong>{" "}
+          &quot;Using github_ops, list open PRs for each repo in our fleet (see
+          fleet list), summarize anything with no maintainer reply in 7+ days,
           and draft a short acknowledgment comment.&quot;
         </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        {(['prs', 'issues'] as const).map((t) => (
+        {(["prs", "issues"] as const).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setTab(t)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
               tab === t
-                ? 'bg-blue-600/20 text-blue-300 border border-blue-500/40'
-                : 'bg-slate-800/60 text-slate-400 border border-slate-700 hover:text-slate-200'
+                ? "bg-blue-600/20 text-blue-300 border border-blue-500/40"
+                : "bg-slate-800/60 text-slate-400 border border-slate-700 hover:text-slate-200"
             }`}
           >
-            {t === 'prs' ? <GitPullRequest className="h-4 w-4" /> : <CircleDot className="h-4 w-4" />}
-            {t === 'prs' ? 'Pull requests' : 'Issues'}
+            {t === "prs" ? (
+              <GitPullRequest className="h-4 w-4" />
+            ) : (
+              <CircleDot className="h-4 w-4" />
+            )}
+            {t === "prs" ? "Pull requests" : "Issues"}
           </button>
         ))}
         <span className="text-slate-600">|</span>
@@ -225,13 +242,15 @@ export function InboxPage() {
           />
           Fleet (multi-repo)
         </label>
-        {(['open', 'closed'] as const).map((s) => (
+        {(["open", "closed"] as const).map((s) => (
           <button
             key={s}
             type="button"
             onClick={() => setState(s)}
             className={`px-2.5 py-1 rounded text-xs ${
-              state === s ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'
+              state === s
+                ? "bg-slate-700 text-white"
+                : "text-slate-500 hover:text-slate-300"
             }`}
           >
             {s}
@@ -243,13 +262,15 @@ export function InboxPage() {
           className="ml-auto p-2 rounded border border-slate-600 text-slate-400 hover:text-white"
           title="Refresh"
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
       {fleetMode ? (
         <div className="space-y-2">
-          <label className="block text-xs text-slate-500 uppercase tracking-wide">One owner/repo per line</label>
+          <label className="block text-xs text-slate-500 uppercase tracking-wide">
+            One owner/repo per line
+          </label>
           <textarea
             className="w-full min-h-[100px] rounded-md border border-slate-700 bg-slate-950/80 px-3 py-2 font-mono text-sm text-slate-200"
             value={fleetText}
@@ -281,12 +302,15 @@ export function InboxPage() {
         </div>
       ) : error ? (
         <div className="p-4 rounded border border-amber-900/50 bg-amber-950/30 text-amber-200 text-sm font-mono">
-          {error} — ensure <span className="text-white">gh auth login</span> and API is running.
+          {error} — ensure <span className="text-white">gh auth login</span> and
+          API is running.
         </div>
-      ) : tab === 'prs' ? (
+      ) : tab === "prs" ? (
         <div className="rounded-lg border border-slate-800 overflow-hidden">
           {prs.length === 0 ? (
-            <div className="p-10 text-center text-slate-500 text-sm">No {state} pull requests</div>
+            <div className="p-10 text-center text-slate-500 text-sm">
+              No {state} pull requests
+            </div>
           ) : (
             prs.map((pr) => {
               const sd = staleDays(pr.updatedAt ?? pr.createdAt);
@@ -298,7 +322,13 @@ export function InboxPage() {
                 >
                   <GitPullRequest
                     className="h-4 w-4 mt-0.5 shrink-0"
-                    style={{ color: pr.isDraft ? '#64748b' : pr.state === 'open' ? '#22c55e' : '#a78bfa' }}
+                    style={{
+                      color: pr.isDraft
+                        ? "#64748b"
+                        : pr.state === "open"
+                          ? "#22c55e"
+                          : "#a78bfa",
+                    }}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -319,13 +349,17 @@ export function InboxPage() {
                     >
                       {pr.title}
                       {pr.isDraft && (
-                        <span className="ml-2 text-xs text-slate-500 border border-slate-600 rounded px-1">Draft</span>
+                        <span className="ml-2 text-xs text-slate-500 border border-slate-600 rounded px-1">
+                          Draft
+                        </span>
                       )}
                     </a>
                     <div className="flex flex-wrap gap-2 mt-1 text-xs text-slate-500">
                       <span>#{pr.number}</span>
                       <span>{pr.author?.login}</span>
-                      {typeof pr.comments === 'number' && <span>{pr.comments} comments</span>}
+                      {typeof pr.comments === "number" && (
+                        <span>{pr.comments} comments</span>
+                      )}
                       <span className="font-mono text-slate-600">
                         {pr.headRefName} → {pr.baseRefName}
                       </span>
@@ -334,7 +368,9 @@ export function InboxPage() {
                   <div className="text-right text-xs text-slate-500 shrink-0">
                     <div>{new Date(pr.createdAt).toLocaleDateString()}</div>
                     {pr.updatedAt && (
-                      <div className="text-slate-600 mt-0.5">upd {new Date(pr.updatedAt).toLocaleDateString()}</div>
+                      <div className="text-slate-600 mt-0.5">
+                        upd {new Date(pr.updatedAt).toLocaleDateString()}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -345,7 +381,9 @@ export function InboxPage() {
       ) : (
         <div className="rounded-lg border border-slate-800 overflow-hidden">
           {issues.length === 0 ? (
-            <div className="p-10 text-center text-slate-500 text-sm">No {state} issues</div>
+            <div className="p-10 text-center text-slate-500 text-sm">
+              No {state} issues
+            </div>
           ) : (
             issues.map((iss) => {
               const sd = staleDays(iss.updatedAt ?? iss.createdAt);
@@ -357,7 +395,9 @@ export function InboxPage() {
                 >
                   <CircleDot
                     className="h-4 w-4 mt-0.5 shrink-0"
-                    style={{ color: iss.state === 'open' ? '#22c55e' : '#a78bfa' }}
+                    style={{
+                      color: iss.state === "open" ? "#22c55e" : "#a78bfa",
+                    }}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -399,7 +439,9 @@ export function InboxPage() {
                   <div className="text-right text-xs text-slate-500 shrink-0">
                     <div>{new Date(iss.createdAt).toLocaleDateString()}</div>
                     {iss.updatedAt && (
-                      <div className="text-slate-600 mt-0.5">upd {new Date(iss.updatedAt).toLocaleDateString()}</div>
+                      <div className="text-slate-600 mt-0.5">
+                        upd {new Date(iss.updatedAt).toLocaleDateString()}
+                      </div>
                     )}
                   </div>
                 </div>

@@ -1,4 +1,10 @@
-import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
 
 type LoggerContextValue = {
   lines: string[];
@@ -13,7 +19,11 @@ export function LoggerProvider({ children }: { children: ReactNode }) {
     const stamp = new Date().toLocaleTimeString();
     setLines((prev) => [`[${stamp}] [${level}] ${msg}`, ...prev].slice(0, 200));
   }, []);
-  return <LoggerContext.Provider value={{ lines, append }}>{children}</LoggerContext.Provider>;
+  return (
+    <LoggerContext.Provider value={{ lines, append }}>
+      {children}
+    </LoggerContext.Provider>
+  );
 }
 
 export function useLogger() {

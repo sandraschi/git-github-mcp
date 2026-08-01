@@ -1,19 +1,25 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AppLayout } from '@/components/layout/app-layout';
-import { Dashboard } from '@/pages/dashboard';
-import { Repositories } from '@/pages/repos';
-import { Commits } from '@/pages/commits';
-import { Issues } from '@/pages/issues';
-import { PullRequests } from '@/pages/pull-requests';
-import { Chat } from '@/pages/chat';
-import { Settings } from '@/pages/settings';
-import { Lectures } from '@/pages/lectures';
-import { InboxPage } from '@/pages/inbox';
-import { BreakfastPage } from '@/pages/breakfast';
-import { ToolsPage } from '@/pages/tools';
-import { LogsPage } from '@/pages/logs';
-import { HelpPage } from '@/pages/help';
-import { AppsPage } from '@/pages/apps';
+import {
+  Navigate,
+  Route,
+  BrowserRouter as Router,
+  Routes,
+} from "react-router-dom";
+import { AppLayout } from "@/components/layout/app-layout";
+import { AppsPage } from "@/pages/apps";
+import { BreakfastPage } from "@/pages/breakfast";
+import { Chat } from "@/pages/chat";
+import { CiPage } from "@/pages/ci";
+import { Commits } from "@/pages/commits";
+import { Dashboard } from "@/pages/dashboard";
+import { HelpPage } from "@/pages/help";
+import { InboxPage } from "@/pages/inbox";
+import { Issues } from "@/pages/issues";
+import { Lectures } from "@/pages/lectures";
+import { LogsPage } from "@/pages/logs";
+import { PullRequests } from "@/pages/pull-requests";
+import { Repositories } from "@/pages/repos";
+import { Settings } from "@/pages/settings";
+import { ToolsPage } from "@/pages/tools";
 
 function App() {
   return (
@@ -29,6 +35,7 @@ function App() {
           <Route path="/commits" element={<Commits />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/breakfast" element={<BreakfastPage />} />
+          <Route path="/ci" element={<CiPage />} />
           <Route path="/issues" element={<Issues />} />
           <Route path="/prs" element={<PullRequests />} />
           <Route path="/chat" element={<Chat />} />

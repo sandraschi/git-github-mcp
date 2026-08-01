@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import { API_BASE } from '@/lib/api';
+import { useCallback, useEffect, useState } from "react";
+import { API_BASE } from "@/lib/api";
 
 async function checkBackendHealth(): Promise<{ ok: boolean; error?: string }> {
   try {
@@ -7,7 +7,10 @@ async function checkBackendHealth(): Promise<{ ok: boolean; error?: string }> {
     if (!r.ok) return { ok: false, error: `HTTP ${r.status}` };
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : 'Network error' };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Network error",
+    };
   }
 }
 
@@ -29,11 +32,14 @@ export function useBackendHealth(): boolean | null {
     let unlisten: (() => void) | undefined;
     (async () => {
       try {
-        const { listen } = await import('@tauri-apps/api/event');
-        unlisten = await listen<string>('backend-status', (event) => {
-          if (event.payload === 'ready') {
+        const { listen } = await import("@tauri-apps/api/event");
+        unlisten = await listen<string>("backend-status", (event) => {
+          if (event.payload === "ready") {
             refresh();
-          } else if (typeof event.payload === 'string' && event.payload.startsWith('error:')) {
+          } else if (
+            typeof event.payload === "string" &&
+            event.payload.startsWith("error:")
+          ) {
             setBackendOk(false);
           }
         });
@@ -41,7 +47,9 @@ export function useBackendHealth(): boolean | null {
         // Not inside Tauri — HTTP polling handles it
       }
     })();
-    return () => { if (unlisten) unlisten(); };
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, [refresh]);
 
   return backendOk;

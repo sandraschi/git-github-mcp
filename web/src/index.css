@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -7,46 +7,50 @@
 :root {
   --background: 224 71% 4%;
   --foreground: 213 31% 91%;
-  
+
   --muted: 223 47% 11%;
   --muted-foreground: 215 20.2% 65.1%;
-  
+
   --accent: 216 34% 17%;
   --accent-foreground: 210 40% 98%;
-  
+
   --popover: 224 71% 4%;
   --popover-foreground: 215 20.2% 65.1%;
-  
+
   --border: 216 34% 17%;
   --input: 216 34% 17%;
-  
+
   --card: 224 71% 4%;
   --card-foreground: 213 31% 91%;
-  
+
   --primary: 210 40% 98%;
   --primary-foreground: 222.2 47.4% 1.2%;
-  
+
   --secondary: 222.2 47.4% 11.2%;
   --secondary-foreground: 210 40% 98%;
-  
+
   --destructive: 0 63% 31%;
   --destructive-foreground: 210 40% 98%;
-  
+
   --ring: 216 34% 17%;
-  
+
   --radius: 0.5rem;
 
   --gh-green: 142 71% 45%;
   --gh-blue: 217 91% 60%;
-  
-  --font-mono: 'JetBrains Mono', monospace;
-  --font-ui: 'Inter', system-ui, sans-serif;
-  --font-heading: 'Orbitron', sans-serif;
+
+  --font-mono: "JetBrains Mono", monospace;
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-heading: "Orbitron", sans-serif;
 }
 
 @layer base {
-  * { @apply border-border; }
-  body { @apply bg-background text-foreground font-ui; }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-ui;
+  }
 }
 
 @layer utilities {
@@ -65,9 +69,13 @@
   }
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   background: var(--bg);
   color: var(--text);
@@ -76,19 +84,38 @@ html, body, #root {
 }
 
 /* Scrollbar */
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: var(--bg-2); }
-::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 2px; }
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-2);
+  border-radius: 2px;
+}
 
 /* Monospace anywhere */
-.mono { font-family: var(--font-mono); }
+.mono {
+  font-family: var(--font-mono);
+}
 
 /* Animated green dot */
 @keyframes pulse-green {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--green-glow); }
-  50%       { opacity: 0.7; box-shadow: 0 0 0 4px transparent; }
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 var(--green-glow);
+  }
+  50% {
+    opacity: 0.7;
+    box-shadow: 0 0 0 4px transparent;
+  }
 }
-.pulse-green { animation: pulse-green 2s infinite; }
+.pulse-green {
+  animation: pulse-green 2s infinite;
+}
 
 /* Commit hash chip */
 .hash-chip {
@@ -108,15 +135,15 @@ html, body, #root {
   overflow: hidden;
 }
 .scanline::after {
-  content: '';
+  content: "";
   position: absolute;
   inset: 0;
   background: repeating-linear-gradient(
     0deg,
     transparent,
     transparent 2px,
-    rgba(0,0,0,0.03) 2px,
-    rgba(0,0,0,0.03) 4px
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
   );
   pointer-events: none;
 }
@@ -124,12 +151,22 @@ html, body, #root {
 /* Glow border */
 .glow-border {
   border: 1px solid var(--green-dim);
-  box-shadow: 0 0 12px var(--green-glow), inset 0 0 12px rgba(34,197,94,0.04);
+  box-shadow:
+    0 0 12px var(--green-glow),
+    inset 0 0 12px rgba(34, 197, 94, 0.04);
 }
 
 /* Fade-in */
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
-.fade-up { animation: fade-up 0.3s ease forwards; }
+.fade-up {
+  animation: fade-up 0.3s ease forwards;
+}

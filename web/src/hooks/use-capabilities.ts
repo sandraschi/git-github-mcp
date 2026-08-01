@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from "react";
 
 export type Capabilities = {
   status: string;
@@ -18,12 +18,12 @@ export function useCapabilities() {
 
   const reload = useCallback(async () => {
     try {
-      const r = await fetch('/api/capabilities');
+      const r = await fetch("/api/capabilities");
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setCaps((await r.json()) as Capabilities);
       setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'capabilities failed');
+      setError(e instanceof Error ? e.message : "capabilities failed");
       setCaps(null);
     }
   }, []);

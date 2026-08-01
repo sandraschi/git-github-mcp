@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from "react";
 
 const ZOOM_LEVELS = [0.8, 1.0, 1.25, 1.5, 2.0, 3.0];
 
@@ -7,21 +7,30 @@ export function useZoom() {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('tauri-zoom');
+      const saved = localStorage.getItem("tauri-zoom");
       if (saved) {
         const idx = ZOOM_LEVELS.indexOf(parseFloat(saved));
         if (idx >= 0) zoomIndex.current = idx;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   const applyZoom = useCallback(async (level: number) => {
-    localStorage.setItem('tauri-zoom', String(level));
+    localStorage.setItem("tauri-zoom", String(level));
     try {
-      const { getCurrentWindow } = await import('@tauri-apps/api/window');
-      await getCurrentWindow().setZoom(level);
-      return;
-    } catch { /* not in Tauri — fall through to CSS zoom */ }
+      const { getCurrentWindow } = await import("@tauri-apps/api/window");
+      const win = getCurrentWindow() as unknown as {
+        setZoom?: (level: number) => Promise<void>;
+      };
+      if (typeof win.setZoom === "function") {
+        await win.setZoom(level);
+        return;
+      }
+    } catch {
+      /* not in Tauri — fall through to CSS zoom */
+    }
     document.documentElement.style.zoom = String(level);
   }, []);
 
@@ -38,9 +47,9 @@ export function useZoom() {
         applyZoom(ZOOM_LEVELS[next]);
       }
     };
-    window.addEventListener('wheel', handler, { passive: false });
-    const saved = localStorage.getItem('tauri-zoom');
+    window.addEventListener("wheel", handler, { passive: false });
+    const saved = localStorage.getItem("tauri-zoom");
     if (saved) applyZoom(parseFloat(saved));
-    return () => window.removeEventListener('wheel', handler);
+    return () => window.removeEventListener("wheel", handler);
   }, [applyZoom]);
 }

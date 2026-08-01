@@ -1,99 +1,82 @@
-import {
-  Circle,
-  GitPullRequest,
-  Loader2,
-  Plus,
-  RefreshCw,
-  X,
-} from "lucide-react";
+import { CircleDot, Loader2, Plus, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { githubOps } from "@/lib/api";
 
-interface PR {
+interface Issue {
   number: number;
   title: string;
   state: string;
   url: string;
   author: { login: string };
-  headRefName: string;
-  baseRefName: string;
-  isDraft: boolean;
+  labels: { name: string; color: string }[];
   createdAt: string;
   updatedAt?: string;
-  comments?: number;
 }
 
-export function PullRequests() {
+export function Issues() {
   const [owner, setOwner] = useState("sandraschi");
   const [repo, setRepo] = useState("git-github-mcp");
   const [state, setState] = useState<"open" | "closed">("open");
-  const [prs, setPrs] = useState<PR[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    body: "",
-    head: "",
-    base: "main",
-    draft: false,
-  });
+  const [newTitle, setNewTitle] = useState("");
+  const [newBody, setNewBody] = useState("");
 
-  const load = useCallback(() => {
+  const fetch = useCallback(() => {
     setLoading(true);
     setError(null);
     (
-      githubOps("pr_list", { owner, repo, state, limit: 30 }) as Promise<{
+      githubOps("issue_list", { owner, repo, state, limit: 30 }) as Promise<{
         success: boolean;
-        result?: { prs: PR[] };
+        result?: { issues: Issue[] };
         error?: string;
       }>
     )
       .then((d) => {
-        if (d.success) setPrs(d.result?.prs ?? []);
+        if (d.success) setIssues(d.result?.issues ?? []);
         else setError(d.error ?? "Failed");
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
   }, [owner, repo, state]);
 
-  useEffect(load, [load]);
+  useEffect(fetch, [fetch]);
 
-  const createPR = async () => {
-    if (!form.title.trim()) return;
+  const createIssue = async () => {
+    if (!newTitle.trim()) return;
     setCreating(false);
-    await githubOps("pr_create", {
+    await githubOps("issue_create", {
       owner,
       repo,
-      title: form.title,
-      body: form.body,
-      head_branch: form.head,
-      base_branch: form.base,
-      draft: form.draft,
+      title: newTitle,
+      body: newBody,
     });
-    setForm({ title: "", body: "", head: "", base: "main", draft: false });
-    load();
+    setNewTitle("");
+    setNewBody("");
+    fetch();
   };
 
   return (
     <div className="space-y-4 max-w-4xl">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Pull Requests</h1>
+        <h1 className="text-2xl font-bold">Issues</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCreating((c) => !c)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
             style={{
-              background: creating ? "var(--bg-3)" : "var(--blue)",
-              color: creating ? "var(--text-muted)" : "#fff",
-              border: `1px solid ${creating ? "var(--border)" : "var(--blue-dim)"}`,
+              background: creating ? "var(--bg-3)" : "var(--green)",
+              color: creating ? "var(--text-muted)" : "#000",
+              border: "1px solid var(--green-dim)",
             }}
           >
-            {creating ? <X size={12} /> : <Plus size={12} />}
-            {creating ? "Cancel" : "New PR"}
+            {creating ? <X size={12} /> : <Plus size={12} />}{" "}
+            {creating ? "Cancel" : "New Issue"}
           </button>
           <button
-            onClick={load}
+            onClick={fetch}
             className="p-1.5 rounded"
             style={{
               border: "1px solid var(--border)",
@@ -105,8 +88,8 @@ export function PullRequests() {
         </div>
       </div>
 
-      {/* Repo + state selector */}
-      <div className="flex items-center gap-2 flex-wrap">
+      {/* Repo selector */}
+      <div className="flex items-center gap-2">
         <input
           className="mono text-xs px-3 py-1.5 rounded outline-none w-36"
           style={{
@@ -162,73 +145,35 @@ export function PullRequests() {
               paddingBottom: 6,
               color: "var(--text)",
             }}
-            value={form.title}
-            onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            placeholder="PR title..."
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            placeholder="Issue title..."
           />
-          <div className="flex items-center gap-2">
-            <input
-              className="mono text-xs px-3 py-1.5 rounded outline-none flex-1"
-              style={{
-                background: "var(--bg-3)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-              value={form.head}
-              onChange={(e) => setForm((f) => ({ ...f, head: e.target.value }))}
-              placeholder="head branch"
-            />
-            <span style={{ color: "var(--text-dim)" }}>→</span>
-            <input
-              className="mono text-xs px-3 py-1.5 rounded outline-none w-28"
-              style={{
-                background: "var(--bg-3)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-              value={form.base}
-              onChange={(e) => setForm((f) => ({ ...f, base: e.target.value }))}
-              placeholder="base"
-            />
-            <label
-              className="flex items-center gap-1.5 text-xs cursor-pointer"
-              style={{ color: "var(--text-muted)" }}
-            >
-              <input
-                type="checkbox"
-                checked={form.draft}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, draft: e.target.checked }))
-                }
-              />
-              Draft
-            </label>
-          </div>
           <textarea
             className="w-full bg-transparent outline-none text-xs mono resize-none"
             rows={3}
             style={{ color: "var(--text-muted)" }}
-            value={form.body}
-            onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))}
+            value={newBody}
+            onChange={(e) => setNewBody(e.target.value)}
             placeholder="Description (optional)..."
           />
           <button
-            onClick={createPR}
+            onClick={createIssue}
             className="px-4 py-1.5 rounded text-xs font-bold"
-            style={{ background: "var(--blue)", color: "#fff" }}
+            style={{ background: "var(--green)", color: "#000" }}
           >
-            Create Pull Request
+            Submit Issue
           </button>
         </div>
       )}
 
-      {/* PR list */}
+      {/* Issue list */}
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2
             className="animate-spin"
             size={20}
-            style={{ color: "var(--blue)" }}
+            style={{ color: "var(--green)" }}
           />
         </div>
       ) : error ? (
@@ -240,111 +185,87 @@ export function PullRequests() {
             color: "var(--amber)",
           }}
         >
-          {error} — run <span className="text-white">gh auth login</span>
+          {error} — ensure gh is authed
         </div>
       ) : (
         <div
           className="rounded overflow-hidden"
           style={{ border: "1px solid var(--border)" }}
         >
-          {prs.length === 0 ? (
+          {issues.length === 0 ? (
             <div
               className="p-8 text-center text-sm"
               style={{ color: "var(--text-dim)" }}
             >
-              No {state} pull requests
+              No {state} issues
             </div>
           ) : (
-            prs.map((pr, i) => (
+            issues.map((iss, i) => (
               <div
-                key={pr.number}
+                key={iss.number}
                 className="flex items-start gap-3 px-4 py-3 hover:bg-white/[0.02] transition-colors"
                 style={{
                   borderBottom:
-                    i < prs.length - 1 ? "1px solid var(--border)" : "none",
+                    i < issues.length - 1 ? "1px solid var(--border)" : "none",
                 }}
               >
-                <GitPullRequest
+                <CircleDot
                   size={14}
                   className="mt-0.5 shrink-0"
                   style={{
-                    color: pr.isDraft
-                      ? "var(--text-dim)"
-                      : pr.state === "open"
-                        ? "var(--green)"
-                        : "var(--purple)",
+                    color:
+                      iss.state === "open" ? "var(--green)" : "var(--purple)",
                   }}
                 />
                 <div className="flex-1 min-w-0">
                   <a
-                    href={pr.url}
+                    href={iss.url}
                     target="_blank"
                     rel="noreferrer"
                     className="text-sm font-medium hover:underline truncate block"
                     style={{ color: "var(--text)" }}
                   >
-                    {pr.title}
-                    {pr.isDraft && (
-                      <span
-                        className="ml-2 mono text-xs px-1.5 py-0.5 rounded"
-                        style={{
-                          background: "var(--bg-3)",
-                          color: "var(--text-dim)",
-                          border: "1px solid var(--border)",
-                        }}
-                      >
-                        Draft
-                      </span>
-                    )}
+                    {iss.title}
                   </a>
                   <div className="flex items-center gap-2 mt-1 flex-wrap">
                     <span
                       className="mono text-xs"
                       style={{ color: "var(--text-dim)" }}
                     >
-                      #{pr.number}
+                      #{iss.number}
                     </span>
                     <span
                       className="text-xs"
                       style={{ color: "var(--text-dim)" }}
                     >
-                      {pr.author?.login}
+                      {iss.author?.login}
                     </span>
-                    {typeof pr.comments === "number" && (
+                    {iss.labels?.map((l) => (
                       <span
-                        className="text-xs"
-                        style={{ color: "var(--text-muted)" }}
+                        key={l.name}
+                        className="mono text-xs px-1.5 py-0.5 rounded"
+                        style={{
+                          background: `#${l.color}22`,
+                          color: `#${l.color}`,
+                          border: `1px solid #${l.color}44`,
+                        }}
                       >
-                        {pr.comments} comments
+                        {l.name}
                       </span>
-                    )}
-                    <span
-                      className="mono text-xs flex items-center gap-1"
-                      style={{ color: "var(--cyan)" }}
-                    >
-                      <Circle size={6} fill="currentColor" />
-                      {pr.headRefName}
-                    </span>
-                    <span style={{ color: "var(--text-dim)" }}>→</span>
-                    <span
-                      className="mono text-xs"
-                      style={{ color: "var(--text-muted)" }}
-                    >
-                      {pr.baseRefName}
-                    </span>
+                    ))}
                   </div>
                 </div>
                 <div
                   className="mono text-xs shrink-0 text-right"
                   style={{ color: "var(--text-dim)" }}
                 >
-                  <div>{new Date(pr.createdAt).toLocaleDateString()}</div>
-                  {pr.updatedAt && (
+                  <div>{new Date(iss.createdAt).toLocaleDateString()}</div>
+                  {iss.updatedAt && (
                     <div
                       className="text-[10px] mt-0.5"
                       style={{ color: "var(--text-muted)" }}
                     >
-                      upd {new Date(pr.updatedAt).toLocaleDateString()}
+                      upd {new Date(iss.updatedAt).toLocaleDateString()}
                     </div>
                   )}
                 </div>

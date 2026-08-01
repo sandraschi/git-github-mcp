@@ -54,6 +54,8 @@ ACTION_TYPE = (
     "workflow_list",
     "workflow_run",
     "workflow_runs",
+    "workflow_view",
+    "workflow_rerun",
     "workflow_cancel",
     "workflow_disable",
     "workflow_enable",
@@ -176,6 +178,7 @@ def github_ops(
     # Workflow
     workflow_id: str | None = None,
     run_id: str | None = None,
+    failed_job_id: str | None = None,
     ref: str | None = None,
     # Clone target
     target_dir: str | None = None,
@@ -782,6 +785,90 @@ def github_ops(
         if not ok:
             return _err("workflow_cancel", err or "workflow cancel failed")
         return _ok("workflow_cancel", {"run_id": run_id}, message="Workflow run cancelled")
+
+    if operation == "workflow_view":
+        """Inspect a workflow run: jobs, per-job conclusions, and failed-step logs.
+
+        Returns the run summary plus a 'failures' list — each entry has the
+        failed job/step name, conclusion, and the tail of its log. This is
+        what the web CI page and any agent need to answer "what failed?".
+        """
+        if not slug or not run_id:
+            return _err("workflow_view", "owner, repo, run_id required")
+        ok, out, err = run_gh(
+            [
+                "run",
+                "view",
+                run_id,
+                "--repo",
+                slug,
+                "--json",
+                "databaseId,name,status,conclusion,headBranch,createdAt,url,jobs",
+            ],
+            timeout=90,
+        )
+        if not ok:
+            return _err("workflow_view", err or "workflow view failed")
+        data = _j(out)
+        jobs = (data or {}).get("jobs") or []
+        failures = []
+        for job in jobs:
+            if not isinstance(job, dict):
+                continue
+            jc = str(job.get("conclusion") or "").lower()
+            if jc in ("success", "skipped", "neutral"):
+                continue
+            steps = job.get("steps") or []
+            failed_steps = [
+                s
+                for s in steps
+                if isinstance(s, dict)
+                and str(s.get("conclusion") or "").lower() in ("failure", "cancelled", "timed_out")
+            ]
+            for step in failed_steps:
+                step_name = step.get("name", "?")
+                log_tail = ""
+                try:
+                    _, lout, _ = run_gh(
+                        [
+                            "run",
+                            "view",
+                            run_id,
+                            "--repo",
+                            slug,
+                            "--log-failed",
+                            "--job",
+                            str(job.get("databaseId") or job.get("id") or ""),
+                        ],
+                        timeout=60,
+                    )
+                    log_tail = lout[-4000:]
+                except Exception:
+                    log_tail = ""
+                failures.append(
+                    {
+                        "job": job.get("name"),
+                        "step": step_name,
+                        "conclusion": jc,
+                        "log_tail": log_tail,
+                    }
+                )
+        return _ok(
+            "workflow_view",
+            {"run": data, "failures": failures, "failure_count": len(failures)},
+        )
+
+    if operation == "workflow_rerun":
+        """Rerun a failed workflow run (or a single failed job)."""
+        if not slug or not run_id:
+            return _err("workflow_rerun", "owner, repo, run_id required")
+        args = ["run", "rerun", run_id, "--repo", slug]
+        if failed_job_id:
+            args += ["--failed", "--job", str(failed_job_id)]
+        ok, out, err = run_gh(args)
+        if not ok:
+            return _err("workflow_rerun", err or "workflow rerun failed")
+        return _ok("workflow_rerun", {"run_id": run_id}, message="Workflow run rerun triggered")
 
     if operation == "workflow_disable":
         if not slug or not workflow_id:
