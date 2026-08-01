@@ -17,7 +17,7 @@ export function AppsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(API_BASE + "/api/apps")
+    fetch(`${API_BASE}/api/apps`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

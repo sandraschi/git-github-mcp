@@ -81,8 +81,9 @@ export function AppLayout() {
           collapsed ? "w-16" : "w-64"
         }`}
       >
-        <div
-          className="h-16 flex items-center px-4 border-b border-border cursor-pointer hover:bg-white/5 transition-colors group"
+        <button
+          type="button"
+          className="h-16 flex items-center px-4 border-b border-border cursor-pointer hover:bg-white/5 transition-colors group w-full text-left"
           onClick={() => setCollapsed(!collapsed)}
         >
           <div className="w-8 h-8 rounded-lg bg-gh-green/10 border border-gh-green/20 flex items-center justify-center group-hover:border-gh-green/40 transition-all">
@@ -103,7 +104,7 @@ export function AppLayout() {
               collapsed ? "" : "rotate-180"
             }`}
           />
-        </div>
+        </button>
 
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
           {!collapsed && (
@@ -171,6 +172,7 @@ export function AppLayout() {
               </span>
               {backendOk === false && (
                 <button
+                  type="button"
                   onClick={async () => {
                     try {
                       const { invoke } = await import("@tauri-apps/api/core");

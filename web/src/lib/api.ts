@@ -61,7 +61,12 @@ export async function runDiscoveryWorkflow(
 export async function getStatus(): Promise<unknown> {
   const res = await fetch(`${BASE}/api/status`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const raw: any = await res.json();
+  const raw = (await res.json()) as {
+    result?: {
+      git?: { available?: boolean; version?: string };
+      gh?: { available?: boolean; auth?: string; version?: string };
+    };
+  };
   if (raw?.result?.git || raw?.result?.gh) {
     const g = raw.result.git ?? {};
     const h = raw.result.gh ?? {};

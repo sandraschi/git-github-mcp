@@ -170,3 +170,17 @@ body,
 .fade-up {
   animation: fade-up 0.3s ease forwards;
 }
+
+/* EXPERIMENTAL light mode (invert hack) — NOT fleet standard, reversible.
+   Toggling `.dark` off `<html>` inverts the whole UI. Remove this block to
+   revert to permanently-dark (chat_skills_prefab_standard.md §7.1). */
+html:not(.dark) {
+  filter: invert(1) hue-rotate(180deg);
+  background: #f4f4f5;
+}
+html:not(.dark) img,
+html:not(.dark) video,
+html:not(.dark) canvas,
+html:not(.dark) iframe {
+  filter: invert(1) hue-rotate(180deg);
+}

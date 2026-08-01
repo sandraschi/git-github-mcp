@@ -37,7 +37,7 @@ export function LogsPage() {
   }, [load]);
 
   const clearLogs = async () => {
-    await fetch(API_BASE + "/api/logs", { method: "DELETE" });
+    await fetch(`${API_BASE}/api/logs`, { method: "DELETE" });
     void load();
   };
 

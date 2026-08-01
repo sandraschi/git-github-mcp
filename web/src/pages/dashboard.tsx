@@ -46,14 +46,18 @@ export function Dashboard() {
   useEffect(() => {
     Promise.allSettled([
       getStatus().then((d) => setSysStatus(d as StatusData)),
-      (gitOps("status", { repo_path: repoPath }) as Promise<{ result: any }>)
+      (
+        gitOps("status", { repo_path: repoPath }) as Promise<{
+          result?: RepoStatus["data"];
+        }>
+      )
         .then((d) => {
           if (d?.result) setRepoStatus({ success: true, data: d.result });
         })
         .catch(() => {}),
       (
         gitOps("log", { repo_path: repoPath, max_count: 5 }) as Promise<{
-          result: any;
+          result?: LogData["data"];
         }>
       )
         .then((d) => {
@@ -118,10 +122,14 @@ export function Dashboard() {
         <div className="relative flex items-center gap-4 p-4 rounded-xl glass-dark border-border/50">
           <Terminal className="w-4 h-4 text-gh-green" />
           <div className="flex-1 space-y-1">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-1">
+            <label
+              htmlFor="active-context-path"
+              className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 px-1"
+            >
               Active Context
             </label>
             <input
+              id="active-context-path"
               className="w-full bg-transparent text-sm font-mono text-gh-green outline-none selection:bg-gh-green/20"
               value={repoPath}
               onChange={(e) => setRepoPath(e.target.value)}
@@ -189,9 +197,9 @@ export function Dashboard() {
             {loading ? (
               <LoadingState />
             ) : recentLog?.data?.entries?.length ? (
-              recentLog.data.entries.map((e, i) => (
+              recentLog.data.entries.map((e) => (
                 <div
-                  key={i}
+                  key={e.hash}
                   className="group flex items-center gap-4 px-6 py-3.5 hover:bg-gh-green/[0.03] transition-all"
                 >
                   <span className="font-mono text-[10px] font-bold text-gh-green bg-gh-green/10 px-2 py-1 rounded border border-gh-green/20 group-hover:border-gh-green/40 transition-all">
@@ -236,9 +244,9 @@ export function Dashboard() {
 
           <div className="divide-y divide-white/5 flex flex-col h-full">
             {myRepos.length > 0 ? (
-              myRepos.map((r, i) => (
+              myRepos.map((r) => (
                 <div
-                  key={i}
+                  key={r.name}
                   className="flex items-center gap-3 px-6 py-4 hover:bg-gh-blue/[0.03] transition-all group"
                 >
                   <div className="h-2 w-2 rounded-full bg-gh-green shadow-[0_0_8px_rgba(34,197,94,0.4)] group-hover:scale-125 transition-transform" />
@@ -324,9 +332,9 @@ function MetricCard({
         <Icon className="w-12 h-12" />
       </div>
       <div className="flex flex-col gap-2">
-        <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/60">
           {label}
-        </label>
+        </span>
         <div
           className={`text-2xl font-black font-mono tracking-tight flex items-center gap-2 ${color}`}
         >

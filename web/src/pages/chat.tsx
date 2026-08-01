@@ -240,7 +240,7 @@ export function Chat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, []);
   useEffect(() => {
     localStorage.setItem(CHAT_PERSONALITY_KEY, personality);
   }, [personality]);
@@ -337,7 +337,8 @@ export function Chat() {
 
         if (!res.ok) throw new Error(`LLM returned ${res.status}`);
 
-        const reader = res.body!.getReader();
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No response body");
         const decoder = new TextDecoder();
         let buffer = "";
         let content = "";
@@ -563,6 +564,7 @@ export function Chat() {
             ))}
           </select>
           <button
+            type="button"
             data-testid="chat-export"
             onClick={exportChat}
             disabled={!hasMessages}
@@ -572,6 +574,7 @@ export function Chat() {
             <Download className="h-4 w-4" />
           </button>
           <button
+            type="button"
             data-testid="chat-clear"
             onClick={clearChat}
             disabled={!hasMessages}
@@ -629,9 +632,9 @@ export function Chat() {
                 </div>
               </div>
             )}
-            {messages.map((m, i) => (
+            {messages.map((m) => (
               <div
-                key={i}
+                key={`${m.role}-${m.timestamp}`}
                 className={`flex gap-2 ${m.role === "user" ? "justify-end" : ""}`}
               >
                 {m.role !== "user" && (
@@ -660,7 +663,7 @@ export function Chat() {
                     }}
                   >
                     {m.content ||
-                      (loading && i === messages.length - 1 ? "▊" : "")}
+                      (loading && m === messages[messages.length - 1] ? "▊" : "")}
                   </pre>
                   <span
                     className="text-xs"
@@ -707,6 +710,7 @@ export function Chat() {
           >
             {EXAMPLES.map((ex) => (
               <button
+                type="button"
                 key={ex}
                 onClick={() => send(ex)}
                 className="mono text-xs px-2 py-1 rounded transition-colors hover:border-slate-600"
@@ -748,9 +752,9 @@ export function Chat() {
                   : "git status · github repos sandraschi"
               }
               disabled={loading}
-              autoFocus
             />
             <button
+              type="button"
               data-testid="chat-send"
               onClick={() => send()}
               disabled={loading || !input.trim()}
@@ -1112,11 +1116,12 @@ async function dispatchCommand(input: string): Promise<string> {
         const count = parseInt(
           parts.find((p) => p.startsWith("--count=") || /^\d+$/.test(p)) ??
             "10",
+          10,
         );
         return JSON.stringify(
           await gitOps("log", {
             repo_path: repoPath,
-            max_count: isNaN(count) ? 10 : count,
+            max_count: Number.isNaN(count) ? 10 : count,
           }),
           null,
           2,

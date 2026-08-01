@@ -49,11 +49,11 @@ export function Repositories() {
         .catch(() => {}),
       (
         gitOps("status", { repo_path: repoPath }) as Promise<{
-          result: LocalStatus;
+          result?: LocalStatus["data"];
         }>
       )
         .then((d) => {
-          if (d) setLocal({ success: true, data: d.result as any });
+          if (d) setLocal({ success: true, data: d.result });
         })
         .catch(() => {}),
     ]).finally(() => setLoading(false));
@@ -73,6 +73,7 @@ export function Repositories() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Repositories</h1>
         <button
+          type="button"
           onClick={load}
           className="p-1.5 rounded"
           style={{

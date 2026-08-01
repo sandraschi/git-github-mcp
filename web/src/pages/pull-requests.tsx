@@ -81,6 +81,7 @@ export function PullRequests() {
         <h1 className="text-2xl font-bold">Pull Requests</h1>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => setCreating((c) => !c)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium"
             style={{
@@ -93,6 +94,7 @@ export function PullRequests() {
             {creating ? "Cancel" : "New PR"}
           </button>
           <button
+            type="button"
             onClick={load}
             className="p-1.5 rounded"
             style={{
@@ -132,6 +134,7 @@ export function PullRequests() {
         />
         {(["open", "closed"] as const).map((s) => (
           <button
+            type="button"
             key={s}
             onClick={() => setState(s)}
             className="px-3 py-1.5 rounded text-xs transition-colors"
@@ -213,6 +216,7 @@ export function PullRequests() {
             placeholder="Description (optional)..."
           />
           <button
+            type="button"
             onClick={createPR}
             className="px-4 py-1.5 rounded text-xs font-bold"
             style={{ background: "var(--blue)", color: "#fff" }}

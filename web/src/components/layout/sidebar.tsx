@@ -59,6 +59,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           )}
           {collapsed && <Github className="h-6 w-6 mx-auto" />}
           <button
+            type="button"
             onClick={onToggle}
             className={cn(
               "rounded p-1 hover:bg-slate-800 text-slate-400 hover:text-slate-100 transition-colors",

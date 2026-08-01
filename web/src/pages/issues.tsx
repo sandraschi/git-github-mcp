@@ -64,6 +64,7 @@ export function Issues() {
         <h1 className="text-2xl font-bold">Issues</h1>
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={() => setCreating((c) => !c)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors"
             style={{
@@ -76,6 +77,7 @@ export function Issues() {
             {creating ? "Cancel" : "New Issue"}
           </button>
           <button
+            type="button"
             onClick={fetch}
             className="p-1.5 rounded"
             style={{
@@ -115,6 +117,7 @@ export function Issues() {
         />
         {(["open", "closed"] as const).map((s) => (
           <button
+            type="button"
             key={s}
             onClick={() => setState(s)}
             className="px-3 py-1.5 rounded text-xs transition-colors"
@@ -158,6 +161,7 @@ export function Issues() {
             placeholder="Description (optional)..."
           />
           <button
+            type="button"
             onClick={createIssue}
             className="px-4 py-1.5 rounded text-xs font-bold"
             style={{ background: "var(--green)", color: "#000" }}

@@ -268,10 +268,14 @@ export function InboxPage() {
 
       {fleetMode ? (
         <div className="space-y-2">
-          <label className="block text-xs text-slate-500 uppercase tracking-wide">
+          <label
+            htmlFor="fleet-repos-textarea"
+            className="block text-xs text-slate-500 uppercase tracking-wide"
+          >
             One owner/repo per line
           </label>
           <textarea
+            id="fleet-repos-textarea"
             className="w-full min-h-[100px] rounded-md border border-slate-700 bg-slate-950/80 px-3 py-2 font-mono text-sm text-slate-200"
             value={fleetText}
             onChange={(e) => setFleetText(e.target.value)}

@@ -16,7 +16,7 @@ export function ToolsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(API_BASE + "/api/tools")
+    fetch(`${API_BASE}/api/tools`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();

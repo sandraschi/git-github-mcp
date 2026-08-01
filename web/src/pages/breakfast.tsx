@@ -543,9 +543,9 @@ export function BreakfastPage() {
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <div className="flex items-center justify-between gap-2">
-              <label className="text-xs text-muted-foreground uppercase tracking-wide">
+              <span className="text-xs text-muted-foreground uppercase tracking-wide">
                 Fleet repos
-              </label>
+              </span>
               <button
                 type="button"
                 onClick={() => loadRegistry()}
@@ -985,8 +985,11 @@ function AckPanel({
     return <EmptyPanel text="No stale PRs need acknowledgment drafts" />;
   return (
     <div className="space-y-3">
-      {drafts.map((d, i) => (
-        <div key={i} className="rounded-lg border border-border p-4 text-sm">
+      {drafts.map((d) => (
+        <div
+          key={`${d.repo_slug}-${d.pr_number}`}
+          className="rounded-lg border border-border p-4 text-sm"
+        >
           <a
             href={String(d.url ?? "")}
             target="_blank"
@@ -1041,13 +1044,19 @@ function CatalogPanel({
       <Section
         title={`Port audit (${ports?.collision_count ?? 0} collisions, ${ports?.mismatch_count ?? 0} mismatches)`}
       >
-        {(ports?.collisions ?? []).map((c, i) => (
-          <div key={i} className="text-amber-400 font-mono text-xs">
+        {(ports?.collisions ?? []).map((c) => (
+          <div
+            key={`port-${String(c.port)}`}
+            className="text-amber-400 font-mono text-xs"
+          >
             port {String(c.port)}: {JSON.stringify(c.repos)}
           </div>
         ))}
-        {(ports?.mismatches ?? []).slice(0, 10).map((m, i) => (
-          <div key={i} className="text-xs text-muted-foreground">
+        {(ports?.mismatches ?? []).slice(0, 10).map((m) => (
+          <div
+            key={`mismatch-${String(m.id)}`}
+            className="text-xs text-muted-foreground"
+          >
             {String(m.id)} {String(m.kind)} registry={String(m.registry_port)}{" "}
             doc={JSON.stringify(m.webapp_ports_doc)}
           </div>
@@ -1143,20 +1152,18 @@ function LinksPanel({
             <p className="text-amber-400">
               {grades?.error ?? "scraper-mcp not running"}
             </p>
-            {grades &&
-              grades.recovery_options &&
-              grades.recovery_options.length > 0 && (
-                <div className="mono text-[11px] space-y-1">
-                  {grades.recovery_options.map((cmd: string, i: number) => (
-                    <code
-                      key={i}
-                      className="block px-2 py-1 rounded bg-black/30 text-amber-300"
-                    >
-                      {cmd}
-                    </code>
-                  ))}
-                </div>
-              )}
+            {grades?.recovery_options && grades.recovery_options.length > 0 && (
+              <div className="mono text-[11px] space-y-1">
+                {grades.recovery_options.map((cmd: string) => (
+                  <code
+                    key={cmd}
+                    className="block px-2 py-1 rounded bg-black/30 text-amber-300"
+                  >
+                    {cmd}
+                  </code>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </Section>

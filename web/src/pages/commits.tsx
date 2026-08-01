@@ -27,7 +27,7 @@ export function Commits() {
     (
       gitOps("log", { repo_path: repoPath, max_count: count }) as Promise<{
         success: boolean;
-        result: any;
+        result?: LogData["data"];
       }>
     )
       .then((d) => setLog({ success: d?.success ?? false, data: d?.result }))
@@ -107,8 +107,9 @@ export function Commits() {
           <div className="divide-y" style={{ borderColor: "var(--border)" }}>
             {entries.map((e, i) => (
               <div key={e.hash}>
-                <div
-                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                <button
+                  type="button"
+                  className="w-full text-left flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/[0.02] transition-colors"
                   onClick={() =>
                     setExpanded(expanded === e.hash ? null : e.hash)
                   }
@@ -150,7 +151,7 @@ export function Commits() {
                       style={{ color: "var(--text-dim)" }}
                     />
                   )}
-                </div>
+                </button>
                 {expanded === e.hash && (
                   <div
                     className="px-10 py-3 mono text-xs space-y-1"
