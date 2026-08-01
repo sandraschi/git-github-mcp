@@ -8,5 +8,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
-    uses: sandraschi/fleet-ci/.github/workflows/python.yml@v1
+  check:
+    name: Lint and Test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+          enable-cache: true
+      - run: uv sync --group dev
+      - run: uv run ruff check src
+      - run: uv run ruff format --check src
+      - run: uv run pytest -q --tb=short tests/
+      - name: Install web dependencies
+        working-directory: web
+        run: npm ci
+      - name: Biome check
+        working-directory: web
+        run: npx biome check src/
+      - name: Typecheck
+        working-directory: web
+        run: npx tsc -b
