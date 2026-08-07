@@ -1,7 +1,7 @@
 set windows-shell := ["powershell.exe", "-NoProfile", "-Command"]
 import 'scripts/just/fleet.just'
 
-# ── Dashboard ─────────────────────────────────────────────────────────────────
+# --- Dashboard ---
 
 # Open the interactive recipe dashboard in the browser
 default:
@@ -13,7 +13,7 @@ bootstrap:
     Set-Location '{{justfile_directory()}}\web'; npm ci; if ($LASTEXITCODE -ne 0) { npm install }
     Write-Host "Pre-commit hooks installed." -ForegroundColor Green
 
-# ── Quality ───────────────────────────────────────────────────────────────────
+# --- Quality ---
 
 # Execute Ruff SOTA v13.1 linting
 lint:
@@ -30,7 +30,7 @@ fix:
     Set-Location '{{justfile_directory()}}\web'
     npx @biomejs/biome check --write .
 
-# ── Hardening ─────────────────────────────────────────────────────────────────
+# --- Hardening ---
 
 # Execute Bandit security audit
 check-sec:
@@ -42,9 +42,9 @@ audit-deps:
     Set-Location '{{justfile_directory()}}'
     uv run safety check
 
-# ── MCPB (Claude Desktop bundle) ─────────────────────────────────────────────
+# --- MCPB  Claude Desktop bundle ---
 
-# ── Tauri NSIS ─────────────────────────────────────────────────────────────────
+# --- Tauri NSIS ---
 
 # Build the Tauri NSIS desktop installer (full pipeline: frontend -> Rust -> NSIS)
 build-native:
@@ -55,7 +55,7 @@ build-native:
 	Set-Location '{{justfile_directory()}}\native'
 	npx @tauri-apps/cli build --bundles nsis
 
-# ── Playwright E2E ─────────────────────────────────────────────────────
+# --- Playwright E2E ---
 
 # Install Playwright browsers (one-time)
 e2e-install:
