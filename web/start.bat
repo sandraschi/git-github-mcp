@@ -1,6 +1,6 @@
 @echo off
 setlocal
-REM git-github-mcp Vite dev UI — backend 10702, frontend 10703
+REM git-github-mcp Vite dev UI — backend 10713, frontend 10714
 cd /d "%~dp0"
 
 set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps"

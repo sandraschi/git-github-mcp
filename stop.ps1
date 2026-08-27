@@ -7,4 +7,4 @@ if (-not (Test-Path -LiteralPath $FleetStartPath)) {
 }
 . $FleetStartPath
 
-if (-not (Stop-FleetPortListeners -Ports @(10702, 10703) -Label "git-github-mcp")) { exit 1 }
+if (-not (Stop-FleetPortListeners -Ports @(10713, 10714) -Label "git-github-mcp")) { exit 1 }

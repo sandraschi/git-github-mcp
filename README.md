@@ -12,14 +12,14 @@
 
 **Industrial-grade Git and GitHub orchestration** for the Agentic Revolution. Built for developers who need their AI implementation engines to interact with repositories without environment friction.
 
-**Stack:** v0.4.1  FastMCP 3.2.0+  Python 3.12+  Windows 10/11  GitHub CLI (gh)  
+**Stack:** v0.4.1  FastMCP 3.2.0+  Python 3.12+  Windows 10/11  GitHub CLI (gh)
 
 **Industrial Disclosure:** This server is part of the **[Agentic Revolution Manifesto](https://github.com/sandraschi/mcp-central-docs/blob/master/manifesto/AGENTIC_REVOLUTION.md)**. All tools are designed for machine-native consumption, providing high-fidelity telemetry and crash-resistant automation for the 135+ repository Alsergrund fleet.
 
 ---
 
 ### 🚀 Zero-Friction Orchestration
-If your AI agent fails to perform Git or GitHub actions because of `gh` CLI path issues or authentication gaps, this server solves that. 
+If your AI agent fails to perform Git or GitHub actions because of `gh` CLI path issues or authentication gaps, this server solves that.
 
 - **Automatic Discovery**: It finds your `gh.exe` installation in standard Windows locations (Program Files, Scoop, Winget) without requiring a system `PATH` entry.
 - **100+ Tools**: Complete coverage for Git (local) and GitHub (remote) workflows.
@@ -117,7 +117,7 @@ uv run python scripts/run_morning_digest.py --deliver file,aiwatcher
 
 Fleet list: `config/fleet-repos.txt` (copy from `config/fleet-repos.example.txt`) or `GIT_GITHUB_FLEET_REPOS_FILE`.
 
-MCP: `fleet_morning_digest(deliver="file,aiwatcher")` · HTTP: `POST http://127.0.0.1:10702/api/morning-digest`
+MCP: `fleet_morning_digest(deliver="file,aiwatcher")` · HTTP: `POST http://127.0.0.1:10713/api/morning-digest`
 
 ### Fleet maintainer toolkit (`fleet_ops`)
 
@@ -127,7 +127,7 @@ Portmanteau for registry, CI, security, workspace, and orchestration. **`full_su
 uv run python -c "from git_github_mcp.services.fleet_ops import fleet_ops; print(fleet_ops('runner_status'))"
 ```
 
-MCP: `fleet_ops(operation="full_suite")` · HTTP: `POST http://127.0.0.1:10702/api/fleet-suite` · single op: `POST /api/fleet-ops`
+MCP: `fleet_ops(operation="full_suite")` · HTTP: `POST http://127.0.0.1:10713/api/fleet-suite` · single op: `POST /api/fleet-ops`
 
 Web `/breakfast` runs the full suite on **Start full suite** and exposes tabs for CI, security, registry, workspace, grades, and weekly retro.
 

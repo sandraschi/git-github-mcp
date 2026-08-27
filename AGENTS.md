@@ -27,6 +27,6 @@ uv run python scripts/run_morning_digest.py --deliver file,aiwatcher
 .\scripts\install_morning_task.ps1
 ```
 
-MCP: `fleet_morning_digest` · `fleet_ops(operation="full_suite")` · HTTP: `POST /api/fleet-suite` · Web: `http://127.0.0.1:10703/breakfast`
+MCP: `fleet_morning_digest` · `fleet_ops(operation="full_suite")` · HTTP: `POST /api/fleet-suite` · Web: `http://127.0.0.1:10714/breakfast`
 
 Fleet ops: `registry_load`, `port_audit`, `docs_gate`, `quarantine_report`, `ci_pulse`, `dependabot_digest`, `mention_inbox`, `ack_drafts`, `local_dirty`, `release_drift`, `grade_snapshot`, `gitingest_bundle`, `runner_status`, `weekly_retro`, `council_payload`, `full_suite`.

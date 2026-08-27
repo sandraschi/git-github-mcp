@@ -1,6 +1,6 @@
 @echo off
 setlocal
-REM git-github-mcp — FastAPI+MCP 10702, Vite 10703
+REM git-github-mcp — FastAPI+MCP 10713, Vite 10714
 cd /d "%~dp0"
 
 set "PATH=%PATH%;%LOCALAPPDATA%\Microsoft\WindowsApps"

@@ -18,7 +18,7 @@ Install these if you don't have them already. Windows commands use
 | **uv** | Options C and D | `winget install astral-sh.uv` | `brew install uv` |
 | **Node.js** | Option B only | `winget install OpenJS.NodeJS` | `brew install node` |
 
-> **Windows:** After any winget install, **close and reopen PowerShell** so PATH updates apply.  
+> **Windows:** After any winget install, **close and reopen PowerShell** so PATH updates apply.
 > **macOS:** use `brew install git gh uv node` equivalents.
 
 After installing gh CLI, authenticate once:
@@ -95,14 +95,14 @@ Edit Claude Desktop config:
 
 Replace `C:\\path\\to\\git-github-mcp` with your actual clone path. Restart Claude Desktop.
 
-> The server also starts a FastAPI HTTP bridge on port 10702. Always active — see
+> The server also starts a FastAPI HTTP bridge on port 10713. Always active — see
 > [HTTP bridge endpoints](#http-bridge-endpoints) below.
 
 ---
 
 ## Option D — Web App Mode
 
-React frontend (Vite, port 10703) + FastAPI backend (port 10702). Requires Option D setup.
+React frontend (Vite, port 10714) + FastAPI backend (port 10713). Requires Option D setup.
 
 ```powershell
 winget install Casey.Just --accept-source-agreements --accept-package-agreements
@@ -149,7 +149,7 @@ Claude Desktop and check that the server appears in Settings → MCP Servers.
 |----------|---------|---------|
 | `MCP_TRANSPORT` | `stdio` | Transport: `stdio` \| `http` \| `sse` |
 | `MCP_HOST` | `127.0.0.1` | Bind address for HTTP/SSE |
-| `MCP_PORT` | `10702` | MCP HTTP port |
+| `MCP_PORT` | `10713` | MCP HTTP port |
 | `MCP_PATH` | `/mcp` | MCP endpoint path |
 | `GH_TOKEN` | — | GitHub token (overrides gh CLI auth) |
 | `PYTHONUNBUFFERED` | — | Set to `1` in Claude Desktop config |
@@ -179,7 +179,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference.
 | `github_ops` — "not logged in" | `gh auth login` or set `GH_TOKEN` |
 | `git_core` times out after 25 s | Windows Job Object issue under Electron — use `/api/git` REST fallback |
 | Server not in Claude Desktop | Run `uv run git-github-mcp --stdio` directly to see error; check config path |
-| Port 10702 already in use | `Get-NetTCPConnection -LocalPort 10702` then kill the owner |
+| Port 10713 already in use | `Get-NetTCPConnection -LocalPort 10713` then kill the owner |
 | `uv` not found | `winget install astral-sh.uv`; reopen terminal |
 | `uvx mcpb` fails | Expected — use Option A or `npx @anthropic-ai/mcpb` |
 

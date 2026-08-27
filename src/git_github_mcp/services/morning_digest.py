@@ -297,7 +297,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
         lines.append("")
 
     lines.append("---")
-    lines.append("Open breakfast: http://127.0.0.1:10703/breakfast")
+    lines.append("Open breakfast: http://127.0.0.1:10714/breakfast")
     return "\n".join(lines)
 
 
@@ -338,7 +338,7 @@ def deliver_digest(markdown: str, summary: dict[str, Any], deliver: list[str]) -
                 f"{summary['totals']['notifications']} notifications",
                 "summary": markdown[:4000],
                 "source": "git-github-mcp",
-                "url": "http://127.0.0.1:10703/breakfast",
+                "url": "http://127.0.0.1:10714/breakfast",
                 "urgency_hint": min(
                     10.0,
                     3.0 + summary["totals"]["stale_prs"] + summary["totals"]["notifications"] / 5,
@@ -520,7 +520,7 @@ def run_morning_digest(
             f"{summary['totals']['notifications']} notifications"
         ),
         next_steps=[
-            "Open http://127.0.0.1:10703/breakfast for human triage",
+            "Open http://127.0.0.1:10714/breakfast for human triage",
             "Acknowledge stale PRs via github_ops(pr_comment, ...)",
         ],
     )

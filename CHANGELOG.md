@@ -42,7 +42,7 @@ All notable changes to this project will be documented in this file.
   - `git_branch` (14 ops): branch lifecycle, merge, rebase, stash, tag
   - `git_admin` (16 ops): remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree
   - `git_blame` (1 op): file blame with optional commit ref
-- **Dual transport**: Server runs stdio AND HTTP bridge (port 10702) simultaneously
+- **Dual transport**: Server runs stdio AND HTTP bridge (port 10713) simultaneously
 - **REST API**: `/health`, `/api/git`, `/api/github`, `/api/tools`, `/api/status`
 - **Conversational error returns**: All tool handlers use `success_response`/`error_response` with `recovery_options` and `suggested_fixes`
 - **MCP HTTP mount**: `mcp.http_app()` mounted at `/mcp` for streamable HTTP clients

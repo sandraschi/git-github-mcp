@@ -15,7 +15,7 @@ if (Test-Path $apiFile) {
     $apiContent = Get-Content $apiFile -Raw
     if ($apiContent -match "127.0.0.1:(\d+)") {
         $apiPort = [int]$Matches[1]
-        $BACKEND_PORT = 10702
+        $BACKEND_PORT = 10713
         if ($apiPort -ne $BACKEND_PORT) {
             throw "API_BASE in $apiFile points to port $apiPort but backend serves on $BACKEND_PORT"
         }

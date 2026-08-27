@@ -40,11 +40,11 @@ def test_registry_to_github_slugs_skips_quarantined() -> None:
 def test_parse_webapp_ports_md(tmp_path: Path) -> None:
     md = tmp_path / "WEBAPP_PORTS.md"
     md.write_text(
-        "| Port | Repo | Notes |\n| 10702 | git-github-mcp | backend |\n| 10998 | scraper-mcp | api |\n",
+        "| Port | Repo | Notes |\n| 10713 | git-github-mcp | backend |\n| 10998 | scraper-mcp | api |\n",
         encoding="utf-8",
     )
     parsed = _parse_webapp_ports_md(md)
-    assert 10702 in parsed["git-github-mcp"]
+    assert 10713 in parsed["git-github-mcp"]
     assert 10998 in parsed["scraper-mcp"]
 
 
@@ -55,7 +55,7 @@ def test_port_audit_collisions(tmp_path: Path) -> None:
             {
                 "fleet": [
                     {"id": "alpha-mcp", "port": 10700, "frontend_port": 10701},
-                    {"id": "beta-mcp", "port": 10700, "frontend_port": 10702},
+                    {"id": "beta-mcp", "port": 10700, "frontend_port": 10713},
                 ]
             }
         ),

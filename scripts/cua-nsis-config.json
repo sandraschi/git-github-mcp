@@ -3,7 +3,7 @@
   "install_dir": "%LOCALAPPDATA%\\Git GitHub MCP",
   "operator_exe": "git-github-mcp-native.exe",
   "backend_process_names": ["git-github-mcp-native", "git-github-mcp-backend"],
-  "backend_port": 10702,
+  "backend_port": 10713,
   "health_path": "/api/v1/health",
   "diagnostics_path": "/api/v1/diagnostics",
   "feature_smoke_path": "/api/v1/system/info",

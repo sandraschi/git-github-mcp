@@ -47,7 +47,7 @@ VERSION = "0.5.0"
 
 _READ_ONLY = {"readonly": True}
 _MUTATING = {}
-WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
+WEB_PORT = int(os.getenv("WEB_PORT", "10713"))
 WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
 _START_TIME = time.time()
 
@@ -220,12 +220,12 @@ async def _run_git_tool(
             error=f"Git subprocess did not respond in {_wall_timeout}s",
             recovery_options=[
                 "Restart the git-github-mcp server",
-                "Connect via HTTP: http://127.0.0.1:10702/mcp",
+                "Connect via HTTP: http://127.0.0.1:10713/mcp",
                 "Check that git works: git status",
             ],
             suggested_fixes=[
-                "Use git_core via the REST API at http://127.0.0.1:10702/api/git",
-                "Set MCP_TRANSPORT=http and connect to port 10702",
+                "Use git_core via the REST API at http://127.0.0.1:10713/api/git",
+                "Set MCP_TRANSPORT=http and connect to port 10713",
             ],
         )
     except Exception as exc:
@@ -1319,12 +1319,12 @@ web_app.include_router(_build_logs_router())
 web_app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:10703",
-        "http://127.0.0.1:10703",
-        "http://goliath:10703",
-        "http://localhost:10702",
-        "http://127.0.0.1:10702",
-        "http://goliath:10702",
+        "http://localhost:10714",
+        "http://127.0.0.1:10714",
+        "http://goliath:10714",
+        "http://localhost:10713",
+        "http://127.0.0.1:10713",
+        "http://goliath:10713",
         "http://tauri.localhost",
         "https://tauri.localhost",
         "tauri://localhost",
