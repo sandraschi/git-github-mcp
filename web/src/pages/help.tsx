@@ -120,8 +120,8 @@ export function HelpPage() {
               Lectures
             </Link>
             . Version {version} · backend{" "}
-            <strong className="text-foreground">10702</strong> · UI{" "}
-            <strong className="text-foreground">10703</strong>.
+            <strong className="text-foreground">10713</strong> · UI{" "}
+            <strong className="text-foreground">10714</strong>.
           </p>
         </div>
       </div>
@@ -244,7 +244,7 @@ export function HelpPage() {
               At the center is one FastMCP server.{" "}
               <strong>Claude Desktop</strong> talks over stdio (or an{" "}
               <Code>.mcpb</Code> bundle). <strong>This web app</strong> talks to
-              a FastAPI bridge on port 10702; Vite on 10703 proxies{" "}
+              a FastAPI bridge on port 10713; Vite on 10714 proxies{" "}
               <Code>/api</Code> so the browser never hard-codes cross-origin
               URLs.
             </p>
@@ -316,7 +316,7 @@ export function HelpPage() {
             }
           >
             <p>
-              If the UI says &quot;backend unreachable,&quot; port 10702
+              If the UI says &quot;backend unreachable,&quot; port 10713
               isn&apos;t up — restart <Code>web\start.bat</Code>. If Breakfast
               hangs at 100%, check the stream finished and{" "}
               <Code>/api/fleet-suite/last</Code> returns JSON (circular refs in
@@ -843,7 +843,7 @@ export function HelpPage() {
 
           <Lecture title="Starting and stopping">
             <p>
-              <Code>web\start.bat</Code> kills zombie processes on 10702/10703,
+              <Code>web\start.bat</Code> kills zombie processes on 10713/10714,
               syncs Python deps, opens backend + Vite, waits for health, then
               opens the browser. Closing the launcher windows stops the stack.
             </p>
@@ -871,7 +871,7 @@ export function HelpPage() {
           <Lecture title="Cursor and other MCP hosts">
             <p>
               Point the host at <Code>uv run git-github-mcp</Code> from the repo
-              (stdio). HTTP bridge on 10702 is optional unless the client only
+              (stdio). HTTP bridge on 10713 is optional unless the client only
               speaks streamable HTTP.
             </p>
             <p>
@@ -911,9 +911,9 @@ export function HelpPage() {
         <LectureStack>
           <Lecture title="Failed to fetch / backend unreachable">
             <p>
-              Port 10702 isn&apos;t listening. Run <Code>web\start.bat</Code>{" "}
+              Port 10713 isn&apos;t listening. Run <Code>web\start.bat</Code>{" "}
               and wait for &quot;backend ready&quot;. Don&apos;t call{" "}
-              <Code>localhost:10702</Code> from the UI manually — let Vite proxy{" "}
+              <Code>localhost:10713</Code> from the UI manually — let Vite proxy{" "}
               <Code>/api</Code>.
             </p>
           </Lecture>

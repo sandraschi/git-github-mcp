@@ -630,7 +630,7 @@ export function BreakfastPage() {
           {error}
           <p className="mt-2 text-xs opacity-80">
             Ensure <span className="font-mono text-white">gh auth login</span>{" "}
-            and backend on port 10702.
+            and backend on port 10713.
           </p>
         </div>
       )}

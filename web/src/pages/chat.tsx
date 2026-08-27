@@ -84,7 +84,7 @@ const PERSONALITIES = [
     id: "fleet-commander",
     label: "Fleet Commander",
     prompt:
-      "You are a fleet operations commander. Use fleet_ops for registry audits, CI pulse checks, workspace scans, and full_suite runs. Know the port registry (10702 backend, 10703 frontend).",
+      "You are a fleet operations commander. Use fleet_ops for registry audits, CI pulse checks, workspace scans, and full_suite runs. Know the port registry (10713 backend, 10714 frontend).",
   },
   {
     id: "custom",

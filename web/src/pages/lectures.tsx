@@ -332,7 +332,7 @@ const LECTURES: Lecture[] = [
     key: "port-audit",
     category: "fleet",
     title: "Port collisions",
-    subtitle: "Why two MCP webapps can't share 10702.",
+    subtitle: "Why two MCP webapps can't share 10713.",
     body: [
       "Fleet registry and WEBAPP_PORTS.md should agree on backend/frontend ports. `port_audit` finds duplicates before you wonder why Vite proxies to the wrong server.",
       "Zombie processes on Windows often hold ports — `web\\start.bat` kills listeners before restart.",

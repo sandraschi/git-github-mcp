@@ -9,8 +9,8 @@ export interface AppEntry {
 export const APPS_CATALOG: AppEntry[] = [
   {
     label: "Git GitHub MCP",
-    url: "http://127.0.0.1:10702",
-    port: 10702,
+    url: "http://127.0.0.1:10713",
+    port: 10713,
     whatItIs: "This app. Manage your Git repositories and GitHub interactions.",
     whatYouCanDo:
       "View repositories, commit history, and chat with your codebase.",

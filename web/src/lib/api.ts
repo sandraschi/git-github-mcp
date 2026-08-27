@@ -1,10 +1,10 @@
-/** Shared API client — dev uses Vite proxy (/api → :10702); prod uses VITE_API_URL or :10702 */
+/** Shared API client — dev uses Vite proxy (/api → :10713); prod uses VITE_API_URL or :10713 */
 
-export const API_BASE = "http://127.0.0.1:10702";
+export const API_BASE = "http://127.0.0.1:10713";
 
 const BASE =
   import.meta.env.VITE_API_URL ??
-  (import.meta.env.DEV ? "" : "http://127.0.0.1:10702");
+  (import.meta.env.DEV ? "" : "http://127.0.0.1:10713");
 
 async function callApi(
   endpoint: string,
@@ -19,7 +19,7 @@ async function callApi(
     });
   } catch (e) {
     const hint =
-      "Backend unreachable — start web\\start.bat (port 10702) and ensure gh auth login.";
+      "Backend unreachable — start web\\start.bat (port 10713) and ensure gh auth login.";
     throw new Error(e instanceof Error ? `${e.message}. ${hint}` : hint);
   }
   if (!res.ok) {
@@ -216,7 +216,7 @@ export async function runFleetSuiteStream(
     });
   } catch (e) {
     const hint =
-      "Backend unreachable — start web\\start.bat (port 10702) and ensure gh auth login.";
+      "Backend unreachable — start web\\start.bat (port 10713) and ensure gh auth login.";
     throw new Error(e instanceof Error ? `${e.message}. ${hint}` : hint);
   }
   if (!res.ok || !res.body) {

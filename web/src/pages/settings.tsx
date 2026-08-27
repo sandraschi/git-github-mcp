@@ -114,7 +114,7 @@ export function Settings() {
             (Claude Desktop)
           </div>
           <div>
-            <span style={{ color: "var(--text-dim)" }}>web port </span>10702
+            <span style={{ color: "var(--text-dim)" }}>web port </span>10713
           </div>
           <div>
             <span style={{ color: "var(--text-dim)" }}>git ops </span>

@@ -7,7 +7,13 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["src/**", "e2e/**", "playwright.config.ts", "vite.config.ts", "index.html"]
+    "includes": [
+      "src/**",
+      "e2e/**",
+      "playwright.config.ts",
+      "vite.config.ts",
+      "index.html"
+    ]
   },
   "formatter": {
     "enabled": true,
