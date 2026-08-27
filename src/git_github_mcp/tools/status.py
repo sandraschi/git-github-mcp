@@ -156,11 +156,16 @@ def _check_gh() -> dict:
         info["auth_note"] = "GH_TOKEN set in environment"
         return info
 
-    # gh auth token: reads cached token locally, no network
-    logger.info("_check_gh: running gh auth token")
-    token_rc, token_out, _ = _run([gh_path, "auth", "token"], 5)
-    logger.info(f"_check_gh: auth token rc={token_rc}")
-    if token_rc == 0 and token_out.strip():
+    # gh auth status: reads the active account from ~/.config/gh/hosts.yml (offline, no
+    # keyring unlock). Do NOT use `gh auth token` here - that materializes the token via the
+    # Windows Credential Manager (keyring), which fails or times out when this server runs from
+    # a consoleless/service context even though gh is genuinely logged in. `gh auth status`
+    # reports the authenticated account without needing to unlock the token.
+    logger.info("_check_gh: running gh auth status")
+    status_rc, status_out, status_err = _run([gh_path, "auth", "status"], 10)
+    logger.info(f"_check_gh: auth status rc={status_rc}")
+    combined = (status_out + status_err).lower()
+    if status_rc == 0 and "logged in" in combined:
         info["auth"] = "ok"
     else:
         info["auth"] = "not logged in"
