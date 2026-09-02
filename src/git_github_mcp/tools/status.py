@@ -37,6 +37,7 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str, str]:
     try:
         r = subprocess.run(
             cmd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -128,13 +129,21 @@ def _resolve_git_exe() -> str | None:
 
 
 def _check_git() -> dict:
-    """Check git availability by path existence only — no subprocess."""
-    logger.info("_check_git: resolving git exe (no subprocess)")
+    """Check git availability and version.
+
+    --version was previously skipped over a suspected cmd.exe-wrapper deadlock when
+    spawned from a consoleless process (MCP stdio). Reproduction under pythonw.exe
+    (genuinely consoleless) showed the wrapper itself is fine — the actual trigger was
+    inherited stdin, which _run() now redirects to DEVNULL. Safe to call directly.
+    """
+    logger.info("_check_git: resolving git exe")
     git_path = _resolve_git_exe()
     logger.info(f"_check_git: resolved path={git_path}")
     if not git_path or not os.path.isfile(git_path):
         return {"available": False, "error": "not found in PATH"}
-    return {"available": True, "version": "unknown (skipped --version to avoid hang)", "path": git_path}
+    rc, out, _err = _run([git_path, "--version"], 5)
+    version = out.strip() if rc == 0 and out.strip() else "unknown (version check failed)"
+    return {"available": True, "version": version, "path": git_path}
 
 
 def _check_gh() -> dict:
@@ -147,7 +156,9 @@ def _check_gh() -> dict:
     if not gh_path or not os.path.isfile(gh_path):
         return {"available": False, "error": "not found in PATH"}
 
-    info: dict = {"available": True, "version": "unknown (skipped --version)", "path": gh_path}
+    rc, out, _err = _run([gh_path, "--version"], 5)
+    version = out.strip().splitlines()[0] if rc == 0 and out.strip() else "unknown (version check failed)"
+    info: dict = {"available": True, "version": version, "path": gh_path}
 
     # GH_TOKEN in env means auth is handled without GCM — check it directly
     if os.environ.get("GH_TOKEN"):

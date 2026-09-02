@@ -58,6 +58,7 @@ def run_gh(
         result = subprocess.run(
             [gh_path, *args],
             cwd=cwd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",

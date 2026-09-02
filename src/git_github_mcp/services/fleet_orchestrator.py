@@ -27,6 +27,7 @@ def _check_scheduled_task() -> str | None:
     try:
         result = subprocess.run(
             [_SCHTASKS, "/Query", "/TN", _TASK_NAME, "/FO", "LIST"],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",

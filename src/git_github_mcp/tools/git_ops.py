@@ -88,6 +88,7 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
     try:
         r = sp.run(
             cmd,
+            stdin=sp.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -127,6 +128,7 @@ async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tupl
             _GIT_EXE,
             *args,
             cwd=path,
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=_git_env(),
