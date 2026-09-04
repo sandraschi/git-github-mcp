@@ -92,7 +92,7 @@ export function AppsPage() {
       const j = await r.json();
       if (j.alive || j.status === "already_running" || j.status === "brought_to_foreground") {
         if (j.status === "brought_to_foreground") {
-          setTimeout(() => window.open(j.url ?? app.url ?? `http://127.0.0.1:${app.port}`, "_blank"), 300);
+          if (!j.alive) { setError(`${app.id}: Tauri window brought to front — no web UI on :${app.port}`); } else { setTimeout(() => window.open(j.url ?? app.url ?? `http://127.0.0.1:${app.port}`, "_blank"), 300); }
         } else {
           window.open(j.url ?? app.url ?? `http://127.0.0.1:${app.port}`, "_blank");
         }
@@ -111,12 +111,21 @@ export function AppsPage() {
           }
         }
       } else {
-        window.open(app.url ?? `http://127.0.0.1:${app.port}`, "_blank");
-        if (j.error) setError(`${app.id}: ${j.error}`);
+        const headless = j.error && /no.*start|headless|no web/i.test(String(j.error));
+        if (headless || (app.has_tauri && !app.url)) {
+          setError(`${app.id}: ${j.error ?? 'No web UI — headless MCP/Tauri app. Use its winapp via Starts or: uv run ${app.id}'}`);
+        } else {
+          window.open(app.url ?? `http://127.0.0.1:${app.port}`, "_blank");
+          if (j.error) setError(`${app.id}: ${j.error}`);
+        }
       }
     } catch (e) {
-      window.open(app.url ?? `http://127.0.0.1:${app.port}`, "_blank");
-      setError(e instanceof Error ? e.message : String(e));
+      if (app.has_tauri) {
+        setError(`${app.id}: ${e instanceof Error ? e.message : String(e)} — no web UI, try Tauri winapp or start.ps1`);
+      } else {
+        window.open(app.url ?? `http://127.0.0.1:${app.port}`, "_blank");
+        setError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setStarting((s) => ({ ...s, [app.id]: false }));
     }

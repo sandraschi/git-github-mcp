@@ -1,4 +1,10 @@
 
+## [0.6.1] — 2026-09-04
+
+### Fixed
+- `apps` virtualization-mcp 404: `_find_starts_for_id` now tries `*-mcp` stripped id for `mcd/starts/*-start.bat` + `repo/start.ps1|bat` (fixes ~108 fleet ids: `virtualization-mcp→virtualization`, `kyutai-mcp→kyutai` …) and alias `mcp-central-docs/starts/virtualization-mcp-start.bat`
+- `apps` headless Tauri handling: `brought_to_foreground` with `alive:false` (e.g. virtualization-mcp `:10700` no Vite web UI) now shows toast `Tauri window brought to front — no web UI` instead of `window.open` to dead port → 404; `else`/`catch` headless branches show `No web UI — headless MCP/Tauri app. Use its winapp via Starts or: uv run <id>` instead of blind open
+
 ## [0.6.0] — 2026-09-04
 
 ### Added

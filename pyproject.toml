@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "git-github-mcp"
-version = "0.6.0"
+version = "0.6.1"
 description = "Local git and GitHub — branches, commits, PRs and stars in one FastMCP 3.4+ server"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -61,4 +61,4 @@ source = "uv-dynamic-versioning"
 vcs = "git"
 style = "pep440"
 bump = true
-fallback-version = "0.6.0"
+fallback-version = "0.6.1"

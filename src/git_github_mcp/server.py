@@ -1777,18 +1777,26 @@ exit 1
 
 def _find_starts_for_id(app_id: str) -> list[str]:
     candidates: list[str] = []
-    # 1. mcd starts bat
-    mcd = Path(r"D:\Dev\repos\mcp-central-docs\starts") / f"{app_id}-start.bat"
-    if mcd.exists():
-        candidates.append(str(mcd))
-    # 2. repo start.ps1
-    repo_ps1 = Path(r"D:\Dev\repos") / app_id / "start.ps1"
-    if repo_ps1.exists():
-        candidates.append(str(repo_ps1))
-    # 3. repo start.bat
-    repo_bat = Path(r"D:\Dev\repos") / app_id / "start.bat"
-    if repo_bat.exists():
-        candidates.append(str(repo_bat))
+
+    def _try_ids(base_id: str) -> list[str]:
+        ids_to_try = [base_id]
+        if base_id.endswith("-mcp"):
+            ids_to_try.append(base_id[:-4])
+            ids_to_try.append(base_id[:-4].replace("-mcp", ""))
+        # also try without suffix for cases like virtualization-mcp -> virtualization
+        return ids_to_try
+
+    for cand_id in _try_ids(app_id):
+        mcd = Path(r"D:\Dev\repos\mcp-central-docs\starts") / f"{cand_id}-start.bat"
+        if mcd.exists() and str(mcd) not in candidates:
+            candidates.append(str(mcd))
+    for cand_id in _try_ids(app_id):
+        repo_ps1 = Path(r"D:\Dev\repos") / cand_id / "start.ps1"
+        if repo_ps1.exists() and str(repo_ps1) not in candidates:
+            candidates.append(str(repo_ps1))
+        repo_bat = Path(r"D:\Dev\repos") / cand_id / "start.bat"
+        if repo_bat.exists() and str(repo_bat) not in candidates:
+            candidates.append(str(repo_bat))
     # 4. Tauri installed exe (current user)
     tauri_candidates = [
         Path.home() / "AppData" / "Local" / "Programs" / app_id / f"{app_id}.exe",
