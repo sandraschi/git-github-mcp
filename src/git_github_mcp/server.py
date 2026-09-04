@@ -1691,8 +1691,8 @@ def _check_port_health_sync(port: int, timeout: float = 1.2) -> dict:
             "health_url": f"http://127.0.0.1:{port}/health",
         }
 
-    # try health endpoints
-    for path in ("/health", "/api/health", "/api/status"):
+    # try health endpoints (include depot /api/capabilities and robotics /api/v1/health)
+    for path in ("/health", "/api/health", "/api/status", "/api/capabilities", "/api/v1/health", "/api/capabilities/health"):
         try:
             import httpx
 
@@ -1839,8 +1839,25 @@ async def api_apps_ensure(payload: dict):
     if not port:
         return {"success": False, "error": "port or id required", "alive": False}
 
-    # 1. already healthy?
+    # 1. already healthy? also check backend_port for dual-port apps (depot-mcp 10726/10727)
     health = await asyncio.to_thread(_check_port_health_sync, port)
+    # fallback: check backend_port from registry if frontend not alive
+    if not health.get("alive") and app_id:
+        try:
+            from .services.fleet_catalog import load_registry
+            for row in load_registry():
+                if str(row.get("id")) == app_id:
+                    bport = int(row.get("port") or 0)
+                    fport = int(row.get("frontend_port") or 0)
+                    cand = bport if bport != port and bport > 0 else (fport if fport != port and fport > 0 else 0)
+                    if cand:
+                        h2 = await asyncio.to_thread(_check_port_health_sync, cand)
+                        if h2.get("alive"):
+                            health = h2
+                            port = cand
+                    break
+        except Exception:
+            pass
     if health.get("alive"):
         # also try to bring existing window to front if Tauri
         if app_id:

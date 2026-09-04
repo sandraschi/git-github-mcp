@@ -1,4 +1,9 @@
 
+## [0.6.3] — 2026-09-04
+
+### Fixed
+- `apps` depot-mcp 404 → games: `fleet-registry.json` `depot-mcp` had `port:10726` (frontend) but backend was `10727` `/api/capabilities`; fixed to `port:10727` + `frontend_port:10726` + `backend_port:10727` and `starts/depot-mcp-start.bat` alias (depot→depot-mcp). `server.py: _check_port_health_sync` now probes `/api/capabilities` + `/api/v1/health` and `api_apps_ensure` falls back to backend port when frontend not alive — depot card now opens `http://127.0.0.1:10726` correctly instead of games (10987).
+
 ## [0.6.2] — 2026-09-04
 
 ### Fixed
