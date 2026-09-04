@@ -11,6 +11,7 @@ import { Chat } from "@/pages/chat";
 import { CiPage } from "@/pages/ci";
 import { Commits } from "@/pages/commits";
 import { Dashboard } from "@/pages/dashboard";
+import { DiscoveryPage } from "@/pages/discovery";
 import { HelpPage } from "@/pages/help";
 import { InboxPage } from "@/pages/inbox";
 import { Issues } from "@/pages/issues";
@@ -38,6 +39,7 @@ function App() {
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/breakfast" element={<BreakfastPage />} />
           <Route path="/ci" element={<CiPage />} />
+          <Route path="/discovery" element={<DiscoveryPage />} />
           <Route path="/issues" element={<Issues />} />
           <Route path="/prs" element={<PullRequests />} />
           <Route path="/chat" element={<Chat />} />

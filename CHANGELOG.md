@@ -1,4 +1,10 @@
 
+## [0.6.2] — 2026-09-04
+
+### Fixed
+- **Chat borked revert — NO, you did not imagine it:** `web/src/pages/chat.tsx` had regressed to the old two-column `lg:flex-row` + embedded Discovery aside (22rem) we had killed in 0.6.0. Restored single-column `max-w-4xl mx-auto` with `Examples` dropdown and removed the `DISCOVERY_PRESETS` + aside from Chat. `web/src/pages/discovery.tsx` standalone page was present but unwired — now wired.
+- **Discovery workflow page missing:** `web/src/App.tsx` lacked `import { DiscoveryPage }` + `Route /discovery` and `web/src/components/layout/app-layout.tsx` had no `Compass` + `DOMAIN_NAV /discovery` entry. Added — nav now `Repos · Stars · Commits · Inbox · Breakfast · Issues · PRs · **Discovery** · Chat · Lectures`.
+
 ## [0.6.1] — 2026-09-04
 
 ### Fixed

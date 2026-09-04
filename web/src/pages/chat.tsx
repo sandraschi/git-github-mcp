@@ -1,9 +1,6 @@
 import {
   Bot,
-  Check,
-  Compass,
-  Copy,
-  Download,
+    Download,
   Eraser,
   Loader2,
   Send,
@@ -13,7 +10,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { API_BASE, runDiscoveryWorkflow } from "@/lib/api";
+import { API_BASE } from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -38,12 +35,6 @@ interface LlmDiscovery {
   any_available: boolean;
   providers: LlmProvider[];
   ollama_models: string[];
-}
-
-interface DiscoveryPresetMeta {
-  id: string;
-  title: string;
-  blurb: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,34 +81,6 @@ const PERSONALITIES = [
     id: "custom",
     label: "Custom",
     prompt: "",
-  },
-];
-
-const DISCOVERY_PRESETS: DiscoveryPresetMeta[] = [
-  {
-    id: "org_snapshot",
-    title: "Org snapshot",
-    blurb: "Verify gh auth, then list repos for an owner.",
-  },
-  {
-    id: "topic_hunt",
-    title: "Topic hunt",
-    blurb: "Find repos by GitHub topic (tag); optional owner/text filter.",
-  },
-  {
-    id: "code_sweep",
-    title: "Code sweep",
-    blurb: "Scoped code search; needs owner + query and/or file extension.",
-  },
-  {
-    id: "repo_deep_dive",
-    title: "Repo deep-dive",
-    blurb: "Card, open issues, open PRs, then a Gitingest link.",
-  },
-  {
-    id: "global_search",
-    title: "Global search",
-    blurb: "GitHub repo search with full query syntax.",
   },
 ];
 
@@ -214,18 +177,6 @@ export function Chat() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Discovery panel state
-  const [discPreset, setDiscPreset] = useState("org_snapshot");
-  const [discOwner, setDiscOwner] = useState("");
-  const [discRepo, setDiscRepo] = useState("");
-  const [discQuery, setDiscQuery] = useState("");
-  const [discTopic, setDiscTopic] = useState("");
-  const [discExt, setDiscExt] = useState("");
-  const [discLimit, setDiscLimit] = useState("25");
-  const [discLoading, setDiscLoading] = useState(false);
-  const [discResult, setDiscResult] = useState<string | null>(null);
-  const [discCopied, setDiscCopied] = useState(false);
-  const discOpen = false;
 
   /* -- init ------------------------------------------------------ */
   useEffect(() => {
@@ -455,45 +406,7 @@ export function Chat() {
     URL.revokeObjectURL(url);
   };
 
-  /* -- discovery ------------------------------------------------- */
-  const runDiscovery = async () => {
-    let lim = parseInt(discLimit, 10);
-    if (Number.isNaN(lim)) lim = 25;
-    setDiscLoading(true);
-    setDiscCopied(false);
-    setDiscResult(null);
-    try {
-      const raw = await runDiscoveryWorkflow({
-        preset: discPreset,
-        owner: discOwner.trim() || undefined,
-        repo: discRepo.trim() || undefined,
-        query: discQuery.trim() || undefined,
-        topic: discTopic.trim() || undefined,
-        extension: discExt.trim() || undefined,
-        limit: lim,
-      });
-      setDiscResult(JSON.stringify(raw, null, 2));
-    } catch (e) {
-      setDiscResult(
-        JSON.stringify({ success: false, error: String(e) }, null, 2),
-      );
-    } finally {
-      setDiscLoading(false);
-    }
-  };
 
-  const copyDiscovery = async () => {
-    if (!discResult) return;
-    try {
-      await navigator.clipboard.writeText(discResult);
-      setDiscCopied(true);
-      setTimeout(() => setDiscCopied(false), 2000);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const presetMeta = DISCOVERY_PRESETS.find((p) => p.id === discPreset);
   const hasMessages = messages.length > 0;
 
   /* -- render ---------------------------------------------------- */
@@ -586,7 +499,7 @@ export function Chat() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+      <div className="flex flex-col gap-4 flex-1 min-h-0 max-w-4xl mx-auto w-full">
         {/* Message area */}
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
           <div
@@ -705,26 +618,28 @@ export function Chat() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Example prompts */}
-          <div
-            className="flex gap-1.5 flex-wrap mb-2"
-            data-testid="example-prompts"
-          >
-            {EXAMPLES.map((ex) => (
-              <button
-                type="button"
-                key={ex}
-                onClick={() => send(ex)}
-                className="mono text-xs px-2 py-1 rounded transition-colors hover:border-slate-600"
-                style={{
-                  background: "var(--bg-2)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-dim)",
-                }}
-              >
-                {ex}
-              </button>
-            ))}
+          {/* Example prompts - dropdown */}
+          <div className="flex items-center gap-2 mb-2">
+            <label className="text-xs text-muted-foreground">Examples:</label>
+            <select
+              data-testid="example-prompts"
+              className="flex-1 mono text-xs rounded px-2 py-1.5 outline-none"
+              style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-dim)" }}
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  send(e.target.value);
+                  e.target.value = "";
+                }
+              }}
+            >
+              <option value="">— pick an example —</option>
+              {EXAMPLES.map((ex) => (
+                <option key={ex} value={ex}>
+                  {ex}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Input */}
@@ -774,319 +689,6 @@ export function Chat() {
           </div>
         </div>
 
-        {/* Discovery panel */}
-        <aside
-          className={`flex-col shrink-0 w-full lg:w-[22rem] rounded p-3 gap-3 overflow-y-auto ${
-            discOpen ? "flex" : "hidden lg:flex"
-          }`}
-          style={{
-            background: "var(--bg-2)",
-            border: "1px solid var(--border)",
-            maxHeight: "min(70vh, 640px)",
-          }}
-        >
-          <div className="flex items-start gap-2">
-            <div
-              className="h-8 w-8 rounded flex items-center justify-center shrink-0"
-              style={{
-                background: "var(--bg-3)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <Compass size={16} style={{ color: "var(--cyan)" }} />
-            </div>
-            <div>
-              <h2
-                className="text-sm font-semibold"
-                style={{ color: "var(--text)" }}
-              >
-                Discovery workflow
-              </h2>
-              <p
-                className="text-[11px] leading-snug mt-0.5"
-                style={{ color: "var(--text-dim)" }}
-              >
-                Best: MCP{" "}
-                <span className="mono">git_github_search_workflow</span>{" "}
-                (LLM-planned). Here: fixed presets for web UI / without
-                sampling.
-              </p>
-            </div>
-          </div>
-          <label className="flex flex-col gap-1 mt-2">
-            <span
-              className="text-[10px] uppercase tracking-wide"
-              style={{ color: "var(--text-dim)" }}
-            >
-              Preset
-            </span>
-            <select
-              className="mono text-xs rounded px-2 py-1.5 outline-none"
-              style={{
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-              value={discPreset}
-              onChange={(e) => setDiscPreset(e.target.value)}
-              disabled={discLoading}
-            >
-              {DISCOVERY_PRESETS.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          {presetMeta && (
-            <p
-              className="text-[11px] leading-snug -mt-1"
-              style={{ color: "var(--text-muted)" }}
-            >
-              {presetMeta.blurb}
-            </p>
-          )}
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            {(discPreset === "org_snapshot" ||
-              discPreset === "topic_hunt" ||
-              discPreset === "code_sweep" ||
-              discPreset === "repo_deep_dive") && (
-              <label className="flex flex-col gap-0.5 col-span-2">
-                <span
-                  className="text-[10px] mono"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  owner
-                </span>
-                <input
-                  className="mono text-xs rounded px-2 py-1 outline-none"
-                  style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    color: "var(--cyan)",
-                  }}
-                  value={discOwner}
-                  onChange={(e) => setDiscOwner(e.target.value)}
-                  placeholder="user or org"
-                  disabled={discLoading}
-                />
-              </label>
-            )}
-            {discPreset === "repo_deep_dive" && (
-              <label className="flex flex-col gap-0.5 col-span-2">
-                <span
-                  className="text-[10px] mono"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  repo
-                </span>
-                <input
-                  className="mono text-xs rounded px-2 py-1 outline-none"
-                  style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    color: "var(--cyan)",
-                  }}
-                  value={discRepo}
-                  onChange={(e) => setDiscRepo(e.target.value)}
-                  placeholder="name"
-                  disabled={discLoading}
-                />
-              </label>
-            )}
-            {discPreset === "topic_hunt" && (
-              <>
-                <label className="flex flex-col gap-0.5 col-span-2">
-                  <span
-                    className="text-[10px] mono"
-                    style={{ color: "var(--text-dim)" }}
-                  >
-                    topic
-                  </span>
-                  <input
-                    className="mono text-xs rounded px-2 py-1 outline-none"
-                    style={{
-                      background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      color: "var(--cyan)",
-                    }}
-                    value={discTopic}
-                    onChange={(e) => setDiscTopic(e.target.value)}
-                    placeholder="e.g. mcp"
-                    disabled={discLoading}
-                  />
-                </label>
-                <label className="flex flex-col gap-0.5 col-span-2">
-                  <span
-                    className="text-[10px] mono"
-                    style={{ color: "var(--text-dim)" }}
-                  >
-                    query (optional)
-                  </span>
-                  <input
-                    className="mono text-xs rounded px-2 py-1 outline-none"
-                    style={{
-                      background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      color: "var(--cyan)",
-                    }}
-                    value={discQuery}
-                    onChange={(e) => setDiscQuery(e.target.value)}
-                    placeholder="extra search text"
-                    disabled={discLoading}
-                  />
-                </label>
-              </>
-            )}
-            {discPreset === "code_sweep" && (
-              <>
-                <label className="flex flex-col gap-0.5 col-span-2">
-                  <span
-                    className="text-[10px] mono"
-                    style={{ color: "var(--text-dim)" }}
-                  >
-                    query
-                  </span>
-                  <input
-                    className="mono text-xs rounded px-2 py-1 outline-none"
-                    style={{
-                      background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      color: "var(--cyan)",
-                    }}
-                    value={discQuery}
-                    onChange={(e) => setDiscQuery(e.target.value)}
-                    placeholder="code needle (optional)"
-                    disabled={discLoading}
-                  />
-                </label>
-                <label className="flex flex-col gap-0.5 col-span-2">
-                  <span
-                    className="text-[10px] mono"
-                    style={{ color: "var(--text-dim)" }}
-                  >
-                    extension
-                  </span>
-                  <input
-                    className="mono text-xs rounded px-2 py-1 outline-none"
-                    style={{
-                      background: "var(--bg)",
-                      border: "1px solid var(--border)",
-                      color: "var(--cyan)",
-                    }}
-                    value={discExt}
-                    onChange={(e) => setDiscExt(e.target.value)}
-                    placeholder="e.g. bak"
-                    disabled={discLoading}
-                  />
-                </label>
-              </>
-            )}
-            {discPreset === "global_search" && (
-              <label className="flex flex-col gap-0.5 col-span-2">
-                <span
-                  className="text-[10px] mono"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  query
-                </span>
-                <input
-                  className="mono text-xs rounded px-2 py-1 outline-none"
-                  style={{
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
-                    color: "var(--cyan)",
-                  }}
-                  value={discQuery}
-                  onChange={(e) => setDiscQuery(e.target.value)}
-                  placeholder="mcp language:python"
-                  disabled={discLoading}
-                />
-              </label>
-            )}
-            <label className="flex flex-col gap-0.5 col-span-2">
-              <span
-                className="text-[10px] mono"
-                style={{ color: "var(--text-dim)" }}
-              >
-                limit
-              </span>
-              <input
-                type="number"
-                min={1}
-                max={100}
-                className="mono text-xs rounded px-2 py-1 outline-none w-full"
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                }}
-                value={discLimit}
-                onChange={(e) => setDiscLimit(e.target.value)}
-                disabled={discLoading}
-              />
-            </label>
-          </div>
-          <button
-            type="button"
-            onClick={runDiscovery}
-            disabled={discLoading}
-            className="mono text-xs font-medium py-2 rounded transition-opacity mt-2"
-            style={{
-              background: "rgba(34,197,94,0.15)",
-              border: "1px solid rgba(34,197,94,0.35)",
-              color: "var(--green)",
-              opacity: discLoading ? 0.6 : 1,
-            }}
-          >
-            {discLoading ? (
-              <span className="inline-flex items-center justify-center gap-2">
-                <Loader2 size={14} className="animate-spin" /> Running...
-              </span>
-            ) : (
-              "Run discovery workflow"
-            )}
-          </button>
-          {discResult && (
-            <div className="flex flex-col gap-1 flex-1 min-h-0 mt-2">
-              <div className="flex items-center justify-between">
-                <span
-                  className="text-[10px] uppercase tracking-wide"
-                  style={{ color: "var(--text-dim)" }}
-                >
-                  Result
-                </span>
-                <button
-                  type="button"
-                  onClick={copyDiscovery}
-                  className="flex items-center gap-1 mono text-[10px] px-1.5 py-0.5 rounded"
-                  style={{
-                    border: "1px solid var(--border)",
-                    color: "var(--text-muted)",
-                  }}
-                >
-                  {discCopied ? (
-                    <Check size={12} style={{ color: "var(--green)" }} />
-                  ) : (
-                    <Copy size={12} />
-                  )}
-                  {discCopied ? "Copied" : "Copy JSON"}
-                </button>
-              </div>
-              <pre
-                className="mono text-[10px] leading-relaxed rounded p-2 flex-1 overflow-auto whitespace-pre-wrap break-all"
-                style={{
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text)",
-                  maxHeight: 220,
-                }}
-              >
-                {discResult}
-              </pre>
-            </div>
-          )}
-        </aside>
       </div>
     </div>
   );
