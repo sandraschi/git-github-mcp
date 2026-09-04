@@ -1,4 +1,20 @@
 
+## [0.6.0] — 2026-09-04
+
+### Added
+- `github_ops` 58→61: `stars_summary`, `stars_per_repo`, `stars_history` (bucket trajectory via `starred_at` header, 591 received vs 183 given fix)
+- Web `/stars` page: KPIs, distribution, per-repo lookup, leaderboard + amber/sky SVG trajectory
+- Web `/ci` now shows success **and** failed stats: 5 tiles (Success/Failed/Cancelled/In progress/Total) + success rate, `Failed only` filter, help text for fixing broken CI (emails stop when green)
+- Web `/apps` health-first: card/list toggle, sort (port/name/recent), category filter, Tauri badge, GH link, enriched pyproject descriptions
+- Web `/chat` single-column, dropdown examples; `/discovery` with 5 presets; `/breakfast` beforeunload + depot; `/help` expanded
+- Dashboard densified: 6 KPIs, stars glance, quick actions; layout fixes (w-56 sidebar, min-h-screen, scrollbar)
+- Fleet collision warnings: Tauri `native/src/backend.rs` health reuse + `Invoke-FleetWebappStart.ps1` / `FleetStartMode.ps1` R7 warnings
+
+### Fixed
+- `native/src/backend.rs` `BACKEND_PORT 10702→10713`, `is_port_in_use` / `is_backend_healthy`, Tauri reuses healthy dev backend with dialog
+- `web/src/index.css` dark theme bg + scrollbar visibility, removed light-mode invert
+- `start.ps1` instacrash when `git-github-mcp.exe` holds 10713 — now warns + taskkill guidance
+
 ## [Unreleased] — 2026-07-29
 
 ### Fixed

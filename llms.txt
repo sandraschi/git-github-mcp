@@ -3,8 +3,8 @@
 > FastMCP 3.2+ hardened substrate for Git and GitHub operations. Uses `gh` CLI for GitHub; v1.20 non-interactive safety enforced. High-fidelity telemetry for commits, PRs, issues, and repo management.
 
 ## Architecture
-- **Backend (Port 10702)**: Python/FastAPI wrapper for Git/GitHub CLI.
-- **Frontend (Port 10703)**: Vite-based dashboard for fleet telemetry and industrial triage.
+- **Backend (Port 10713)**: Python/FastAPI wrapper for Git/GitHub CLI.
+- **Frontend (Port 10714)**: Vite-based dashboard for fleet telemetry, stars trajectory, and CI success+failed stats.
 - **Discovery**: Automatic `gh.exe` detection across standard Windows paths.
 
 ## Maintainer fleet triage

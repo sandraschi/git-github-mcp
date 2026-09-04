@@ -19,6 +19,7 @@ import { LogsPage } from "@/pages/logs";
 import { PullRequests } from "@/pages/pull-requests";
 import { Repositories } from "@/pages/repos";
 import { Settings } from "@/pages/settings";
+import { StarsPage } from "@/pages/stars";
 import { ToolsPage } from "@/pages/tools";
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
           <Route path="/apps" element={<AppsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/repos" element={<Repositories />} />
+          <Route path="/stars" element={<StarsPage />} />
           <Route path="/commits" element={<Commits />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/breakfast" element={<BreakfastPage />} />

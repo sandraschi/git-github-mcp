@@ -78,6 +78,10 @@ ACTION_TYPE = (
     "search_repos_by_topic",
     "user_repos_full",
     "code_find_repos",
+    # Stars analytics (received)
+    "stars_summary",
+    "stars_per_repo",
+    "stars_history",
     # Repo display
     "show_repo",
     # GitHub Projects (classic / Projects v2 via gh project)
@@ -212,7 +216,7 @@ def github_ops(
     subpath: str | None = None,
     github_url: str | None = None,
 ) -> dict[str, Any]:
-    """GitHub operations via gh CLI — 58 actions.
+    """GitHub operations via gh CLI — 61 actions.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
                    repo_delete, repo_rename, repo_archive
@@ -227,6 +231,7 @@ def github_ops(
     SEARCH:        search_repos, search_repos_topic, search_repos_by_topic, search_issues,
                    search_code (pretty=), code_find_repos
     FLEET AUDIT:   user_repos_full
+    STARS:         stars_summary, stars_per_repo, stars_history
     PROJECTS:      project_list, project_view, project_create, project_delete, project_edit
     PACKAGES:      package_list, package_view, package_delete
     GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
@@ -297,6 +302,323 @@ def github_ops(
             {"repos": all_repos, "count": len(all_repos), "owner": owner, "visibility": visibility or "all"},
             message=f"All {len(all_repos)} repos for {owner} — full metadata",
             next_steps=[f"github_ops(operation='search_repos_by_topic', topic='mcp', owner='{owner}')"],
+        )
+
+    # ── Stars analytics (received) ────────────────────────────────────────────
+    if operation == "stars_summary":
+        target_owner = owner
+        if not target_owner:
+            ok_u, out_u, _ = run_gh(["api", "user", "--jq", ".login"])
+            if ok_u and out_u.strip():
+                target_owner = out_u.strip().strip('"')
+            else:
+                return _err("stars_summary", "owner required (or run gh auth login to infer)")
+        per_page = 100
+        page = 1
+        all_repos: list[dict] = []
+        while True:
+            path = f"users/{target_owner}/repos?per_page={per_page}&page={page}&sort=updated&direction=desc"
+            # visibility filter for stars_summary mirrors user_repos_full type param
+            if visibility:
+                path += f"&type={visibility}"
+            ok, out, err = run_gh(["api", path], timeout=60)
+            if not ok:
+                # unauthenticated fallback via REST paginate error - try repo list as fallback
+                if "401" in (err or "") or "Requires authentication" in (err or ""):
+                    ok2, out2, err2 = run_gh(
+                        [
+                            "repo",
+                            "list",
+                            target_owner,
+                            "--limit",
+                            "1000",
+                            "--json",
+                            "name,description,isPrivate,stargazerCount,forkCount,updatedAt,url",
+                        ],
+                        timeout=60,
+                    )
+                    if ok2:
+                        data2 = _j(out2)
+                        if isinstance(data2, list):
+                            # normalize to REST shape stargazers_count
+                            for r in data2:
+                                if "stargazerCount" in r and "stargazers_count" not in r:
+                                    r["stargazers_count"] = r.pop("stargazerCount")
+                                if "forkCount" in r and "forks_count" not in r:
+                                    r["forks_count"] = r.pop("forkCount")
+                            all_repos = data2
+                            break
+                    return _err(
+                        "stars_summary", err or err2 or "API call failed — gh auth login required for full list"
+                    )
+                return _err("stars_summary", err or "API call failed")
+            data = _j(out)
+            if not isinstance(data, list):
+                break
+            all_repos.extend(data)
+            if len(data) < per_page:
+                break
+            page += 1
+            if page > 10:  # safety cap 1000 repos
+                break
+
+        # compute aggregates
+        def _stars(r: dict) -> int:
+            return int(r.get("stargazers_count", r.get("stargazerCount", 0)) or 0)
+
+        def _forks(r: dict) -> int:
+            return int(r.get("forks_count", r.get("forkCount", 0)) or 0)
+
+        total_stars = sum(_stars(r) for r in all_repos)
+        total_forks = sum(_forks(r) for r in all_repos)
+        total_repos = len(all_repos)
+        avg_stars = round(total_stars / total_repos, 2) if total_repos else 0
+        sorted_repos = sorted(all_repos, key=_stars, reverse=True)
+        # median
+        stars_sorted = sorted(_stars(r) for r in all_repos)
+        median_stars = 0
+        if stars_sorted:
+            mid = len(stars_sorted) // 2
+            if len(stars_sorted) % 2 == 0:
+                median_stars = (stars_sorted[mid - 1] + stars_sorted[mid]) / 2
+            else:
+                median_stars = float(stars_sorted[mid])
+        zero = sum(1 for r in all_repos if _stars(r) == 0)
+        # distribution buckets
+        buckets = {"0": 0, "1-4": 0, "5-19": 0, "20-49": 0, "50-99": 0, "100+": 0}
+        for r in all_repos:
+            s = _stars(r)
+            if s == 0:
+                buckets["0"] += 1
+            elif 1 <= s <= 4:
+                buckets["1-4"] += 1
+            elif 5 <= s <= 19:
+                buckets["5-19"] += 1
+            elif 20 <= s <= 49:
+                buckets["20-49"] += 1
+            elif 50 <= s <= 99:
+                buckets["50-99"] += 1
+            else:
+                buckets["100+"] += 1
+        top_n = max(1, min(int(limit) if limit else 30, 100))
+        top_repos = []
+        for r in sorted_repos[:top_n]:
+            top_repos.append(
+                {
+                    "name": r.get("name"),
+                    "description": r.get("description"),
+                    "isPrivate": r.get("private", r.get("isPrivate", False)),
+                    "stargazerCount": _stars(r),
+                    "forkCount": _forks(r),
+                    "updatedAt": r.get("updated_at", r.get("updatedAt")),
+                    "pushedAt": r.get("pushed_at", r.get("pushedAt")),
+                    "url": r.get("html_url", r.get("url")),
+                    "language": r.get("language"),
+                }
+            )
+        return _ok(
+            "stars_summary",
+            {
+                "owner": target_owner,
+                "total_repos": total_repos,
+                "total_stars": total_stars,
+                "total_forks": total_forks,
+                "avg_stars": avg_stars,
+                "median_stars": median_stars,
+                "zero_star_repos": zero,
+                "distribution": buckets,
+                "top_repos": top_repos,
+                "visibility": visibility or "all",
+                "fetched_at": __import__("datetime").datetime.now(__import__("datetime").UTC).isoformat()
+                if hasattr(__import__("datetime").datetime, "UTC")
+                else __import__("datetime").datetime.utcnow().isoformat() + "Z",
+            },
+            message=f"Total {total_stars} stars across {total_repos} repos for {target_owner} (avg {avg_stars}, median {median_stars})",
+            next_steps=["github_ops(operation='stars_per_repo', owner='...', repo='...')"],
+        )
+
+    if operation == "stars_per_repo":
+        if not slug:
+            return _err("stars_per_repo", "owner and repo required")
+        ok, out, err = run_gh(
+            [
+                "api",
+                f"repos/{slug}",
+                "--jq",
+                "{name:.name, description:.description, isPrivate:.private, stargazerCount:.stargazers_count, forkCount:.forks_count, watchers:.watchers_count, openIssues:.open_issues_count, updatedAt:.updated_at, pushedAt:.pushed_at, language:.language, url:.html_url, private:.private}",
+            ],
+            timeout=30,
+        )
+        if not ok:
+            # fallback to repo view
+            ok2, out2, err2 = run_gh(
+                ["repo", "view", slug, "--json", "name,description,isPrivate,stargazerCount,forkCount,updatedAt,url"],
+                timeout=30,
+            )
+            if not ok2:
+                return _err("stars_per_repo", err or err2 or "repo view failed")
+            data2 = _j(out2)
+            if isinstance(data2, dict):
+                data2 = {
+                    **data2,
+                    "stargazerCount": data2.get("stargazerCount", 0),
+                    "forkCount": data2.get("forkCount", 0),
+                }
+                return _ok(
+                    "stars_per_repo",
+                    {"repository": slug, **data2},
+                    message=f"{slug} has {data2.get('stargazerCount', 0)} stars",
+                )
+            return _err("stars_per_repo", "unexpected gh output")
+        data = _j(out)
+        if isinstance(data, dict):
+            return _ok(
+                "stars_per_repo",
+                {"repository": slug, **data},
+                message=f"{slug} has {data.get('stargazerCount', 0)} stars",
+            )
+        # out was raw jq string - parse
+        try:
+            data = json.loads(out) if out.strip().startswith("{") else {}
+        except Exception:
+            data = {}
+        return _ok("stars_per_repo", {"repository": slug, **data})
+
+    if operation == "stars_history":
+        # trajectory: bucketed cumulative stars over time
+        # params: owner, repo (optional), limit (top N repos if owner only), bucket (month/week)
+        target_owner = owner
+        if not target_owner:
+            ok_u, out_u, _ = run_gh(["api", "user", "--jq", ".login"])
+            if ok_u and out_u.strip():
+                target_owner = out_u.strip().strip('"')
+            else:
+                return _err("stars_history", "owner required (or gh auth login)")
+        # bucket param via label field to avoid adding new param: allow bucket in query
+        # prefer explicit: use query as bucket if provided
+        bucket_mode = (query or "month").lower() if query else "month"
+        if bucket_mode not in ("day", "week", "month"):
+            bucket_mode = "month"
+        repos_to_scan: list[str] = []
+        if repo:
+            if not target_owner:
+                return _err("stars_history", "owner required with repo")
+            repos_to_scan = [f"{target_owner}/{repo}"]
+        else:
+            # need top repos to scan - reuse stars_summary logic fast path: gh repo list
+            ok_l, out_l, _ = run_gh(
+                ["repo", "list", target_owner, "--limit", str(min(int(limit) if limit else 30, 80)), "--json", "name"],
+                timeout=60,
+            )
+            if ok_l:
+                data_l = _j(out_l)
+                if isinstance(data_l, list):
+                    repos_to_scan = [f"{target_owner}/{r.get('name')}" for r in data_l if r.get("name")]
+            if not repos_to_scan:
+                # fallback: try single repo list via API pagination
+                ok_l2, out_l2, _ = run_gh(["api", f"users/{target_owner}/repos?per_page=30&sort=updated"], timeout=60)
+                if ok_l2:
+                    data_l2 = _j(out_l2)
+                    if isinstance(data_l2, list):
+                        repos_to_scan = [f"{target_owner}/{r.get('name')}" for r in data_l2[:20] if r.get("name")]
+        if not repos_to_scan:
+            return _err("stars_history", "no repos found to scan")
+        # fetch stargazers for each repo
+        from datetime import datetime
+
+        def _bucket_key(dt: datetime, mode: str) -> str:
+            if mode == "day":
+                return dt.strftime("%Y-%m-%d")
+            if mode == "week":
+                # ISO week
+                y, w, _ = dt.isocalendar()
+                return f"{y}-W{w:02d}"
+            return dt.strftime("%Y-%m")
+
+        all_dates: list[datetime] = []
+        per_repo_points: dict[str, list[str]] = {}
+        failed: list[str] = []
+        for slug_scan in repos_to_scan:
+            ok_s, out_s, _err_s = run_gh(
+                ["api", f"repos/{slug_scan}/stargazers?per_page=100", "--paginate", "--jq", ".[].starred_at // empty"],
+                timeout=90,
+            )
+            if not ok_s:
+                # 401 -> need auth for starred_at (requires star+json media)
+                # try with header via gh api -H
+                ok_s2, out_s2, _ = run_gh(
+                    [
+                        "api",
+                        f"repos/{slug_scan}/stargazers",
+                        "-H",
+                        "Accept: application/vnd.github.star+json",
+                        "--paginate",
+                        "--jq",
+                        ".[].starred_at // .[].starred_at // empty",
+                    ],
+                    timeout=90,
+                )
+                if not ok_s2:
+                    # fallback: no history, just use current count at today
+                    failed.append(slug_scan)
+                    continue
+                out_s = out_s2
+            dates_raw = [d.strip().strip('"') for d in out_s.splitlines() if d.strip()]
+            per_repo_points[slug_scan] = dates_raw
+            for ds in dates_raw:
+                try:
+                    # GitHub returns ISO8601 like 2026-09-03T17:50:03Z
+                    dt = datetime.fromisoformat(ds.replace("Z", "+00:00"))
+                    all_dates.append(dt)
+                except Exception:
+                    continue
+        if not all_dates and failed:
+            return _ok(
+                "stars_history",
+                {
+                    "owner": target_owner,
+                    "repo": repo or None,
+                    "bucket": bucket_mode,
+                    "points": [],
+                    "per_repo": per_repo_points,
+                    "note": "stargazers history requires gh auth (star+json). Run gh auth login with repo scope or add --jq starred_at fallback. Showing empty until authed.",
+                    "failed_repos": failed,
+                },
+                message="No stargazer timestamps available without auth; run gh auth login",
+            )
+        # bucket counts
+        from collections import Counter
+
+        bucket_counts: Counter = Counter()
+        for dt in all_dates:
+            bucket_counts[_bucket_key(dt, bucket_mode)] += 1
+        # sort buckets chronologically
+        sorted_keys = sorted(bucket_counts.keys())
+        # cumulative
+        cumulative = 0
+        points: list[dict] = []
+        for k in sorted_keys:
+            cumulative += bucket_counts[k]
+            points.append({"bucket": k, "new": bucket_counts[k], "cumulative": cumulative})
+        # also build monthly total across all repos if trajectory for owner
+        payload: dict = {
+            "owner": target_owner,
+            "repo": repo or None,
+            "bucket": bucket_mode,
+            "points": points,
+            "per_repo": {k: len(v) for k, v in per_repo_points.items()},
+            "total_events": len(all_dates),
+            "failed_repos": failed,
+            "repos_scanned": len(repos_to_scan),
+        }
+        if not points:
+            payload["note"] = (
+                "No stargazer timestamps — gh auth required (Accept: star+json). Run gh auth login then retry for history."
+            )
+        return _ok(
+            "stars_history",
+            payload,
+            message=f"Star trajectory for {repo or target_owner}: {len(all_dates)} events across {len(repos_to_scan)} repos ({bucket_mode})",
         )
 
     if operation == "repo_view":

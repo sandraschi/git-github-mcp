@@ -76,24 +76,36 @@
 html,
 body,
 #root {
-  height: 100%;
-  background: var(--bg);
-  color: var(--text);
+  min-height: 100%;
+  height: auto;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
   font-family: var(--font-ui);
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar */
+/* Scrollbar - visible, not hidden */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-2);
+  background: hsl(var(--muted) / 0.3);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-2);
-  border-radius: 2px;
+  background: hsl(var(--border));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
 /* Monospace anywhere */
@@ -169,32 +181,4 @@ body,
 }
 .fade-up {
   animation: fade-up 0.3s ease forwards;
-}
-
-/* EXPERIMENTAL light mode (invert hack) — NOT fleet standard, reversible.
-   Toggling `.dark` off `<html>` inverts the whole UI. Remove this block to
-   revert to permanently-dark (chat_skills_prefab_standard.md §7.1). */
-html:not(.dark) {
-  filter: invert(1) hue-rotate(180deg);
-  background: #f4f4f5;
-}
-html:not(.dark) img,
-html:not(.dark) video,
-html:not(.dark) canvas,
-html:not(.dark) iframe {
-  filter: invert(1) hue-rotate(180deg);
-}
-
-/* EXPERIMENTAL light mode (invert hack) - NOT fleet standard, reversible.
-   Toggling .dark off <html> inverts the whole UI. Remove this block to
-   revert to permanently-dark. */
-html:not(.dark) {
-  filter: invert(1) hue-rotate(180deg);
-  background: #f4f4f5;
-}
-html:not(.dark) img,
-html:not(.dark) video,
-html:not(.dark) canvas,
-html:not(.dark) iframe {
-  filter: invert(1) hue-rotate(180deg);
 }

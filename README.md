@@ -61,7 +61,7 @@ If you don't have `just` installed:
 | BISECT | start, bad, good, reset |
 | WORKTREE | add, list, remove |
 
-### GitHub Operations (58 actions)
+### GitHub Operations (61 actions)
 
 | Group | Operations |
 |-------|-----------|
@@ -75,8 +75,25 @@ If you don't have `just` installed:
 | SECRETS | list, set, delete |
 | ORGS | list, view |
 | USERS | user_view |
+| STARS | stars_summary, stars_per_repo, stars_history (trajectory) |
 | SEARCH | repos, issues, prs, code, users |
 | AUTH | status, login, logout |
+
+### Web App Pages (Vite 10714 + FastAPI 10713)
+
+| Page | Route | What it does |
+|------|-------|--------------|
+| Dashboard | `/` | Repo counts, branch/pending/commits, stars glance, quick actions — shareable fleet entry point |
+| Stars | `/stars` | Received stars (not `?tab=stars` given), per-repo leaderboards, amber/sky trajectory, bucket history |
+| CI Monitor | `/ci` | Success + failed stats (5 tiles, success rate), last 20 runs, `Failed only` filter, log tail, `Rerun failed` / `Trigger ci.yml`, AI Diagnose |
+| Apps | `/apps` | Fleet webapp catalog — health dots, card/list, sort, filter, Bring to front / Start |
+| Inbox / PRs / Issues / Repos | `/inbox` etc | Stale highlights, fleet discovery, single-repo views |
+| Chat | `/chat` | Single-column git/github shortcut shell, dropdown examples |
+| Discovery | `/discovery` | 5 presets: org snapshot, topic hunt, code sweep, repo deep-dive, global search |
+| Breakfast | `/breakfast` | Full maintainer suite — beforeunload warning, depot persistence |
+| Help | `/help` | Lectures + webapp page guide |
+
+CI fix loop: red tile → open run → log tail → `just ci` locally → push → `Trigger ci.yml` / `Rerun failed` on `/ci` — emails stop when bar goes green.
 
 ---
 

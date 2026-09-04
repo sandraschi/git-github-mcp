@@ -618,13 +618,43 @@ export function HelpPage() {
             </p>
           </Lecture>
 
-          <Lecture title="CI and Actions">
+          <Lecture title="CI and Actions — success and failed together">
             <p>
-              <Code>workflow_runs</Code> pulls recent runs; fleet{" "}
-              <Code>ci_pulse</Code> filters failures in the last 48h across the
-              fleet. When a workflow breaks, the{" "}
-              <Code>github_debug_workflow</Code> prompt is meant to be fed the
-              error log slice.
+              <Code>workflow_runs</Code> pulls the last 20 runs per repo; fleet{" "}
+              <Code>ci_pulse</Code> scans the whole fleet. The web{" "}
+              <Link to="/ci" className="text-sky-400 hover:underline">
+                CI Monitor
+              </Link>{" "}
+              now shows <strong>success and failed side by side</strong>: 5
+              tiles (Success/Failed/Cancelled/In progress/Total) plus success
+              rate, <Code>Failed only</Code> toggle, log tail, and buttons to{" "}
+              <Code>Trigger ci.yml</Code> or <Code>Rerun failed</Code>.
+            </p>
+            <p>
+              Fix loop: red tile → open run → read log tail →{" "}
+              <Code>just ci</Code> locally (ruff/pytest/tsc) → push → trigger
+              here. GitHub notification emails stop when the bar goes green.
+            </p>
+            <TryThis>
+              <p>
+                When a workflow breaks, feed its error slice to{" "}
+                <Code>github_debug_workflow</Code> or click{" "}
+                <Code>AI Diagnose</Code> on the CI page.
+              </p>
+            </TryThis>
+          </Lecture>
+
+          <Lecture title="Stars — received vs given">
+            <p>
+              <Code>stars_summary</Code> sums{" "}
+              <Code>stargazers_count</Code> across your public repos (received
+              stars). GitHub profile <Code>?tab=stars</Code> is <em>given</em> —
+              different number. <Code>stars_history</Code> buckets{" "}
+              <Code>starred_at</Code> for the amber/sky trajectory on{" "}
+              <Link to="/stars" className="text-sky-400 hover:underline">
+                Stars
+              </Link>
+              .
             </p>
           </Lecture>
 
@@ -831,12 +861,50 @@ export function HelpPage() {
               </li>
               <li>
                 <Link
+                  to="/dashboard"
+                  className="text-sky-400 hover:underline font-medium"
+                >
+                  Dashboard
+                </Link>{" "}
+                — hero + 6 KPIs, stars glance, quick actions
+              </li>
+              <li>
+                <Link
+                  to="/stars"
+                  className="text-sky-400 hover:underline font-medium"
+                >
+                  Stars
+                </Link>{" "}
+                — received stars, leaderboard, trajectory
+              </li>
+              <li>
+                <Link
+                  to="/ci"
+                  className="text-sky-400 hover:underline font-medium"
+                >
+                  CI Monitor
+                </Link>{" "}
+                — success + failed stats, last 20 runs, rerun/trigger, AI
+                diagnose (how to fix broken CI)
+              </li>
+              <li>
+                <Link
+                  to="/discovery"
+                  className="text-sky-400 hover:underline font-medium"
+                >
+                  Discovery
+                </Link>{" "}
+                — 5 presets: org snapshot, topic hunt, code sweep, repo deep
+                dive, global search
+              </li>
+              <li>
+                <Link
                   to="/chat"
                   className="text-sky-400 hover:underline font-medium"
                 >
                   Chat
                 </Link>{" "}
-                — quick command shell for git/github shortcuts
+                — single-column shortcut shell, dropdown examples
               </li>
             </ul>
           </Lecture>

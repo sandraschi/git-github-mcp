@@ -81,6 +81,7 @@ export function CiPage() {
   const [diagnosing, setDiagnosing] = useState(false);
   const [error, setError] = useState("");
   const [triggered, setTriggered] = useState(false);
+  const [showFailedOnly, setShowFailedOnly] = useState(false);
 
   const activeRepo = customRepo.trim() || repo;
 
@@ -280,6 +281,33 @@ export function CiPage() {
         )}
       </div>
 
+      {/* Stats — success + failed together */}
+      {runs.length > 0 && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {[
+              { label: "Success", value: runs.filter((r) => r.conclusion === "success").length, color: "text-green-400", bg: "bg-green-900/20 border-green-800" },
+              { label: "Failed", value: runs.filter((r) => r.conclusion === "failure").length, color: "text-red-400", bg: "bg-red-900/20 border-red-800" },
+              { label: "Cancelled", value: runs.filter((r) => r.conclusion === "cancelled").length, color: "text-zinc-400", bg: "bg-zinc-800 border-zinc-700" },
+              { label: "In progress", value: runs.filter((r) => r.status === "in_progress" || r.status === "queued").length, color: "text-blue-400", bg: "bg-blue-900/20 border-blue-800" },
+              { label: "Total", value: runs.length, color: "text-zinc-200", bg: "bg-surface-light border-surface-border" },
+            ].map((s) => (
+              <div key={s.label} className={`rounded-lg border p-3 text-center ${s.bg}`}>
+                <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="font-mono">
+              Success rate: {runs.length ? Math.round((runs.filter((r) => r.conclusion === "success").length / runs.length) * 100) : 0}% ({runs.filter((r) => r.conclusion === "success").length}/{runs.length})
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-muted-foreground">Last 20 runs — how to fix: red → open run → log tail → `just ci` locally → push → `Trigger ci.yml` / `Rerun failed` here. GH emails stop when bar goes green.</span>
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 bg-red-900/30 border border-red-800 rounded-lg text-sm text-red-400">
           {error}
@@ -289,9 +317,21 @@ export function CiPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {/* Runs list */}
         <section className="bg-surface-light border border-surface-border rounded-xl p-4">
-          <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-            Recent runs — {activeRepo}
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-zinc-400 uppercase tracking-wider">
+              Recent runs — {activeRepo}
+            </h2>
+            <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showFailedOnly}
+                onChange={(e) => setShowFailedOnly(e.target.checked)}
+                className="accent-red-500"
+                data-testid="ci-filter-failed"
+              />
+              Failed only
+            </label>
+          </div>
           {loading && runs.length === 0 ? (
             <div className="flex justify-center py-8 text-zinc-500">
               <Loader2 className="w-6 h-6 animate-spin" />
@@ -300,7 +340,7 @@ export function CiPage() {
             <p className="text-sm text-zinc-600">No runs found.</p>
           ) : (
             <div className="space-y-2 max-h-[560px] overflow-auto pr-1">
-              {runs.map((r) => (
+              {(showFailedOnly ? runs.filter((r) => r.conclusion === "failure") : runs).map((r) => (
                 <button
                   key={r.databaseId}
                   type="button"

@@ -31,7 +31,7 @@ a = Analysis(
     noarchive=True,
 )
 # Strip .dist-info but preserve metadata for packages that need it at runtime
-_keep_dist = ['fastmcp-', 'mcp-', 'prefab_ui-', 'opentelemetry-', 'email_validator-']
+_keep_dist = ['fastmcp-', 'mcp-', 'prefab_ui-', 'opentelemetry_', 'email_validator-']
 _saved = [
     e
     for e in a.datas

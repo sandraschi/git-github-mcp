@@ -26,6 +26,7 @@ import {
 
 const FLEET_KEY = "git-github-mcp-inbox-fleet";
 const LAST_SUITE_KEY = "git-github-mcp-breakfast-suite";
+const DEPOT_KEY = "git-github-mcp-breakfast-depot";
 
 type RunnerStatus = "idle" | "running" | "done" | "error";
 
@@ -221,6 +222,33 @@ function loadCachedSuite(): SuiteResult | null {
   }
 }
 
+function loadDepot(): SuiteResult[] {
+  try {
+    const raw = localStorage.getItem(DEPOT_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as SuiteResult[];
+    return Array.isArray(arr) ? arr.slice(0, 20) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveToDepot(suite: SuiteResult) {
+  try {
+    const depot = loadDepot();
+    depot.unshift(suite);
+    localStorage.setItem(DEPOT_KEY, JSON.stringify(depot.slice(0, 20)));
+    // also try backend depot (best effort)
+    fetch("/api/breakfast/depot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(suite),
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
 export function BreakfastPage() {
   const [fleetText, setFleetText] = useState(() => {
     try {
@@ -306,6 +334,7 @@ export function BreakfastPage() {
         } catch {
           /* ignore */
         }
+        saveToDepot(result);
       }
     } catch (e) {
       setError(String(e));
@@ -328,6 +357,17 @@ export function BreakfastPage() {
       /* ignore */
     }
   }, [fleetText]);
+
+  useEffect(() => {
+    if (status !== "running") return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Breakfast suite is still running — leaving will discard progress.";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [status]);
 
   const notifications = useMemo(
     () => (data?.notifications ?? []).filter((n) => !n.error),

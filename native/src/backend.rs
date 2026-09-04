@@ -1,5 +1,6 @@
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
+use std::net::{TcpStream, ToSocketAddrs};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
@@ -11,8 +12,8 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub struct BackendProcess(pub Mutex<Option<Child>>);
 
-const BACKEND_NAME: &str = "git-github-mcp-backend.exe";
-const BACKEND_PORT: u16 = 10702;
+const BACKEND_PORT: u16 = 10713;
+const FRONTEND_PORT: u16 = 10714;
 
 fn dev_backend_path() -> Option<PathBuf> {
     if !cfg!(debug_assertions) {
@@ -69,6 +70,8 @@ fn resolve_bundled_backend(app: &AppHandle) -> Result<PathBuf, String> {
     ))
 }
 
+const BACKEND_NAME: &str = "git-github-mcp-backend.exe";
+
 fn install_dir_from_backend(path: &PathBuf) -> PathBuf {
     if let Some(parent) = path.parent() {
         if parent
@@ -95,10 +98,62 @@ pub fn materialize_backend(app: &AppHandle) -> Result<PathBuf, String> {
         app,
         &format!("using bundled backend: {}", bundled.display()),
     );
-    Ok(bundled)
+    // Strip Windows extended-length prefix
+    let s = bundled.to_string_lossy().to_string();
+    let clean = s.strip_prefix("\\\\?\\").map(PathBuf::from).unwrap_or(bundled.clone());
+    Ok(clean)
 }
 
-fn free_port(port: u16) {
+fn is_port_in_use(port: u16) -> bool {
+    // Cheap TCP connect test - if we can connect, someone is listening
+    let addr = format!("127.0.0.1:{port}");
+    if let Ok(addrs) = addr.to_socket_addrs() {
+        for a in addrs {
+            if TcpStream::connect_timeout(&a, Duration::from_millis(300)).is_ok() {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn is_backend_healthy(port: u16) -> bool {
+    // Use a tiny blocking http check via raw TCP HTTP
+    if let Ok(mut stream) = TcpStream::connect_timeout(
+        &format!("127.0.0.1:{port}").to_socket_addrs().unwrap().next().unwrap(),
+        Duration::from_millis(400),
+    ) {
+        let req = format!("GET /health HTTP/1.0\r\nHost: 127.0.0.1:{port}\r\n\r\n");
+        let _ = stream.write_all(req.as_bytes());
+        let mut buf = [0u8; 512];
+        if let Ok(n) = std::io::Read::read(&mut stream, &mut buf) {
+            let resp = String::from_utf8_lossy(&buf[..n]);
+            return resp.contains("200") || resp.contains("\"ok\":true") || resp.contains("ok");
+        }
+    }
+    false
+}
+
+fn show_collision_dialog(app: &AppHandle, title: &str, msg: &str) {
+    log_line(app, &format!("COLLISION: {title} - {msg}"));
+    // Try Tauri dialog, fall back to log
+    #[allow(unused)]
+    {
+        use tauri_plugin_dialog::DialogExt;
+        let _ = app.dialog().message(msg).title(title).blocking_show();
+    }
+    let _ = app.emit("backend-status", format!("warning: {msg}"));
+}
+
+fn free_port_if_stale(port: u16, app: &AppHandle) {
+    if is_backend_healthy(port) {
+        log_line(app, &format!("port {port} healthy - not killing (dev server reuse)"));
+        return;
+    }
+    if !is_port_in_use(port) {
+        return;
+    }
+    log_line(app, &format!("port {port} stale (no health) - freeing"));
     #[cfg(windows)]
     {
         let script = format!(
@@ -121,8 +176,31 @@ fn stop_managed_child(state: &BackendProcess) {
 }
 
 pub fn spawn_backend(app: AppHandle, state: &BackendProcess) -> Result<String, String> {
+    // Reverse collision: dev start.bat already holds 10713/10714 ?
+    if is_backend_healthy(BACKEND_PORT) {
+        let msg = format!(
+            "Dev server already running on 127.0.0.1:{BACKEND_PORT} (health OK). Using existing backend instead of starting a second one.\n\nClose the dev server (stop.bat) before starting the desktop app if you want the Tauri-embedded backend."
+        );
+        show_collision_dialog(
+            &app,
+            "Port collision — dev server holds 10713",
+            &msg,
+        );
+        log_line(&app, &format!("reusing existing backend on {BACKEND_PORT}, not spawning"));
+        return Ok(format!("Reusing existing backend on port {BACKEND_PORT}"));
+    }
+    // Also warn if frontend dev vite holds 10714 (beforeDevCommand would collide)
+    if is_port_in_use(FRONTEND_PORT) && cfg!(debug_assertions) {
+        let msg = format!(
+            "Frontend dev server already on :{FRONTEND_PORT}. Tauri devUrl http://localhost:{FRONTEND_PORT} will collide.\n\nClose the dev start.bat (or stop vite) before `cargo tauri dev`."
+        );
+        show_collision_dialog(&app, "Port collision — dev frontend holds 10714", &msg);
+        log_line(&app, "frontend 10714 in use - devUrl collision warning shown");
+    }
+
+    // Only free stale holders, not healthy dev
+    free_port_if_stale(BACKEND_PORT, &app);
     stop_managed_child(state);
-    free_port(BACKEND_PORT);
 
     let backend_path = materialize_backend(&app)?;
     let workdir = app

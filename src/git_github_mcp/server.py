@@ -1561,30 +1561,399 @@ async def api_capabilities():
 
 @web_app.get("/api/apps")
 async def api_apps():
-    """Fleet apps hub — entries with webapp ports from fleet registry."""
+    """Fleet apps hub — entries with webapp ports from fleet registry (enriched)."""
     from .services.fleet_catalog import load_registry
 
+    def _read_pyproject_desc(repo_path: Path) -> str | None:
+        p = repo_path / "pyproject.toml"
+        if not p.is_file():
+            return None
+        try:
+            import tomllib
+
+            data = tomllib.loads(p.read_text(encoding="utf-8"))
+            desc = str(data.get("project", {}).get("description") or "").strip()
+            if desc and len(desc) >= 10 and "hardened substrate" not in desc.lower():
+                return desc
+        except Exception:
+            pass
+        # fallback regex for older Python without tomllib or bad toml
+        try:
+            txt = p.read_text(encoding="utf-8", errors="ignore")
+            import re
+
+            m = re.search(r'description\s*=\s*["\']([^"\']+)["\']', txt)
+            if m:
+                d = m.group(1).strip()
+                if len(d) >= 10 and "hardened substrate" not in d.lower():
+                    return d
+        except Exception:
+            pass
+        return None
+
+    def _last_commit(repo_path: Path) -> str | None:
+        # fast git log, no gh call
+        from .services.fleet_common import run_git
+
+        ok, out, _ = run_git(["log", "-1", "--format=%ci", "--no-merges"], repo_path)
+        if ok and out.strip():
+            return out.strip()
+        return None
+
+    def _has_tauri(repo_path: Path) -> bool:
+        return (repo_path / "native" / "tauri.conf.json").is_file() or (
+            repo_path / "src-tauri" / "tauri.conf.json"
+        ).is_file()
+
+    def _is_hype(desc: str) -> bool:
+        low = desc.lower()
+        return (
+            any(k in low for k in ["industrial-grade", "agentic revolution", "hardened substrate"])
+            or len(desc.strip()) < 12
+        )
+
+    rows = load_registry()
     apps: list[dict] = []
-    for row in load_registry():
+    for row in rows:
         if not isinstance(row, dict):
             continue
         rid = str(row.get("id") or "")
         port = int(row.get("frontend_port") or row.get("port") or 0)
         if port <= 0:
             continue
+        raw_desc = str(row.get("description") or "")
+        cat = str(row.get("category") or "mcp")
+        # enrich description: prefer pyproject if registry is hype/missing
+        desc = raw_desc
+        repo_path = Path(str(row.get("repo_path") or f"D:/Dev/repos/{rid}"))
+        if _is_hype(raw_desc) or not raw_desc.strip():
+            py_desc = None
+            # file read is fast, sync is fine
+            py_desc = _read_pyproject_desc(repo_path)
+            if py_desc:
+                desc = py_desc
+            elif cat and cat.lower() != "mcp":
+                desc = cat
+            else:
+                desc = raw_desc or "Fleet MCP — local webapp"
+        has_tauri = _has_tauri(repo_path)
+        # installed Tauri exe check (current user)
+        has_tauri_installed = False
+        if has_tauri:
+            for cand in [
+                Path.home() / "AppData" / "Local" / "Programs" / rid / f"{rid}.exe",
+                repo_path / "native" / "target" / "release" / f"{rid}.exe",
+            ]:
+                if cand.is_file():
+                    has_tauri_installed = True
+                    break
+        gh_owner = str(row.get("github_owner") or "sandraschi")
+        gh_repo = str(row.get("github_repo") or rid)
+        gh_url = f"https://github.com/{gh_owner}/{gh_repo}"
+        # last commit is expensive (200 git calls) - return None here, frontend sorts by name/port; use /api/apps/health for recent if needed
+        last_commit = None
+        # optional: uncomment to enable recent sort (adds ~6s): last_commit = _last_commit(repo_path) if repo_path.is_dir() else None
         apps.append(
             {
                 "id": rid,
-                "name": rid,
-                "description": str(row.get("description") or row.get("category") or "fleet MCP"),
+                "name": str(row.get("name") or rid),
+                "description": desc,
+                "raw_description": raw_desc,
+                "pyproject_description": _read_pyproject_desc(repo_path),
                 "port": port,
-                "category": str(row.get("category") or "mcp"),
+                "backend_port": int(row.get("port") or 0),
+                "category": cat,
                 "url": f"http://127.0.0.1:{port}",
+                "gh_url": gh_url,
+                "repo_path": str(repo_path),
+                "has_tauri": has_tauri,
+                "has_tauri_installed": has_tauri_installed,
+                "last_commit": last_commit,
             }
         )
     apps.sort(key=lambda a: a["port"])
-    log_activity("api", f"apps hub listed {len(apps)} entries", level="INFO")
-    return {"apps": apps, "fleet_total": len(load_registry())}
+    log_activity("api", f"apps hub listed {len(apps)} entries (enriched)", level="INFO")
+    return {"apps": apps, "fleet_total": len(rows)}
+
+
+def _check_port_health_sync(port: int, timeout: float = 1.2) -> dict:
+    import socket
+
+    # quick TCP connect
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            pass
+    except Exception as e:
+        return {
+            "port": port,
+            "alive": False,
+            "reason": f"tcp refused: {e}",
+            "health_url": f"http://127.0.0.1:{port}/health",
+        }
+
+    # try health endpoints
+    for path in ("/health", "/api/health", "/api/status"):
+        try:
+            import httpx
+
+            with httpx.Client(timeout=timeout) as c:
+                r = c.get(f"http://127.0.0.1:{port}{path}")
+                if 200 <= r.status_code < 500:
+                    # 200-499 means something is listening
+                    return {
+                        "port": port,
+                        "alive": True,
+                        "status_code": r.status_code,
+                        "health_url": f"http://127.0.0.1:{port}{path}",
+                        "reason": "http ok",
+                    }
+        except Exception:
+            continue
+    return {
+        "port": port,
+        "alive": True,
+        "reason": "tcp open but health 404",
+        "health_url": f"http://127.0.0.1:{port}/health",
+    }
+
+
+@web_app.get("/api/apps/health")
+async def api_apps_health(port: int):
+    result = await asyncio.to_thread(_check_port_health_sync, port)
+    return result
+
+
+def _is_process_running(name: str) -> list[int]:
+    import subprocess
+
+    try:
+        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {name}.exe"], capture_output=True, text=True, timeout=4)
+        pids: list[int] = []
+        for line in out.stdout.splitlines():
+            if name.lower() in line.lower() and ".exe" in line.lower():
+                parts = line.split()
+                for p in parts:
+                    if p.isdigit():
+                        try:
+                            pid = int(p)
+                            if pid > 4:
+                                pids.append(pid)
+                        except Exception:
+                            pass
+        return pids
+    except Exception:
+        return []
+
+
+def _bring_to_foreground(pids: list[int]) -> bool:
+    import subprocess
+
+    if not pids:
+        return False
+    # Use powershell User32 SetForegroundWindow for first pid's main window
+    pid = pids[0]
+    ps = f"""
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class Win {{ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); }}
+'@
+$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue
+if ($p) {{
+  $h = $p.MainWindowHandle
+  if ($h -eq 0) {{ $h = $p.Handle }}
+  [Win]::ShowWindow($h, 9) | Out-Null
+  [Win]::SetForegroundWindow($h) | Out-Null
+  exit 0
+}}
+exit 1
+"""
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], timeout=5)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _find_starts_for_id(app_id: str) -> list[str]:
+    candidates: list[str] = []
+    # 1. mcd starts bat
+    mcd = Path(r"D:\Dev\repos\mcp-central-docs\starts") / f"{app_id}-start.bat"
+    if mcd.exists():
+        candidates.append(str(mcd))
+    # 2. repo start.ps1
+    repo_ps1 = Path(r"D:\Dev\repos") / app_id / "start.ps1"
+    if repo_ps1.exists():
+        candidates.append(str(repo_ps1))
+    # 3. repo start.bat
+    repo_bat = Path(r"D:\Dev\repos") / app_id / "start.bat"
+    if repo_bat.exists():
+        candidates.append(str(repo_bat))
+    # 4. Tauri installed exe (current user)
+    tauri_candidates = [
+        Path.home() / "AppData" / "Local" / "Programs" / app_id / f"{app_id}.exe",
+        Path.home() / "AppData" / "Local" / app_id / f"{app_id}.exe",
+        Path(r"D:\Dev\repos") / app_id / "native" / "target" / "release" / f"{app_id}.exe",
+        Path(r"D:\Dev\repos")
+        / app_id
+        / "native"
+        / "target"
+        / "release"
+        / "bundle"
+        / "nsis"
+        / f"{app_id}_0.5.0_x64-setup.exe",
+    ]
+    for p in tauri_candidates:
+        if p.exists():
+            candidates.append(str(p))
+    return candidates
+
+
+@web_app.post("/api/apps/ensure")
+async def api_apps_ensure(payload: dict):
+    app_id = str(payload.get("id") or payload.get("app_id") or "").strip()
+    port = int(payload.get("port") or 0)
+    if not app_id and port:
+        # try to resolve id from registry by port
+        from .services.fleet_catalog import load_registry
+
+        for row in load_registry():
+            if int(row.get("frontend_port") or row.get("port") or 0) == port:
+                app_id = str(row.get("id") or "")
+                break
+    if not port and app_id:
+        from .services.fleet_catalog import load_registry
+
+        for row in load_registry():
+            if str(row.get("id")) == app_id:
+                port = int(row.get("frontend_port") or row.get("port") or 0)
+                break
+    if not port:
+        return {"success": False, "error": "port or id required", "alive": False}
+
+    # 1. already healthy?
+    health = await asyncio.to_thread(_check_port_health_sync, port)
+    if health.get("alive"):
+        # also try to bring existing window to front if Tauri
+        if app_id:
+            pids = await asyncio.to_thread(_is_process_running, app_id)
+            if pids:
+                await asyncio.to_thread(_bring_to_foreground, pids)
+                return {
+                    "success": True,
+                    "status": "brought_to_foreground",
+                    "alive": True,
+                    "url": f"http://127.0.0.1:{port}",
+                    "pids": pids,
+                    "port": port,
+                    "id": app_id,
+                }
+        return {
+            "success": True,
+            "status": "already_running",
+            "alive": True,
+            "url": f"http://127.0.0.1:{port}",
+            "port": port,
+            "id": app_id,
+        }
+
+    # 2. Tauri winapp already running but port not healthy? bring to front
+    if app_id:
+        pids = await asyncio.to_thread(_is_process_running, app_id)
+        # also check -native suffix
+        if not pids:
+            pids = await asyncio.to_thread(_is_process_running, f"{app_id}-native")
+        if pids:
+            ok = await asyncio.to_thread(_bring_to_foreground, pids)
+            # re-check health after bringing to front (maybe it was minimized)
+            health2 = await asyncio.to_thread(_check_port_health_sync, port)
+            return {
+                "success": True,
+                "status": "brought_to_foreground" if ok else "found_process",
+                "alive": bool(health2.get("alive")),
+                "url": f"http://127.0.0.1:{port}",
+                "pids": pids,
+                "port": port,
+                "id": app_id,
+            }
+
+    # 3. try to start via starts
+    if app_id:
+        candidates = await asyncio.to_thread(_find_starts_for_id, app_id)
+        # prefer mcd start.bat, then start.ps1
+        start_cmd = None
+        for c in candidates:
+            if c.lower().endswith("-start.bat") or c.lower().endswith("start.ps1"):
+                start_cmd = c
+                break
+        if start_cmd:
+            try:
+                import subprocess
+
+                # launch detached
+                if start_cmd.lower().endswith(".ps1"):
+                    subprocess.Popen(
+                        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", start_cmd],
+                        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0,
+                    )
+                else:
+                    subprocess.Popen(
+                        ["cmd.exe", "/c", start_cmd],
+                        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0,
+                    )
+                # poll health up to 12s
+                for _ in range(12):
+                    await asyncio.sleep(1)
+                    h = await asyncio.to_thread(_check_port_health_sync, port)
+                    if h.get("alive"):
+                        return {
+                            "success": True,
+                            "status": "started",
+                            "alive": True,
+                            "url": f"http://127.0.0.1:{port}",
+                            "port": port,
+                            "id": app_id,
+                            "via": start_cmd,
+                        }
+                return {
+                    "success": True,
+                    "status": "start_initiated",
+                    "alive": False,
+                    "url": f"http://127.0.0.1:{port}",
+                    "port": port,
+                    "id": app_id,
+                    "via": start_cmd,
+                    "note": "started but health not yet ok - wait a few seconds and retry",
+                }
+            except Exception as e:
+                return {"success": False, "error": str(e), "port": port, "id": app_id}
+
+        # fallback: try Tauri exe directly
+        for c in candidates:
+            if c.lower().endswith(".exe") and "setup" not in c.lower():
+                try:
+                    import subprocess
+
+                    subprocess.Popen([c], creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0)
+                    return {
+                        "success": True,
+                        "status": "tauri_started",
+                        "alive": False,
+                        "url": f"http://127.0.0.1:{port}",
+                        "port": port,
+                        "id": app_id,
+                        "via": c,
+                    }
+                except Exception as e:
+                    return {"success": False, "error": str(e), "port": port, "id": app_id}
+        return {
+            "success": False,
+            "error": f"no start entry found for {app_id} (checked {candidates})",
+            "port": port,
+            "id": app_id,
+        }
+
+    return {"success": False, "error": "could not start - no id", "port": port}
 
 
 @web_app.get("/api/status")

@@ -1,10 +1,15 @@
 import {
   AlertCircle,
+  BarChart3,
   CircleDot,
+  ExternalLink,
   GitBranch,
   GitCommit,
   GitPullRequest,
+  Search,
+  Star,
   Terminal,
+  TrendingUp,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -40,6 +45,14 @@ export function Dashboard() {
   const [myRepos, setMyRepos] = useState<
     { name: string; url: string; stargazerCount: number }[]
   >([]);
+  const [starsSummary, setStarsSummary] = useState<{
+    total_stars: number;
+    total_repos: number;
+    avg_stars: number;
+    zero_star_repos: number;
+    distribution: Record<string, number>;
+    top_repos: { name: string; stargazerCount: number }[];
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [repoPath, setRepoPath] = useState("D:/Dev/repos/git-github-mcp");
 
@@ -56,7 +69,7 @@ export function Dashboard() {
         })
         .catch(() => {}),
       (
-        gitOps("log", { repo_path: repoPath, max_count: 5 }) as Promise<{
+        gitOps("log", { repo_path: repoPath, max_count: 8 }) as Promise<{
           result?: LogData["data"];
         }>
       )
@@ -65,11 +78,20 @@ export function Dashboard() {
         })
         .catch(() => {}),
       (
-        githubOps("repo_list", { limit: 5 }) as Promise<{
+        githubOps("repo_list", { limit: 8 }) as Promise<{
           result: { repos: typeof myRepos };
         }>
       )
         .then((d) => setMyRepos(d?.result?.repos ?? []))
+        .catch(() => {}),
+      (
+        githubOps("stars_summary", { owner: "sandraschi", limit: 5 }) as Promise<{
+          result?: typeof starsSummary;
+        }>
+      )
+        .then((d) => {
+          if (d?.result) setStarsSummary(d.result);
+        })
         .catch(() => {}),
     ]).finally(() => setLoading(false));
   }, [repoPath]);
@@ -82,37 +104,61 @@ export function Dashboard() {
       className="space-y-8 animate-in fade-in duration-700"
       data-testid="dashboard"
     >
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-4xl font-heading font-black tracking-tighter uppercase text-foreground">
-              Dashboard
+      {/* Hero - compact professional */}
+      <div className="rounded-2xl border border-border bg-gradient-to-br from-card via-card to-black/20 p-5 md:p-6" data-testid="dashboard-hero">
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-xs font-mono">
+              <span className="w-2 h-2 rounded-full bg-gh-green shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+              git-github-mcp <span className="text-muted-foreground">· local & remote Git</span>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+              Repos, branches & PRs — one place
             </h1>
-            <div className="h-px w-12 bg-gh-green/30 mt-2" />
+            <p className="text-sm text-muted-foreground max-w-[50ch] leading-relaxed">
+              Local git and GitHub together. Set a repo path, check branches and changes, read commits and jump to cloud repos and stars.
+            </p>
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <a
+                href="/repos"
+                data-testid="hero-cta-repos"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white text-black text-sm font-semibold hover:bg-zinc-200 transition-colors"
+              >
+                <GitBranch className="w-4 h-4" /> Browse repos
+              </a>
+              <a
+                href="/stars"
+                data-testid="hero-cta-stars"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gh-green/10 border border-gh-green/20 text-gh-green text-sm font-semibold hover:bg-gh-green/15 transition-colors"
+              >
+                View stars
+              </a>
+              <span className="text-xs text-muted-foreground font-mono ml-1">Active context below</span>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground font-mono flex items-center gap-2">
-            <Terminal className="w-3 h-3" />
-            git-github-mcp -- hardened orchestration substrate
-          </p>
-        </div>
 
-        <div className="flex items-center gap-3 p-1 rounded-lg bg-white/5 border border-white/5 backdrop-blur-sm">
-          <StatusBadge
-            label="GIT"
-            online={online}
-            icon={Wifi}
-            offIcon={WifiOff}
-            colorClass={online ? "text-gh-green" : "text-destructive"}
-          />
-          <div className="w-px h-4 bg-white/10" />
-          <StatusBadge
-            label="GH"
-            online={ghAuth}
-            icon={CircleDot}
-            offIcon={AlertCircle}
-            colorClass={ghAuth ? "text-gh-blue" : "text-amber-500"}
-          />
+          <div className="flex flex-col gap-3 shrink-0">
+            <div className="flex items-center gap-2 p-1 rounded-lg bg-black/30 border border-white/10 backdrop-blur-sm self-start">
+              <StatusBadge
+                label="GIT"
+                online={online}
+                icon={Wifi}
+                offIcon={WifiOff}
+                colorClass={online ? "text-gh-green" : "text-destructive"}
+              />
+              <div className="w-px h-4 bg-white/10" />
+              <StatusBadge
+                label="GH"
+                online={ghAuth}
+                icon={CircleDot}
+                offIcon={AlertCircle}
+                colorClass={ghAuth ? "text-gh-blue" : "text-amber-500"}
+              />
+            </div>
+            <div className="text-xs font-mono text-muted-foreground">
+              {online ? "git ready" : "git not found"} · {ghAuth ? "GitHub authenticated" : "run gh auth login"}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -142,8 +188,8 @@ export function Dashboard() {
         </div>
       </div>
 
-      {/* Analytics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Analytics Grid - denser 6 */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <MetricCard
           label="Active Branch"
           value={repoStatus?.data?.branch}
@@ -170,12 +216,106 @@ export function Dashboard() {
         />
         <MetricCard
           label="Cloud Repos"
-          value={myRepos.length}
+          value={starsSummary?.total_repos ?? myRepos.length}
           icon={GitPullRequest}
           loading={loading}
           color="text-purple-400"
           testid="kpi-cloud"
         />
+        <MetricCard
+          label="Total Stars"
+          value={starsSummary?.total_stars}
+          icon={Star}
+          loading={loading}
+          color="text-amber-400"
+          testid="kpi-stars"
+        />
+        <MetricCard
+          label="Avg Stars"
+          value={starsSummary?.avg_stars}
+          icon={TrendingUp}
+          loading={loading}
+          color="text-sky-400"
+          testid="kpi-avg"
+        />
+      </div>
+
+      {/* Dense second row: Stars + Quick actions */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 glass rounded-2xl border-border/50 p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold tracking-tight uppercase flex items-center gap-2">
+              <BarChart3 className="w-4 h-4 text-amber-400" /> Stars at a glance
+            </h2>
+            <a href="/stars" className="text-xs font-mono text-gh-blue hover:underline flex items-center gap-1">
+              details <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+          {starsSummary ? (
+            <div className="mt-4 space-y-3">
+              <div className="flex flex-wrap gap-2 text-xs font-mono">
+                <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400">total {starsSummary.total_stars}</span>
+                <span className="px-2 py-1 rounded bg-white/5 border border-white/10">repos {starsSummary.total_repos}</span>
+                <span className="px-2 py-1 rounded bg-white/5 border border-white/10">avg {starsSummary.avg_stars}</span>
+                <span className="px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300">zero {starsSummary.zero_star_repos}</span>
+              </div>
+              <div className="grid gap-1.5">
+                {Object.entries(starsSummary.distribution).map(([bucket, count]) => {
+                  const pct = (count / Math.max(1, starsSummary.total_repos)) * 100;
+                  return (
+                    <div key={bucket} className="flex items-center gap-2">
+                      <span className="w-12 text-xs font-mono text-muted-foreground text-right">{bucket}</span>
+                      <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                        <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-12 text-xs font-mono text-right">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              {starsSummary.top_repos?.length ? (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {starsSummary.top_repos.slice(0, 5).map((r) => (
+                    <span key={r.name} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono">
+                      <Star className="w-3 h-3 text-amber-400" /> {r.name} {r.stargazerCount}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="mt-4 text-sm text-muted-foreground">{loading ? "Loading stars…" : "No stars data"}</div>
+          )}
+        </div>
+
+        <div className="glass rounded-2xl border-border/50 p-5">
+          <h2 className="text-sm font-bold tracking-tight uppercase flex items-center gap-2">
+            <Search className="w-4 h-4 text-gh-blue" /> Quick actions
+          </h2>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <a href="/repos" className="p-3 rounded-xl bg-white text-black text-sm font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2">
+              <GitBranch className="w-4 h-4" /> Repos
+            </a>
+            <a href="/stars" className="p-3 rounded-xl bg-amber-500 text-black text-sm font-semibold hover:bg-amber-400 transition-colors flex items-center gap-2">
+              <Star className="w-4 h-4" /> Stars
+            </a>
+            <a href="/commits" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+              <GitCommit className="w-4 h-4" /> Commits
+            </a>
+            <a href="/pull-requests" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+              <GitPullRequest className="w-4 h-4" /> PRs
+            </a>
+            <a href="/issues" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+              <CircleDot className="w-4 h-4" /> Issues
+            </a>
+            <a href="/tools" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+              <Terminal className="w-4 h-4" /> Tools
+            </a>
+          </div>
+          <div className="mt-3 text-xs text-muted-foreground font-mono">
+            Ports :{typeof window !== "undefined" ? `${Number(window.location.port) - 1} / :${window.location.port}` : "backend / :frontend"} · {online ? "git ok" : "git missing"} · {ghAuth ? "gh auth ok" : "gh auth needed"}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

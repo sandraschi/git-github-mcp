@@ -13,13 +13,13 @@ import {
   MessageSquare,
   ScrollText,
   Settings,
+  Star,
   Terminal,
   Wrench,
 } from "lucide-react";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { Topbar } from "@/components/layout/topbar";
-import { LoggerPanel } from "@/components/logger-panel";
 import { useBackendHealth } from "@/hooks/use-backend-health";
 import { useZoom } from "@/hooks/use-zoom";
 
@@ -33,12 +33,13 @@ const FLEET_NAV = [
 
 const DOMAIN_NAV = [
   { to: "/repos", icon: BookOpen, label: "Repos" },
+  { to: "/stars", icon: Star, label: "Stars" },
   { to: "/commits", icon: GitCommit, label: "Commits" },
   { to: "/inbox", icon: Inbox, label: "PRs & Issues" },
   { to: "/breakfast", icon: Coffee, label: "Breakfast" },
   { to: "/issues", icon: CircleDot, label: "Issues" },
   { to: "/prs", icon: GitPullRequest, label: "Pull Requests" },
-  { to: "/chat", icon: MessageSquare, label: "Command" },
+  { to: "/chat", icon: MessageSquare, label: "Chat" },
   { to: "/lectures", icon: GraduationCap, label: "Lectures" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ] as const;
@@ -50,12 +51,13 @@ const PAGE_LABELS: Record<string, string> = {
   "/apps": "Fleet Apps",
   "/help": "Help",
   "/repos": "Repositories",
+  "/stars": "Stars",
   "/commits": "Commits",
   "/inbox": "PRs & Issues",
   "/breakfast": "Breakfast Runner",
   "/issues": "Issues",
   "/prs": "Pull Requests",
-  "/chat": "Command",
+  "/chat": "Chat",
   "/lectures": "Lectures",
   "/settings": "Settings",
 };
@@ -75,10 +77,10 @@ export function AppLayout() {
     }`;
 
   return (
-    <div className="flex h-screen bg-background text-foreground selection:bg-gh-green/30">
+    <div className="flex min-h-screen bg-background text-foreground selection:bg-gh-green/30">
       <aside
         className={`flex flex-col transition-all duration-300 ease-in-out border-r border-border bg-card/50 backdrop-blur-xl z-20 ${
-          collapsed ? "w-16" : "w-64"
+          collapsed ? "w-16" : "w-56"
         }`}
       >
         <button
@@ -168,7 +170,7 @@ export function AppLayout() {
                 </span>
               </div>
               <span className="text-[9px] font-mono text-muted-foreground/60">
-                :10713 / :10714
+                :{typeof window !== "undefined" ? `${Number(window.location.port) - 1} / :${window.location.port}` : "backend / :frontend"}
               </span>
               {backendOk === false && (
                 <button
@@ -204,15 +206,15 @@ export function AppLayout() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 relative">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
         <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-gh-green/5 to-transparent pointer-events-none" />
         <Topbar label={pageLabel} />
-        <main className="flex-1 overflow-auto relative z-10 p-6 md:p-8 custom-scrollbar">
-          <div className="max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <main className="flex-1 overflow-auto relative z-10 p-6 md:p-8 custom-scrollbar flex flex-col">
+          <div className="max-w-7xl mx-auto w-full flex-1 animate-in fade-in slide-in-from-bottom-4 duration-700 flex flex-col">
             <Outlet />
+            <div className="mt-auto pt-8 text-center text-[10px] font-mono text-muted-foreground/30">sandraschi fleet · local first</div>
           </div>
         </main>
-        <LoggerPanel />
       </div>
     </div>
   );
