@@ -1692,7 +1692,14 @@ def _check_port_health_sync(port: int, timeout: float = 1.2) -> dict:
         }
 
     # try health endpoints (include depot /api/capabilities and robotics /api/v1/health)
-    for path in ("/health", "/api/health", "/api/status", "/api/capabilities", "/api/v1/health", "/api/capabilities/health"):
+    for path in (
+        "/health",
+        "/api/health",
+        "/api/status",
+        "/api/capabilities",
+        "/api/v1/health",
+        "/api/capabilities/health",
+    ):
         try:
             import httpx
 
@@ -1845,6 +1852,7 @@ async def api_apps_ensure(payload: dict):
     if not health.get("alive") and app_id:
         try:
             from .services.fleet_catalog import load_registry
+
             for row in load_registry():
                 if str(row.get("id")) == app_id:
                     bport = int(row.get("port") or 0)

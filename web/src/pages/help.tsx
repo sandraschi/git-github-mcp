@@ -646,11 +646,11 @@ export function HelpPage() {
 
           <Lecture title="Stars — received vs given">
             <p>
-              <Code>stars_summary</Code> sums{" "}
-              <Code>stargazers_count</Code> across your public repos (received
-              stars). GitHub profile <Code>?tab=stars</Code> is <em>given</em> —
-              different number. <Code>stars_history</Code> buckets{" "}
-              <Code>starred_at</Code> for the amber/sky trajectory on{" "}
+              <Code>stars_summary</Code> sums <Code>stargazers_count</Code>{" "}
+              across your public repos (received stars). GitHub profile{" "}
+              <Code>?tab=stars</Code> is <em>given</em> — different number.{" "}
+              <Code>stars_history</Code> buckets <Code>starred_at</Code> for the
+              amber/sky trajectory on{" "}
               <Link to="/stars" className="text-sky-400 hover:underline">
                 Stars
               </Link>

@@ -69,7 +69,9 @@ export function StarsPage() {
   const [perRepoLoading, setPerRepoLoading] = useState(false);
   const [history, setHistory] = useState<StarsHistory | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyBucket, setHistoryBucket] = useState<"month" | "week" | "day">("month");
+  const [historyBucket, setHistoryBucket] = useState<"month" | "week" | "day">(
+    "month",
+  );
   const [historyRepo, setHistoryRepo] = useState("");
 
   const load = useCallback(async () => {
@@ -119,14 +121,15 @@ export function StarsPage() {
       const r = res.result as unknown as Record<string, unknown>;
       // normalize
       setPerRepoResult({
-        name: (r["name"] as string) || qRepo,
-        description: (r["description"] as string) || "",
-        isPrivate: (r["isPrivate"] as boolean) ?? (r["private"] as boolean) ?? false,
-        stargazerCount: (r["stargazerCount"] as number) ?? (r["stargazers_count"] as number) ?? 0,
-        forkCount: (r["forkCount"] as number) ?? (r["forks_count"] as number) ?? 0,
-        updatedAt: (r["updatedAt"] as string) || (r["updated_at"] as string) || "",
-        url: (r["url"] as string) || `https://github.com/${qOwner}/${qRepo}`,
-        language: r["language"] as string,
+        name: (r.name as string) || qRepo,
+        description: (r.description as string) || "",
+        isPrivate: (r.isPrivate as boolean) ?? (r.private as boolean) ?? false,
+        stargazerCount:
+          (r.stargazerCount as number) ?? (r.stargazers_count as number) ?? 0,
+        forkCount: (r.forkCount as number) ?? (r.forks_count as number) ?? 0,
+        updatedAt: (r.updatedAt as string) || (r.updated_at as string) || "",
+        url: (r.url as string) || `https://github.com/${qOwner}/${qRepo}`,
+        language: r.language as string,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -339,9 +342,13 @@ export function StarsPage() {
           </div>
 
           {/* Trajectory */}
-          <div className="rounded-xl border border-border bg-card/50 p-5" data-testid="stars-trajectory">
+          <div
+            className="rounded-xl border border-border bg-card/50 p-5"
+            data-testid="stars-trajectory"
+          >
             <h2 className="text-sm font-bold flex items-center gap-2">
-              <AreaChart size={14} className="text-amber-400" /> Trajectory — stars over time
+              <AreaChart size={14} className="text-amber-400" /> Trajectory —
+              stars over time
             </h2>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1.5">
@@ -372,12 +379,22 @@ export function StarsPage() {
                 disabled={historyLoading}
                 className="px-3 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 disabled:opacity-50"
               >
-                {historyLoading ? <Loader2 size={12} className="animate-spin" /> : "Load trajectory"}
+                {historyLoading ? (
+                  <Loader2 size={12} className="animate-spin" />
+                ) : (
+                  "Load trajectory"
+                )}
               </button>
-              {history && <span className="text-xs text-muted-foreground font-mono">{history.total_events} events · {history.repos_scanned} repos</span>}
+              {history && (
+                <span className="text-xs text-muted-foreground font-mono">
+                  {history.total_events} events · {history.repos_scanned} repos
+                </span>
+              )}
             </div>
             {history?.note && (
-              <div className="mt-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-200">{history.note}</div>
+              <div className="mt-3 p-3 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs text-amber-200">
+                {history.note}
+              </div>
             )}
             {history && history.points.length > 0 ? (
               <div className="mt-4">
@@ -393,50 +410,142 @@ export function StarsPage() {
                   const maxC = Math.max(1, ...pts.map((p) => p.cumulative));
                   const maxN = Math.max(1, ...pts.map((p) => p.new));
                   const xStep = (w - padL - padR) / Math.max(1, pts.length - 1);
-                  const yC = (v: number) => h - padB - (v / maxC) * (h - padT - padB);
-                  const yN = (v: number) => h - padB - (v / maxN) * (h - padT - padB) * 0.35;
-                  const pathC = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${padL + i * xStep} ${yC(p.cumulative)}`).join(" ");
+                  const yC = (v: number) =>
+                    h - padB - (v / maxC) * (h - padT - padB);
+                  const yN = (v: number) =>
+                    h - padB - (v / maxN) * (h - padT - padB) * 0.35;
+                  const pathC = pts
+                    .map(
+                      (p, i) =>
+                        `${i === 0 ? "M" : "L"} ${padL + i * xStep} ${yC(p.cumulative)}`,
+                    )
+                    .join(" ");
                   const areaC = `${pathC} L ${padL + (pts.length - 1) * xStep} ${h - padB} L ${padL} ${h - padB} Z`;
-                  const pathN = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${padL + i * xStep} ${yN(p.new)}`).join(" ");
+                  const pathN = pts
+                    .map(
+                      (p, i) =>
+                        `${i === 0 ? "M" : "L"} ${padL + i * xStep} ${yN(p.new)}`,
+                    )
+                    .join(" ");
                   return (
                     <div className="overflow-x-auto">
-                      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[180px] border border-border/30 rounded-lg bg-black/20">
+                      <svg
+                        viewBox={`0 0 ${w} ${h}`}
+                        className="w-full h-[180px] border border-border/30 rounded-lg bg-black/20"
+                        role="img"
+                        aria-label="Stars trajectory chart"
+                      >
+                        <title>Stars trajectory chart</title>
                         <defs>
-                          <linearGradient id="gradC" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.35} />
-                            <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.02} />
+                          <linearGradient
+                            id="gradC"
+                            x1="0"
+                            y1="0"
+                            x2="0"
+                            y2="1"
+                          >
+                            <stop
+                              offset="0%"
+                              stopColor="#f59e0b"
+                              stopOpacity={0.35}
+                            />
+                            <stop
+                              offset="100%"
+                              stopColor="#f59e0b"
+                              stopOpacity={0.02}
+                            />
                           </linearGradient>
                         </defs>
                         {/* grid */}
                         {[0, 0.5, 1].map((t) => (
-                          <line key={t} x1={padL} x2={w - padR} y1={padT + t * (h - padT - padB)} y2={padT + t * (h - padT - padB)} stroke="rgba(255,255,255,0.06)" strokeDasharray="4 4" />
+                          <line
+                            key={t}
+                            x1={padL}
+                            x2={w - padR}
+                            y1={padT + t * (h - padT - padB)}
+                            y2={padT + t * (h - padT - padB)}
+                            stroke="rgba(255,255,255,0.06)"
+                            strokeDasharray="4 4"
+                          />
                         ))}
                         {/* area cumulative */}
                         <path d={areaC} fill="url(#gradC)" stroke="none" />
-                        <path d={pathC} fill="none" stroke="#f59e0b" strokeWidth={2} />
+                        <path
+                          d={pathC}
+                          fill="none"
+                          stroke="#f59e0b"
+                          strokeWidth={2}
+                        />
                         {/* new per bucket dotted */}
-                        <path d={pathN} fill="none" stroke="#38bdf8" strokeWidth={1.5} strokeDasharray="4 3" opacity={0.9} />
+                        <path
+                          d={pathN}
+                          fill="none"
+                          stroke="#38bdf8"
+                          strokeWidth={1.5}
+                          strokeDasharray="4 3"
+                          opacity={0.9}
+                        />
                         {/* dots */}
                         {pts.map((p, i) => (
-                          <circle key={i} cx={padL + i * xStep} cy={yC(p.cumulative)} r={2.5} fill="#f59e0b" />
+                          <circle
+                            key={p.bucket}
+                            cx={padL + i * xStep}
+                            cy={yC(p.cumulative)}
+                            r={2.5}
+                            fill="#f59e0b"
+                          />
                         ))}
                         {/* x labels - show every N */}
                         {pts.map((p, i) => {
                           const step = Math.ceil(pts.length / 8);
-                          if (i % step !== 0 && i !== pts.length - 1) return null;
+                          if (i % step !== 0 && i !== pts.length - 1)
+                            return null;
                           return (
-                            <text key={i} x={padL + i * xStep} y={h - 6} textAnchor="middle" fontSize={9} fill="#71717a" fontFamily="monospace">
+                            <text
+                              key={`label-${p.bucket}`}
+                              x={padL + i * xStep}
+                              y={h - 6}
+                              textAnchor="middle"
+                              fontSize={9}
+                              fill="#71717a"
+                              fontFamily="monospace"
+                            >
                               {p.bucket}
                             </text>
                           );
                         })}
                         {/* y labels */}
-                        <text x={4} y={padT + 4} fontSize={9} fill="#71717a" fontFamily="monospace">{maxC}</text>
-                        <text x={4} y={h - padB} fontSize={9} fill="#71717a" fontFamily="monospace">0</text>
+                        <text
+                          x={4}
+                          y={padT + 4}
+                          fontSize={9}
+                          fill="#71717a"
+                          fontFamily="monospace"
+                        >
+                          {maxC}
+                        </text>
+                        <text
+                          x={4}
+                          y={h - padB}
+                          fontSize={9}
+                          fill="#71717a"
+                          fontFamily="monospace"
+                        >
+                          0
+                        </text>
                       </svg>
                       <div className="mt-2 flex items-center gap-4 text-xs font-mono">
-                        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-amber-400 inline-block" /> cumulative</span>
-                        <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-sky-400 inline-block" style={{ borderTop: "2px dashed #38bdf8" }} /> new / bucket</span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-3 h-0.5 bg-amber-400 inline-block" />{" "}
+                          cumulative
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span
+                            className="w-3 h-0.5 bg-sky-400 inline-block"
+                            style={{ borderTop: "2px dashed #38bdf8" }}
+                          />{" "}
+                          new / bucket
+                        </span>
                       </div>
                     </div>
                   );
@@ -452,10 +561,17 @@ export function StarsPage() {
                     </thead>
                     <tbody>
                       {history.points.map((p) => (
-                        <tr key={p.bucket} className="border-t border-border/30 hover:bg-white/5">
+                        <tr
+                          key={p.bucket}
+                          className="border-t border-border/30 hover:bg-white/5"
+                        >
                           <td className="px-3 py-1">{p.bucket}</td>
-                          <td className="text-right px-3 py-1 text-sky-300">+{p.new}</td>
-                          <td className="text-right px-3 py-1 text-amber-300 font-bold">{p.cumulative}</td>
+                          <td className="text-right px-3 py-1 text-sky-300">
+                            +{p.new}
+                          </td>
+                          <td className="text-right px-3 py-1 text-amber-300 font-bold">
+                            {p.cumulative}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -464,10 +580,16 @@ export function StarsPage() {
               </div>
             ) : history && history.points.length === 0 && !historyLoading ? (
               <div className="mt-4 p-6 text-center text-sm text-muted-foreground border border-dashed border-border rounded-lg">
-                No history yet — run <span className="font-mono text-xs">gh auth login</span> (needs stargazer timestamps) then Load again. Without auth, GitHub hides <span className="font-mono">starred_at</span>.
+                No history yet — run{" "}
+                <span className="font-mono text-xs">gh auth login</span> (needs
+                stargazer timestamps) then Load again. Without auth, GitHub
+                hides <span className="font-mono">starred_at</span>.
               </div>
             ) : !history && !historyLoading ? (
-              <div className="mt-3 text-xs text-muted-foreground">Load to see star trajectory. Without auth you’ll see the note above; with auth you get month/week/day buckets.</div>
+              <div className="mt-3 text-xs text-muted-foreground">
+                Load to see star trajectory. Without auth you’ll see the note
+                above; with auth you get month/week/day buckets.
+              </div>
             ) : null}
           </div>
 

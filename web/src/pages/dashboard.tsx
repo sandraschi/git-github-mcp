@@ -85,7 +85,10 @@ export function Dashboard() {
         .then((d) => setMyRepos(d?.result?.repos ?? []))
         .catch(() => {}),
       (
-        githubOps("stars_summary", { owner: "sandraschi", limit: 5 }) as Promise<{
+        githubOps("stars_summary", {
+          owner: "sandraschi",
+          limit: 5,
+        }) as Promise<{
           result?: typeof starsSummary;
         }>
       )
@@ -105,18 +108,25 @@ export function Dashboard() {
       data-testid="dashboard"
     >
       {/* Hero - compact professional */}
-      <div className="rounded-2xl border border-border bg-gradient-to-br from-card via-card to-black/20 p-5 md:p-6" data-testid="dashboard-hero">
+      <div
+        className="rounded-2xl border border-border bg-gradient-to-br from-card via-card to-black/20 p-5 md:p-6"
+        data-testid="dashboard-hero"
+      >
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
           <div className="space-y-3">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/10 text-xs font-mono">
               <span className="w-2 h-2 rounded-full bg-gh-green shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
-              git-github-mcp <span className="text-muted-foreground">· local & remote Git</span>
+              git-github-mcp{" "}
+              <span className="text-muted-foreground">
+                · local & remote Git
+              </span>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
               Repos, branches & PRs — one place
             </h1>
             <p className="text-sm text-muted-foreground max-w-[50ch] leading-relaxed">
-              Local git and GitHub together. Set a repo path, check branches and changes, read commits and jump to cloud repos and stars.
+              Local git and GitHub together. Set a repo path, check branches and
+              changes, read commits and jump to cloud repos and stars.
             </p>
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <a
@@ -133,7 +143,9 @@ export function Dashboard() {
               >
                 View stars
               </a>
-              <span className="text-xs text-muted-foreground font-mono ml-1">Active context below</span>
+              <span className="text-xs text-muted-foreground font-mono ml-1">
+                Active context below
+              </span>
             </div>
           </div>
 
@@ -156,7 +168,8 @@ export function Dashboard() {
               />
             </div>
             <div className="text-xs font-mono text-muted-foreground">
-              {online ? "git ready" : "git not found"} · {ghAuth ? "GitHub authenticated" : "run gh auth login"}
+              {online ? "git ready" : "git not found"} ·{" "}
+              {ghAuth ? "GitHub authenticated" : "run gh auth login"}
             </div>
           </div>
         </div>
@@ -247,44 +260,71 @@ export function Dashboard() {
             <h2 className="text-sm font-bold tracking-tight uppercase flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-amber-400" /> Stars at a glance
             </h2>
-            <a href="/stars" className="text-xs font-mono text-gh-blue hover:underline flex items-center gap-1">
+            <a
+              href="/stars"
+              className="text-xs font-mono text-gh-blue hover:underline flex items-center gap-1"
+            >
               details <ExternalLink className="w-3 h-3" />
             </a>
           </div>
           {starsSummary ? (
             <div className="mt-4 space-y-3">
               <div className="flex flex-wrap gap-2 text-xs font-mono">
-                <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400">total {starsSummary.total_stars}</span>
-                <span className="px-2 py-1 rounded bg-white/5 border border-white/10">repos {starsSummary.total_repos}</span>
-                <span className="px-2 py-1 rounded bg-white/5 border border-white/10">avg {starsSummary.avg_stars}</span>
-                <span className="px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300">zero {starsSummary.zero_star_repos}</span>
+                <span className="px-2 py-1 rounded bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                  total {starsSummary.total_stars}
+                </span>
+                <span className="px-2 py-1 rounded bg-white/5 border border-white/10">
+                  repos {starsSummary.total_repos}
+                </span>
+                <span className="px-2 py-1 rounded bg-white/5 border border-white/10">
+                  avg {starsSummary.avg_stars}
+                </span>
+                <span className="px-2 py-1 rounded bg-red-500/10 border border-red-500/20 text-red-300">
+                  zero {starsSummary.zero_star_repos}
+                </span>
               </div>
               <div className="grid gap-1.5">
-                {Object.entries(starsSummary.distribution).map(([bucket, count]) => {
-                  const pct = (count / Math.max(1, starsSummary.total_repos)) * 100;
-                  return (
-                    <div key={bucket} className="flex items-center gap-2">
-                      <span className="w-12 text-xs font-mono text-muted-foreground text-right">{bucket}</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
-                        <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
+                {Object.entries(starsSummary.distribution).map(
+                  ([bucket, count]) => {
+                    const pct =
+                      (count / Math.max(1, starsSummary.total_repos)) * 100;
+                    return (
+                      <div key={bucket} className="flex items-center gap-2">
+                        <span className="w-12 text-xs font-mono text-muted-foreground text-right">
+                          {bucket}
+                        </span>
+                        <div className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className="h-full bg-amber-400 rounded-full"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                        <span className="w-12 text-xs font-mono text-right">
+                          {count}
+                        </span>
                       </div>
-                      <span className="w-12 text-xs font-mono text-right">{count}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  },
+                )}
               </div>
               {starsSummary.top_repos?.length ? (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {starsSummary.top_repos.slice(0, 5).map((r) => (
-                    <span key={r.name} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono">
-                      <Star className="w-3 h-3 text-amber-400" /> {r.name} {r.stargazerCount}
+                    <span
+                      key={r.name}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono"
+                    >
+                      <Star className="w-3 h-3 text-amber-400" /> {r.name}{" "}
+                      {r.stargazerCount}
                     </span>
                   ))}
                 </div>
               ) : null}
             </div>
           ) : (
-            <div className="mt-4 text-sm text-muted-foreground">{loading ? "Loading stars…" : "No stars data"}</div>
+            <div className="mt-4 text-sm text-muted-foreground">
+              {loading ? "Loading stars…" : "No stars data"}
+            </div>
           )}
         </div>
 
@@ -293,27 +333,50 @@ export function Dashboard() {
             <Search className="w-4 h-4 text-gh-blue" /> Quick actions
           </h2>
           <div className="mt-4 grid grid-cols-2 gap-2">
-            <a href="/repos" className="p-3 rounded-xl bg-white text-black text-sm font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2">
+            <a
+              href="/repos"
+              className="p-3 rounded-xl bg-white text-black text-sm font-semibold hover:bg-zinc-200 transition-colors flex items-center gap-2"
+            >
               <GitBranch className="w-4 h-4" /> Repos
             </a>
-            <a href="/stars" className="p-3 rounded-xl bg-amber-500 text-black text-sm font-semibold hover:bg-amber-400 transition-colors flex items-center gap-2">
+            <a
+              href="/stars"
+              className="p-3 rounded-xl bg-amber-500 text-black text-sm font-semibold hover:bg-amber-400 transition-colors flex items-center gap-2"
+            >
               <Star className="w-4 h-4" /> Stars
             </a>
-            <a href="/commits" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+            <a
+              href="/commits"
+              className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
               <GitCommit className="w-4 h-4" /> Commits
             </a>
-            <a href="/pull-requests" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+            <a
+              href="/pull-requests"
+              className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
               <GitPullRequest className="w-4 h-4" /> PRs
             </a>
-            <a href="/issues" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+            <a
+              href="/issues"
+              className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
               <CircleDot className="w-4 h-4" /> Issues
             </a>
-            <a href="/tools" className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2">
+            <a
+              href="/tools"
+              className="p-3 rounded-xl bg-white/5 border border-white/10 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
+            >
               <Terminal className="w-4 h-4" /> Tools
             </a>
           </div>
           <div className="mt-3 text-xs text-muted-foreground font-mono">
-            Ports :{typeof window !== "undefined" ? `${Number(window.location.port) - 1} / :${window.location.port}` : "backend / :frontend"} · {online ? "git ok" : "git missing"} · {ghAuth ? "gh auth ok" : "gh auth needed"}
+            Ports :
+            {typeof window !== "undefined"
+              ? `${Number(window.location.port) - 1} / :${window.location.port}`
+              : "backend / :frontend"}{" "}
+            · {online ? "git ok" : "git missing"} ·{" "}
+            {ghAuth ? "gh auth ok" : "gh auth needed"}
           </div>
         </div>
       </div>

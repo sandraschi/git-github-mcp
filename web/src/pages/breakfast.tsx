@@ -362,7 +362,8 @@ export function BreakfastPage() {
     if (status !== "running") return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = "Breakfast suite is still running — leaving will discard progress.";
+      e.returnValue =
+        "Breakfast suite is still running — leaving will discard progress.";
       return e.returnValue;
     };
     window.addEventListener("beforeunload", handler);

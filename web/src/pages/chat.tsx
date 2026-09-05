@@ -1,6 +1,6 @@
 import {
   Bot,
-    Download,
+  Download,
   Eraser,
   Loader2,
   Send,
@@ -176,7 +176,6 @@ export function Chat() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-
 
   /* -- init ------------------------------------------------------ */
   useEffect(() => {
@@ -406,7 +405,6 @@ export function Chat() {
     URL.revokeObjectURL(url);
   };
 
-
   const hasMessages = messages.length > 0;
 
   /* -- render ---------------------------------------------------- */
@@ -620,11 +618,21 @@ export function Chat() {
 
           {/* Example prompts - dropdown */}
           <div className="flex items-center gap-2 mb-2">
-            <label className="text-xs text-muted-foreground">Examples:</label>
+            <label
+              htmlFor="example-prompts"
+              className="text-xs text-muted-foreground"
+            >
+              Examples:
+            </label>
             <select
+              id="example-prompts"
               data-testid="example-prompts"
               className="flex-1 mono text-xs rounded px-2 py-1.5 outline-none"
-              style={{ background: "var(--bg-2)", border: "1px solid var(--border)", color: "var(--text-dim)" }}
+              style={{
+                background: "var(--bg-2)",
+                border: "1px solid var(--border)",
+                color: "var(--text-dim)",
+              }}
               value=""
               onChange={(e) => {
                 if (e.target.value) {
@@ -688,7 +696,6 @@ export function Chat() {
             </button>
           </div>
         </div>
-
       </div>
     </div>
   );

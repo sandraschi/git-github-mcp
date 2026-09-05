@@ -173,7 +173,10 @@ export function AppLayout() {
                 </span>
               </div>
               <span className="text-[9px] font-mono text-muted-foreground/60">
-                :{typeof window !== "undefined" ? `${Number(window.location.port) - 1} / :${window.location.port}` : "backend / :frontend"}
+                :
+                {typeof window !== "undefined"
+                  ? `${Number(window.location.port) - 1} / :${window.location.port}`
+                  : "backend / :frontend"}
               </span>
               {backendOk === false && (
                 <button
@@ -215,7 +218,9 @@ export function AppLayout() {
         <main className="flex-1 overflow-auto relative z-10 p-6 md:p-8 custom-scrollbar flex flex-col">
           <div className="max-w-7xl mx-auto w-full flex-1 animate-in fade-in slide-in-from-bottom-4 duration-700 flex flex-col">
             <Outlet />
-            <div className="mt-auto pt-8 text-center text-[10px] font-mono text-muted-foreground/30">sandraschi fleet · local first</div>
+            <div className="mt-auto pt-8 text-center text-[10px] font-mono text-muted-foreground/30">
+              sandraschi fleet · local first
+            </div>
           </div>
         </main>
       </div>
