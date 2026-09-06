@@ -1,7 +1,6 @@
 # Standard CI — Windows-only lightweight (fleet 2026)
 # Mirrors mcp-central-docs/templates/ci.yml.template verbatim, except the
-# frontend detection loop also covers `web/` (this repo's dir; older fleet
-# repos use web/ instead of webapp/ — keep the superset so copies work both ways).
+# EXEMPLAR-DELTA step below (frontend must be served for this repo's e2e).
 #
 # Python dev extra MUST include: ruff>=0.16.0,<0.17, pytest, ty, pip-audit
 # pyproject.toml MUST have [tool.ruff.lint] select = [...] (Ruff 0.16 trap — see TRAPS 7b)
@@ -38,7 +37,7 @@ jobs:
         id: frontend
         shell: pwsh
         run: |
-          foreach ($d in @('webapp', 'web_sota', 'web-sota', 'web')) {
+          foreach ($d in @('webapp', 'webapp/frontend', 'web_sota', 'web-sota', 'web', 'frontend', 'ui', 'web_app')) {
             if (Test-Path "$d/package-lock.json") {
               "dir=$d" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8NoBOM
               exit 0
