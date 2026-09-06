@@ -708,16 +708,18 @@ def github_ops(
         return _ok("repo_clone", {"output": (out + err).strip()})
 
     if operation == "repo_delete":
-        if not slug:
-            return _err("repo_delete", "owner and repo required")
-        ok, out, err = run_gh(["repo", "delete", slug, "--yes"])
-        if not ok:
-            return _err(
-                "repo_delete",
-                err or "repo delete failed",
-                recovery_options=["Check gh auth", "Requires admin access"],
-            )
-        return _ok("repo_delete", {"repo": slug}, message=f"Repository {slug} deleted")
+        # Removed from the MCP surface (Becket rule): deleting a whole repo
+        # on AI-relayed orders is never acceptable. Humans use the webapp
+        # Repos page or `gh repo delete` directly. This branch stays as an
+        # explicit refusal so callers get guidance, not "unknown operation".
+        return _err(
+            "repo_delete",
+            "repo_delete was removed from the MCP surface",
+            recovery_options=[
+                "Delete in the webapp (Repos page) as a human",
+                "Or via CLI: gh repo delete <owner/repo>",
+            ],
+        )
 
     if operation == "repo_rename":
         if not slug:

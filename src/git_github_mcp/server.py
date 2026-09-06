@@ -264,12 +264,13 @@ async def git_core(
     oneline: bool = False,
     file_path: str | None = None,
     confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
     """Git core operations — status, log, diff, show, init, clone, add, commit, push, pull, fetch.
 
     Core workflow tools. For branch/tag/stash operations use git_branch.
     For remote/reset/clean/submodule/bisect/worktree use git_admin.
-    Force-push/pull/fetch/clone need confirm=True (red-shelf gate).
+    Force-push/pull/fetch/clone need confirm=True + confirm_token (red-shelf gate).
     """
     if operation not in CORE_OPS:
         from .utils.response import error_response
@@ -279,7 +280,14 @@ async def git_core(
             f"Unknown operation '{operation}'. Valid: {sorted(CORE_OPS)}",
             recovery_options=["Use one of the listed operations"],
         )
-    refusal = destructive_gate.gate("git_core", operation, confirm=confirm, force=force)
+    refusal = destructive_gate.gate(
+        "git_core",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        force=force,
+        targets={"repo_path": repo_path, "branch": branch, "remote": remote},
+    )
     if refusal is not None:
         return refusal
     return await _run_git_tool(
@@ -318,12 +326,13 @@ async def git_branch(
     tag_name: str | None = None,
     tag_message: str | None = None,
     confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
     """Git branch operations — branch lifecycle, merge, rebase, stash, tag.
 
     For core operations (status, log, commit, push) use git_core.
     For admin operations (remote, reset, clean, submodule) use git_admin.
-    branch_delete needs confirm=True (red-shelf gate).
+    branch_delete needs confirm=True + confirm_token (red-shelf gate).
     """
     if operation not in BRANCH_OPS:
         from .utils.response import error_response
@@ -340,7 +349,14 @@ async def git_branch(
             candidates = listed if isinstance(listed, dict) else None
         except Exception:
             candidates = None
-    refusal = destructive_gate.gate("git_branch", operation, confirm=confirm, candidates=candidates)
+    refusal = destructive_gate.gate(
+        "git_branch",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        candidates=candidates,
+        targets={"repo_path": repo_path, "branch": branch},
+    )
     if refusal is not None:
         return refusal
     return await _run_git_tool(
@@ -374,12 +390,13 @@ async def git_admin(
     recursive: bool = False,
     worktree_path: str | None = None,
     confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
     """Git admin operations — remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree.
 
     For core operations (status, log, commit, push) use git_core.
     For branch operations use git_branch.
-    reset/clean/worktree_remove need confirm=True (red-shelf gate).
+    reset/clean/worktree_remove need confirm=True + confirm_token (red-shelf gate).
     """
     if operation not in ADMIN_OPS:
         from .utils.response import error_response
@@ -396,7 +413,14 @@ async def git_admin(
             candidates = listed if isinstance(listed, dict) else None
         except Exception:
             candidates = None
-    refusal = destructive_gate.gate("git_admin", operation, confirm=confirm, candidates=candidates)
+    refusal = destructive_gate.gate(
+        "git_admin",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        candidates=candidates,
+        targets={"repo_path": repo_path, "worktree_path": worktree_path, "commit": commit},
+    )
     if refusal is not None:
         return refusal
     return await _run_git_tool(
@@ -494,11 +518,12 @@ async def github_ops(
     subpath: str | None = None,
     github_url: str | None = None,
     confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
     """GitHub operations via gh CLI — 66 actions. Requires: gh auth login.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
-                   repo_delete, repo_rename, repo_archive
+                   repo_rename, repo_archive (repo_delete: REST/webapp only, not on MCP)
     ISSUES:        issue_list, issue_view, issue_create, issue_close, issue_comment
     PRs:           pr_list, pr_view, pr_create, pr_merge, pr_checkout, pr_close, pr_comment
     RELEASES:      release_list, release_view, release_create, release_delete, release_update
@@ -515,9 +540,22 @@ async def github_ops(
     MISC:          auth_status, gist_list
 
     Non-blocking: subprocess runs in thread pool, never freezes MCP server.
-    repo_delete/release_delete need confirm=True (red-shelf gate).
+    release_delete needs confirm=True + confirm_token (red-shelf gate).
+    repo_delete was removed from the MCP surface (webapp/CLI only).
     """
-    refusal = destructive_gate.gate("github_ops", operation, confirm=confirm)
+    refusal = destructive_gate.gate(
+        "github_ops",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        targets={
+            "owner": owner,
+            "repo": repo,
+            "tag_name": tag_name,
+            "pr_number": pr_number,
+            "issue_number": issue_number,
+        },
+    )
     if refusal is not None:
         return refusal
     start = time.perf_counter()
@@ -734,6 +772,7 @@ async def _gate_plan_step(tool_name: str | None, args: dict) -> tuple[dict, dict
     """
     args = dict(args or {})
     confirm = args.pop("confirm", False)
+    confirm_token = args.pop("confirm_token", None)
     op = str(args.get("operation") or "")
     family: str | None = None
     if tool_name == "github_ops":
@@ -758,7 +797,13 @@ async def _gate_plan_step(tool_name: str | None, args: dict) -> tuple[dict, dict
         except Exception:
             candidates = None
     refusal = destructive_gate.gate(
-        family, op, confirm=bool(confirm), force=bool(args.get("force", False)), candidates=candidates
+        family,
+        op,
+        confirm=bool(confirm),
+        confirm_token=confirm_token,
+        force=bool(args.get("force", False)),
+        candidates=candidates,
+        targets={k: args.get(k) for k in destructive_gate.TARGET_KEYS if args.get(k) is not None},
     )
     return args, refusal
 
@@ -821,11 +866,13 @@ Available tools:
    optional ref, subpath on link),
    auth_status, gist_list.
 
-Red shelf (a step using these without confirm=true returns
+Red shelf (a step using these without confirm=true + confirm_token returns
 confirmation_required and stops the plan): worktree_remove, clean, reset,
-branch_delete, force push/pull/fetch/clone, repo_delete, release_delete.
-List first (worktree_list/branch_list), demand precision in args, confirm
-with exact identifiers — adjectives are not identifiers.
+branch_delete, force push/pull/fetch/clone, release_delete.
+(repo_delete is not on MCP at all — REST/webapp only.)
+List first (worktree_list/branch_list), demand precision in args, then echo
+the confirmation_token from the pushback with exact identifiers —
+adjectives are not identifiers, and a bare confirm=true is refused.
 
 Context:
 - {repo_ctx}
@@ -970,8 +1017,9 @@ Available github_ops groups (all require valid gh auth unless read-only search f
 - LLM digest URLs (public repos / PAT for private): gitingest_link (owner, repo, ref?,
   subpath?), gitingest_convert_url (github_url= full tree URL), gitingest_help
 - Sanity: auth_status when authentication might be the blocker
-- Red shelf: repo_delete/release_delete need confirm=true in args plus working
-  repo AI, else the step returns confirmation_required and stops the plan.
+- Red shelf: release_delete needs confirm=true + confirm_token echoed from
+  its pushback in args plus working repo AI, else the step returns
+  confirmation_required and stops the plan. (repo_delete is REST/webapp only.)
 
 Context:
 - {gh_ctx}
