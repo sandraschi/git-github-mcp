@@ -1307,8 +1307,7 @@ async def api_skills():
                 "name": "github-expert",
                 "title": "GitHub Expert",
                 "description": (
-                    "Expert Git and GitHub workflows -- "
-                    "use git_ops, github_ops, agentic workflows, Gitingest helpers."
+                    "Expert Git and GitHub workflows -- use git_ops, github_ops, agentic workflows, Gitingest helpers."
                 ),
             }
         ]
@@ -1318,8 +1317,14 @@ async def api_skills():
 @web_app.get("/api/skill/{skill_name}")
 async def api_skill(skill_name: str):
     skill_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "..",
-        ".cursor", "skills", "github-expert", "SKILL.md",
+        os.path.dirname(__file__),
+        "..",
+        "..",
+        "..",
+        ".cursor",
+        "skills",
+        "github-expert",
+        "SKILL.md",
     )
     try:
         return {"content": Path(skill_path).read_text(encoding="utf-8")}
@@ -1379,21 +1384,25 @@ async def api_llm_discover():
         logger.debug("LM Studio discover probe failed: %s", exc)
 
     if ollama_available:
-        providers.append({
-            "id": "ollama",
-            "name": "Ollama",
-            "base_url": _OLLAMA_BASE,
-            "models": ollama_models,
-            "endpoint": "/api/chat",
-        })
+        providers.append(
+            {
+                "id": "ollama",
+                "name": "Ollama",
+                "base_url": _OLLAMA_BASE,
+                "models": ollama_models,
+                "endpoint": "/api/chat",
+            }
+        )
     if lm_studio_available:
-        providers.append({
-            "id": "lmstudio",
-            "name": "LM Studio",
-            "base_url": _LM_STUDIO_BASE,
-            "models": [],
-            "endpoint": "/v1/chat/completions",
-        })
+        providers.append(
+            {
+                "id": "lmstudio",
+                "name": "LM Studio",
+                "base_url": _LM_STUDIO_BASE,
+                "models": [],
+                "endpoint": "/v1/chat/completions",
+            }
+        )
 
     return {
         "success": True,
