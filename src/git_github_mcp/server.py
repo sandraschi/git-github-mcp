@@ -25,6 +25,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
 from fastmcp.server import create_proxy
+from fastmcp.tools import ToolResult
 
 from .activity_log import install_log_handler, log_activity
 from .capabilities import build_capabilities
@@ -645,8 +646,8 @@ async def git_github_status(level: str = "basic") -> dict:
     return await asyncio.to_thread(_get_status, level=level)
 
 
-@mcp.tool(annotations=_READ_ONLY)
-async def show_status_card() -> str:
+@mcp.tool(app=True, annotations=_READ_ONLY)
+async def show_status_card() -> ToolResult:
     """Show git/gh system health as a rich Prefab card in chat.
 
     Use this to visualise whether git and gh CLI are available,
@@ -654,34 +655,38 @@ async def show_status_card() -> str:
     with status indicators, not raw JSON.
     """
     status = await asyncio.to_thread(_get_status, level="detailed")
+    git = status.get("git", {})
+    gh = status.get("gh", {})
+    git_ok = bool(git.get("available", False))
+    gh_ok = bool(gh.get("available", False))
+    gh_auth = gh.get("auth") == "ok"
+    platform = f"{status.get('platform', '?')} {status.get('platform_release', '')}".strip()
+    text = "\n".join(
+        [
+            f"git: {'OK' if git_ok else 'MISSING'}",
+            f"gh:  {'OK' if gh_ok else 'MISSING'}",
+            f"auth: {'OK' if gh_auth else 'LOGIN REQUIRED'}" if gh_ok else "auth: n/a",
+            f"platform: {platform}",
+        ]
+    )
     try:
         from prefab_ui import PrefabApp
-        from prefab_ui.components import Div, Heading, Row
+        from prefab_ui.components import Row, Text
 
         with PrefabApp(title="Git GitHub Status") as app:
-            Heading("System Health", level=2)
-            git = status.get("git", {})
-            gh = status.get("gh", {})
-            Row(label="git CLI", value="Detected" if git.get("available") else "Not found")
-            if gh.get("available"):
-                Row(label="gh CLI", value="Detected")
-                auth = gh.get("auth", "")
-                auth_str = "Authenticated" if auth == "ok" else "Not logged in"
-                Row(label="gh auth", value=auth_str)
-            else:
-                Row(label="gh CLI", value="Not found")
-            Div()
-            Row(label="Platform", value=f"{status.get('platform', '?')} {status.get('platform_release', '')}")
-        return app
+            Row(children=[Text(content="git CLI"), Text(content="Detected" if git_ok else "Not found")])
+            Row(children=[Text(content="gh CLI"), Text(content="Detected" if gh_ok else "Not found")])
+            if gh_ok:
+                Row(
+                    children=[
+                        Text(content="gh auth"),
+                        Text(content="Authenticated" if gh_auth else "Not logged in"),
+                    ]
+                )
+            Row(children=[Text(content="Platform"), Text(content=platform)])
+        return ToolResult(content=text, structured_content=app)
     except ImportError:
-        git_ok = status.get("git", {}).get("available", False)
-        gh_ok = status.get("gh", {}).get("available", False)
-        gh_auth = status.get("gh", {}).get("auth") == "ok"
-        lines = [f"git: {'OK' if git_ok else 'MISSING'}"]
-        lines.append(f"gh:  {'OK' if gh_ok else 'MISSING'}")
-        if gh_ok:
-            lines.append(f"auth: {'OK' if gh_auth else 'LOGIN REQUIRED'}")
-        return "\n".join(lines)
+        return ToolResult(content=text)
 
 
 @mcp.tool(annotations=_READ_ONLY)
@@ -700,7 +705,7 @@ async def git_agentic_workflow(
     repo_path: str | None = None,
     owner: str | None = None,
     repo: str | None = None,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Agentic multi-step Git/GitHub workflow using LLM sampling.
 
@@ -760,13 +765,18 @@ Respond with ONLY valid JSON:
   ]
 }}
 """
+    if ctx is None:
+        return {
+            "success": False,
+            "error": "Context not available — sampling requires an active MCP session",
+        }
 
     try:
         plan_response = await ctx.sample(
-            messages=[{"role": "user", "content": plan_prompt}],
+            messages=plan_prompt,
             max_tokens=1024,
         )
-        plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
+        plan_text = (plan_response.text if hasattr(plan_response, "text") else str(plan_response)) or ""
     except Exception as e:
         return {
             "success": False,
@@ -845,7 +855,7 @@ async def git_github_search_workflow(
     owner: str | None = None,
     repo: str | None = None,
     limit: int = 30,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Agentic GitHub discovery/search workflow (sampling-first).
 
@@ -900,10 +910,10 @@ Return ONLY valid JSON:
 """
     try:
         plan_response = await ctx.sample(
-            messages=[{"role": "user", "content": plan_prompt}],
+            messages=plan_prompt,
             max_tokens=1200,
         )
-        plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
+        plan_text = (plan_response.text if hasattr(plan_response, "text") else str(plan_response)) or ""
     except Exception as e:
         return {
             "success": False,

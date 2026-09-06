@@ -52,9 +52,8 @@ def run_gh(
     timeout: int = 60,
 ) -> tuple[bool, str, str]:
     """Run gh CLI. Returns (success, stdout, stderr)."""
+    gh_path = _get_gh_path()
     try:
-        gh_path = _get_gh_path()
-
         result = subprocess.run(
             [gh_path, *args],
             cwd=cwd,

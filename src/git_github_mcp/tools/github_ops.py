@@ -118,9 +118,9 @@ def _pr_comment_count(raw: Any) -> int:
         return 0
     if isinstance(raw, list):
         return len(raw)
-    if isinstance(raw, dict) and "totalCount" in raw:
+    if isinstance(raw, dict):
         try:
-            return int(raw["totalCount"])
+            return int(raw.get("totalCount", 0))
         except (TypeError, ValueError):
             return 0
     try:
@@ -136,7 +136,7 @@ def _normalize_pr_row(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _ok(op: str, data: dict, message: str | None = None, next_steps: list | None = None) -> dict:
-    return success_response(data, op, message=message, next_steps=next_steps or [])
+    return success_response(data, op, message=message or "", next_steps=next_steps or [])
 
 
 def _err(op: str, msg: str, **kw) -> dict:
@@ -658,7 +658,7 @@ def github_ops(
             return _err("show_repo", "unexpected gh output")
         fmt = (output_format or "markdown").strip().lower()
         card = format_repo_card(raw, fmt)
-        payload: dict[str, Any] = {
+        card_payload: dict[str, Any] = {
             "format": fmt,
             "content": card,
             "repository": slug,
@@ -666,7 +666,7 @@ def github_ops(
         }
         return _ok(
             "show_repo",
-            payload,
+            card_payload,
             message="Repository card — use `content` in Markdown/HTML preview",
             next_steps=[f"github_ops(operation='repo_clone', owner='{owner}', repo='{repo}')"],
         )

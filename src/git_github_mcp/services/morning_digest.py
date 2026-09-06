@@ -119,9 +119,9 @@ def _pr_comment_count(raw: Any) -> int:
         return 0
     if isinstance(raw, list):
         return len(raw)
-    if isinstance(raw, dict) and "totalCount" in raw:
+    if isinstance(raw, dict):
         try:
-            return int(raw["totalCount"])
+            return int(raw.get("totalCount", 0))
         except (TypeError, ValueError):
             return 0
     try:

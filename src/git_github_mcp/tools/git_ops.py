@@ -149,7 +149,7 @@ async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tupl
 
 
 def _ok(op: str, data: dict, message: str | None = None, next_steps: list[str] | None = None) -> dict[str, Any]:
-    return success_response(data, op, message=message, next_steps=next_steps or [])
+    return success_response(data, op, message=message or "", next_steps=next_steps or [])
 
 
 def _err(op: str, msg: str, **kw) -> dict[str, Any]:
