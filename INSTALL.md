@@ -100,17 +100,22 @@ Replace `C:\\path\\to\\git-github-mcp` with your actual clone path. Restart Clau
 
 ---
 
-## Option D — Web App Mode
+## Option D — Developer Mode
 
-React frontend (Vite, port 10714) + FastAPI backend (port 10713). Requires Option D setup.
+For contributing or running from source with live reload.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the full toolchain
+(uv, just, pre-commit) and the `just ci` gate.
 
 ```powershell
 winget install Casey.Just --accept-source-agreements --accept-package-agreements
-cd web && npm install && cd ..
+git clone https://github.com/sandraschi/git-github-mcp
+cd git-github-mcp
+just bootstrap
 .\start.ps1
 ```
 
-See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for full dev setup, lint, tests, and mcpb packaging.
+This starts the React frontend (Vite, port 10714) + FastAPI backend
+(port 10713).
 
 | Switch | Effect |
 |--------|--------|
@@ -145,29 +150,21 @@ Claude Desktop and check that the server appears in Settings → MCP Servers.
 
 ## Environment Variables
 
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `MCP_TRANSPORT` | `stdio` | Transport: `stdio` \| `http` \| `sse` |
-| `MCP_HOST` | `127.0.0.1` | Bind address for HTTP/SSE |
-| `MCP_PORT` | `10713` | MCP HTTP port |
-| `MCP_PATH` | `/mcp` | MCP endpoint path |
-| `GH_TOKEN` | — | GitHub token (overrides gh CLI auth) |
-| `PYTHONUNBUFFERED` | — | Set to `1` in Claude Desktop config |
+`GH_TOKEN` above is the only variable most installs need. Full reference
+(transport, web bridge, fleet suite, digest sinks):
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the full reference.
+> **No LLM keys required.** The server never calls a model itself. The two
+> agentic workflows plan via client-side sampling (Claude Desktop,
+> Antigravity); the web `/chat` page optionally uses a local Ollama model.
 
 ---
 
 ## HTTP Bridge Endpoints
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/health` | GET | Liveness check |
-| `/api/status` | GET | git and gh CLI versions + auth state |
-| `/api/tools` | GET | Tool manifest |
-| `/api/git` | POST | Direct git operations |
-| `/api/github` | POST | Direct GitHub operations |
-| `/mcp` | — | MCP HTTP transport (HTTP mode only) |
+REST mirror of the tools on port 10713 (`/health`, `/api/status`,
+`/api/tools`, `/api/git`, `/api/github`, …). Full route table:
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
