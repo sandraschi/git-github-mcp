@@ -7,23 +7,31 @@
 
 ## Red-shelf gate (destructive ops)
 
-*"Delete all stale worktrees"* must never sail through. These operations
-need **explicit `confirm=True` with exact identifiers plus a working repo
-AI** (local LLM: Ollama `:11434` or LM Studio `:1234`):
+*"Delete all stale worktrees"* must never sail through — and a bare
+`confirm=True` is forgeable by the model (Becket rule), so execution needs
+a **single-use `confirm_token` echoed back plus a working repo AI**
+(local LLM: Ollama `:11434` or LM Studio `:1234`). Tokens are issued with
+the pushback, bound to the exact targets, valid 10 minutes:
 
 - `git_admin`: `reset`, `clean`, `worktree_remove`
 - `git_branch`: `branch_delete`
 - `git_core`: `push`/`pull`/`fetch`/`clone` **with `force=True`**
-- `github_ops`: `repo_delete`, `release_delete`
+- `github_ops`: `release_delete` (`repo_delete` was removed from the MCP
+  surface entirely — webapp Repos page or `gh repo delete` only)
 
-Without `confirm`, the call returns `confirmation_required: True` with
-candidates, a precision demand, and mitigation hints — no execution. With
-`confirm=True` but repo AI down, it returns a canned refusal (start Ollama
-/ LM Studio, or do it in the webapp as a human). MCP-side only: the webapp
+First call returns `confirmation_required: True` with candidates, a
+precision demand, the token, and mitigation hints — no execution. Echo
+`confirm=True` + `confirm_token` with identical targets to execute (token
+consumed; wrong-target or expired echo is refused with a fresh token).
+With a valid echo but repo AI down: canned refusal (start Ollama /
+LM Studio, or do it in the webapp as a human). MCP-side only: the webapp
 REST endpoints call the implementations directly and stay ungated.
 Planned workflow steps go through the same gate (a refused step stops the
 plan with the pushback visible); the plan prompts teach the model
-`confirm` + list-first discipline.
+`confirm` + token echo + list-first discipline.
+Fleet audit 2026-09-06: `fleet_ops`/`morning_digest` never write to GitHub
+(`ack_drafts` yields drafts + manual `pr_comment` hints only) — nothing to
+gate there; posting stays an explicit per-call act.
 Philosophy: [WRAPPEE.md](WRAPPEE.md#delete-all-stale-worktrees--words-are-sharper-than-they-look).
 
 ## `git_core` — everyday git (11 ops)

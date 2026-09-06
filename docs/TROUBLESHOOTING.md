@@ -56,9 +56,12 @@ The pre-commit hook blocks commits until both pass.
 
 ## Destructive call returns `confirmation_required`
 **Cause**: red-shelf gate (reset/clean/worktree_remove, branch_delete,
-force push, repo_delete/release_delete) — by design, see TOOLS.md.
-**Fix**: re-run with exact identifiers + `confirm=True`. If refused for
-repo AI being down: start Ollama/LM Studio, or do it in the webapp.
+force push, release_delete) — by design, see TOOLS.md.
+**Fix**: re-run with exact identifiers + `confirm=True` + the
+`confirm_token` from the pushback (single-use, 10 min, target-bound; a
+bare `confirm=True` is refused). If refused for repo AI being down: start
+Ollama/LM Studio, or do it in the webapp. `repo_delete` is not on MCP at
+all — webapp Repos page or `gh repo delete`.
 
 ## `npm ci` fails in `web/`
 **Cause**: lock file out of sync after a `package.json` edit.
