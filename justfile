@@ -30,6 +30,22 @@ fix:
     Set-Location '{{justfile_directory()}}\web'
     npx @biomejs/biome check --write .
 
+# Local mirror of .github/workflows/ci.yml (Windows-only).
+# Blocking gates: ruff, pyright, pytest, tsc, biome.
+# ty + pip-audit are advisory (same as CI continue-on-error): findings print
+# but don't fail the recipe.
+# NOTE: each recipe line runs in its own shell, so CWD changes must be
+# chained on the same line with ';' (a bare Set-Location line is lost).
+ci:
+    uv run ruff check src tests
+    uv run ruff format --check src tests
+    uv run pyright src
+    uv run pytest -q --tb=short tests/
+    uv run ty check src; if ($LASTEXITCODE -ne 0) { Write-Host "ty: advisory findings (non-blocking, same as CI continue-on-error)" }
+    uv run pip-audit; if ($LASTEXITCODE -ne 0) { Write-Host "pip-audit: advisory findings (non-blocking, same as CI continue-on-error)" }
+    Set-Location '{{justfile_directory()}}\web'; npm run check
+    Set-Location '{{justfile_directory()}}\web'; npm run biome:ci
+
 # --- Hardening ---
 
 # Execute Bandit security audit
