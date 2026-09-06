@@ -80,3 +80,57 @@ async def test_wrapper_safe_op_passthrough() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         result = await server.git_admin(operation="worktree_list", repo_path=tmp)
     assert "confirmation_required" not in result
+
+
+async def test_gate_plan_step_pops_confirm_and_passes_safe() -> None:
+    """Plan helper strips confirm (impls don't accept it) and passes safe ops."""
+    from git_github_mcp import server
+
+    args, refusal = await server._gate_plan_step("git_ops", {"operation": "status", "confirm": True})
+    assert args == {"operation": "status"}
+    assert refusal is None
+
+
+async def test_plan_executor_refuses_vague_destructive() -> None:
+    """A planned 'delete all stale worktrees' stops at the gate, unexecuted."""
+    import json
+    from types import SimpleNamespace
+
+    from git_github_mcp import server
+
+    class FakeCtx:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        async def info(self, *a, **k) -> None:
+            pass
+
+        async def warning(self, *a, **k) -> None:
+            pass
+
+        async def sample(self, *a, **k):
+            return SimpleNamespace(text=self._text)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        plan = {
+            "plan": "remove stale worktrees",
+            "steps": [
+                {
+                    "tool": "git_ops",
+                    "args": {
+                        "operation": "worktree_remove",
+                        "repo_path": tmp,
+                        "worktree_path": "stale-one",
+                    },
+                    "description": "delete stale worktree",
+                }
+            ],
+        }
+        result = await server.git_agentic_workflow(
+            task="delete all stale worktrees in the repo",
+            repo_path=tmp,
+            ctx=FakeCtx(json.dumps(plan)),
+        )
+    assert result["success"] is False
+    step = result["results"][0]
+    assert step["result"].get("confirmation_required") is True

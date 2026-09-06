@@ -724,6 +724,45 @@ async def show_status_card() -> ToolResult:
         return ToolResult(content=text)
 
 
+async def _gate_plan_step(tool_name: str | None, args: dict) -> tuple[dict, dict | None]:
+    """Red-shelf check for one planned workflow step.
+
+    Pops `confirm` (implementations don't accept it), resolves the wrapper
+    family from the operation, lists candidates best-effort for deletes.
+    Returns (clean_args, refusal_or_None). Unknown tools and read-only ops
+    pass through with (args, None).
+    """
+    args = dict(args or {})
+    confirm = args.pop("confirm", False)
+    op = str(args.get("operation") or "")
+    family: str | None = None
+    if tool_name == "github_ops":
+        family = "github_ops"
+    elif tool_name == "git_ops":
+        if op in CORE_OPS:
+            family = "git_core"
+        elif op in BRANCH_OPS:
+            family = "git_branch"
+        elif op in ADMIN_OPS:
+            family = "git_admin"
+    if family is None:
+        return args, None
+    candidates = None
+    if op in ("worktree_remove", "branch_delete"):
+        try:
+            listed = await _git_ops(
+                operation="worktree_list" if op == "worktree_remove" else "branch_list",
+                repo_path=args.get("repo_path"),
+            )
+            candidates = listed if isinstance(listed, dict) else None
+        except Exception:
+            candidates = None
+    refusal = destructive_gate.gate(
+        family, op, confirm=bool(confirm), force=bool(args.get("force", False)), candidates=candidates
+    )
+    return args, refusal
+
+
 @mcp.tool(annotations=_READ_ONLY)
 async def git_github_help(level: str = "basic", topic: str | None = None) -> dict:
     """Contextual help for git-github-mcp tools and operations.
@@ -778,9 +817,15 @@ Available tools:
   search (search_repos, search_repos_topic, search_issues, search_code with pretty=,
   code_find_repos for extension/path-scoped hunts),
   Projects (project_*), Packages (package_*),
-  Gitingest helpers (gitingest_link, gitingest_convert_url with github_url, gitingest_help;
-  optional ref, subpath on link),
-  auth_status, gist_list.
+   Gitingest helpers (gitingest_link, gitingest_convert_url with github_url, gitingest_help;
+   optional ref, subpath on link),
+   auth_status, gist_list.
+
+Red shelf (a step using these without confirm=true returns
+confirmation_required and stops the plan): worktree_remove, clean, reset,
+branch_delete, force push/pull/fetch/clone, repo_delete, release_delete.
+List first (worktree_list/branch_list), demand precision in args, confirm
+with exact identifiers — adjectives are not identifiers.
 
 Context:
 - {repo_ctx}
@@ -846,9 +891,11 @@ Respond with ONLY valid JSON:
 
         try:
             if tool_name == "git_ops":
-                result = await _git_ops(**args)
+                args, refusal = await _gate_plan_step(tool_name, args)
+                result = refusal if refusal is not None else await _git_ops(**args)
             elif tool_name == "github_ops":
-                result = await asyncio.to_thread(_github_ops, **args)
+                args, refusal = await _gate_plan_step(tool_name, args)
+                result = refusal if refusal is not None else await asyncio.to_thread(_github_ops, **args)
             else:
                 from .utils.response import error_response
 
@@ -923,6 +970,8 @@ Available github_ops groups (all require valid gh auth unless read-only search f
 - LLM digest URLs (public repos / PAT for private): gitingest_link (owner, repo, ref?,
   subpath?), gitingest_convert_url (github_url= full tree URL), gitingest_help
 - Sanity: auth_status when authentication might be the blocker
+- Red shelf: repo_delete/release_delete need confirm=true in args plus working
+  repo AI, else the step returns confirmation_required and stops the plan.
 
 Context:
 - {gh_ctx}
@@ -983,7 +1032,8 @@ Return ONLY valid JSON:
         desc = step.get("description", f"Step {i + 1}")
         await ctx.info(f"Step {i + 1}/{len(steps)}: {desc}")
         try:
-            result = await asyncio.to_thread(_github_ops, **args)
+            args, refusal = await _gate_plan_step("github_ops", args)
+            result = refusal if refusal is not None else await asyncio.to_thread(_github_ops, **args)
         except Exception as e:
             from .utils.response import error_response
 

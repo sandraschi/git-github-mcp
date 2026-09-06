@@ -21,6 +21,9 @@ candidates, a precision demand, and mitigation hints — no execution. With
 `confirm=True` but repo AI down, it returns a canned refusal (start Ollama
 / LM Studio, or do it in the webapp as a human). MCP-side only: the webapp
 REST endpoints call the implementations directly and stay ungated.
+Planned workflow steps go through the same gate (a refused step stops the
+plan with the pushback visible); the plan prompts teach the model
+`confirm` + list-first discipline.
 Philosophy: [WRAPPEE.md](WRAPPEE.md#delete-all-stale-worktrees--words-are-sharper-than-they-look).
 
 ## `git_core` — everyday git (11 ops)
