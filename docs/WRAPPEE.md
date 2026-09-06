@@ -48,6 +48,26 @@ present in `git_branch` / `git_admin`, all taught in the in-app Lectures
 instead of a mangled tree and silence. Rebase and force-push should not
 elicit a "haaaah?" reaction — neither the operation nor the aftermath.
 
+## AI on both sides of the pull request
+
+A year ago the story was simple: AI-filed issues and PRs were mostly low
+quality, and maintainers hated them — some repos posted blanket "no AI
+contributions" notices. Then the models and agents got much stronger, and
+the quality followed. The blanket refusal quietly became obsolete; what
+nobody can reliably detect, nobody bothers to forbid, and increasingly
+nobody wants to.
+
+The healthier pattern won instead: solo devs and small teams now let their
+own AI weed the inbox first — triage, acknowledge, reproduce — and spend
+their human hours on judgment instead of janitorial reading. Everybody is
+happy (we wish). Helping the mood: agents keep turning up long-dormant
+bugs and CVEs that human reviewers walked past for years, which reframes
+the machine from nuisance to colleague fairly fast.
+
+This server is built for exactly that loop: `pr_list` with
+comments/updatedAt for triage, `fleet_morning_digest` for the daily weed,
+`ack_drafts` for the first reply. See [TOOLS.md](TOOLS.md).
+
 ## Why this is central to FOSS dev
 
 Almost every dependency you have arrived via git + a forge: version tags
