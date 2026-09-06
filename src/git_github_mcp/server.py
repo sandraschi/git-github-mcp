@@ -37,6 +37,7 @@ from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
 from .tools.help import get_help as _get_help
 from .tools.status import get_status as _get_status
+from .utils import destructive_gate
 from .web_discovery import PRESETS as DISCOVERY_PRESETS
 from .web_discovery import run_discovery_workflow as _run_discovery_workflow
 
@@ -262,11 +263,13 @@ async def git_core(
     commit2: str | None = None,
     oneline: bool = False,
     file_path: str | None = None,
+    confirm: bool = False,
 ) -> dict:
     """Git core operations — status, log, diff, show, init, clone, add, commit, push, pull, fetch.
 
     Core workflow tools. For branch/tag/stash operations use git_branch.
     For remote/reset/clean/submodule/bisect/worktree use git_admin.
+    Force-push/pull/fetch/clone need confirm=True (red-shelf gate).
     """
     if operation not in CORE_OPS:
         from .utils.response import error_response
@@ -276,6 +279,9 @@ async def git_core(
             f"Unknown operation '{operation}'. Valid: {sorted(CORE_OPS)}",
             recovery_options=["Use one of the listed operations"],
         )
+    refusal = destructive_gate.gate("git_core", operation, confirm=confirm, force=force)
+    if refusal is not None:
+        return refusal
     return await _run_git_tool(
         operation=operation,
         repo_path=repo_path,
@@ -311,11 +317,13 @@ async def git_branch(
     stash_index: int = 0,
     tag_name: str | None = None,
     tag_message: str | None = None,
+    confirm: bool = False,
 ) -> dict:
     """Git branch operations — branch lifecycle, merge, rebase, stash, tag.
 
     For core operations (status, log, commit, push) use git_core.
     For admin operations (remote, reset, clean, submodule) use git_admin.
+    branch_delete needs confirm=True (red-shelf gate).
     """
     if operation not in BRANCH_OPS:
         from .utils.response import error_response
@@ -325,6 +333,16 @@ async def git_branch(
             f"Unknown operation '{operation}'. Valid: {sorted(BRANCH_OPS)}",
             recovery_options=["Use one of the listed operations"],
         )
+    candidates = None
+    if operation == "branch_delete":
+        try:
+            listed = await _run_git_tool(operation="branch_list", repo_path=repo_path)
+            candidates = listed if isinstance(listed, dict) else None
+        except Exception:
+            candidates = None
+    refusal = destructive_gate.gate("git_branch", operation, confirm=confirm, candidates=candidates)
+    if refusal is not None:
+        return refusal
     return await _run_git_tool(
         operation=operation,
         repo_path=repo_path,
@@ -355,11 +373,13 @@ async def git_admin(
     submodule_path: str | None = None,
     recursive: bool = False,
     worktree_path: str | None = None,
+    confirm: bool = False,
 ) -> dict:
     """Git admin operations — remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree.
 
     For core operations (status, log, commit, push) use git_core.
     For branch operations use git_branch.
+    reset/clean/worktree_remove need confirm=True (red-shelf gate).
     """
     if operation not in ADMIN_OPS:
         from .utils.response import error_response
@@ -369,6 +389,16 @@ async def git_admin(
             f"Unknown operation '{operation}'. Valid: {sorted(ADMIN_OPS)}",
             recovery_options=["Use one of the listed operations"],
         )
+    candidates = None
+    if operation == "worktree_remove":
+        try:
+            listed = await _run_git_tool(operation="worktree_list", repo_path=repo_path)
+            candidates = listed if isinstance(listed, dict) else None
+        except Exception:
+            candidates = None
+    refusal = destructive_gate.gate("git_admin", operation, confirm=confirm, candidates=candidates)
+    if refusal is not None:
+        return refusal
     return await _run_git_tool(
         operation=operation,
         repo_path=repo_path,
@@ -463,8 +493,9 @@ async def github_ops(
     package_name: str | None = None,
     subpath: str | None = None,
     github_url: str | None = None,
+    confirm: bool = False,
 ) -> dict:
-    """GitHub operations via gh CLI — 58 actions. Requires: gh auth login.
+    """GitHub operations via gh CLI — 66 actions. Requires: gh auth login.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
                    repo_delete, repo_rename, repo_archive
@@ -484,7 +515,11 @@ async def github_ops(
     MISC:          auth_status, gist_list
 
     Non-blocking: subprocess runs in thread pool, never freezes MCP server.
+    repo_delete/release_delete need confirm=True (red-shelf gate).
     """
+    refusal = destructive_gate.gate("github_ops", operation, confirm=confirm)
+    if refusal is not None:
+        return refusal
     start = time.perf_counter()
     result = await asyncio.to_thread(
         _github_ops,
@@ -2086,7 +2121,9 @@ async def api_github(body: dict):
     args = body.get("arguments", body)
     op = args.get("operation", "?")
     log_activity("github_ops", f"operation={op}", level="INFO", meta={"operation": op})
-    return await github_ops(**args)
+    # REST calls the implementation directly — the red-shelf gate lives in the
+    # MCP wrapper above. Humans in the webapp confirm by clicking.
+    return await asyncio.to_thread(_github_ops, **args)
 
 
 @web_app.post("/api/morning-digest")
