@@ -97,7 +97,7 @@ aiwatcher/browser   - 0
 ### Missing `main` export
 ```
 advanced-memory ❌
-dark-app-factory ❌  
+dark-app-factory ❌
 arxiv-mcp ❌
 speech-mcp ❌
 aiwatcher ✅
