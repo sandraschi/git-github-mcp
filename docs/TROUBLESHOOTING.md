@@ -54,6 +54,12 @@ always spawns a fresh `uvicorn web_app` backend.
 **Fix**: `cd web; npm run check; npm run biome:ci` — or `just fix` from root.
 The pre-commit hook blocks commits until both pass.
 
+## Destructive call returns `confirmation_required`
+**Cause**: red-shelf gate (reset/clean/worktree_remove, branch_delete,
+force push, repo_delete/release_delete) — by design, see TOOLS.md.
+**Fix**: re-run with exact identifiers + `confirm=True`. If refused for
+repo AI being down: start Ollama/LM Studio, or do it in the webapp.
+
 ## `npm ci` fails in `web/`
 **Cause**: lock file out of sync after a `package.json` edit.
 **Fix**: `cd web; npm install` (regenerates the lock), commit both files.

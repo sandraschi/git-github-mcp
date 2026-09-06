@@ -5,6 +5,24 @@
 `suggested_fixes`. Interactive explorer: webapp `/tools` page.
 `git_github_help(level, topic)` answers this at runtime too.
 
+## Red-shelf gate (destructive ops)
+
+*"Delete all stale worktrees"* must never sail through. These operations
+need **explicit `confirm=True` with exact identifiers plus a working repo
+AI** (local LLM: Ollama `:11434` or LM Studio `:1234`):
+
+- `git_admin`: `reset`, `clean`, `worktree_remove`
+- `git_branch`: `branch_delete`
+- `git_core`: `push`/`pull`/`fetch`/`clone` **with `force=True`**
+- `github_ops`: `repo_delete`, `release_delete`
+
+Without `confirm`, the call returns `confirmation_required: True` with
+candidates, a precision demand, and mitigation hints — no execution. With
+`confirm=True` but repo AI down, it returns a canned refusal (start Ollama
+/ LM Studio, or do it in the webapp as a human). MCP-side only: the webapp
+REST endpoints call the implementations directly and stay ungated.
+Philosophy: [WRAPPEE.md](WRAPPEE.md#delete-all-stale-worktrees--words-are-sharper-than-they-look).
+
 ## `git_core` — everyday git (11 ops)
 
 `init, clone, add, commit, push, pull, fetch, status, log, diff, show`.
