@@ -9,9 +9,13 @@ export default defineConfig({
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "uv run python -m git_github_mcp.server --port 10713",
+    // Serve the FastAPI web bridge (has /health + /api/*). NOTE: the old
+    // `python -m git_github_mcp.server --port ...` runs STDIO transport and
+    // never listens, so Playwright timed out waiting for the port.
+    command:
+      "uv run uvicorn git_github_mcp.server:web_app --host 127.0.0.1 --port 10713",
     port: 10713,
-    timeout: 30000,
-    reuseExistingServer: false,
+    timeout: 60000,
+    reuseExistingServer: !process.env.CI,
   },
 });
