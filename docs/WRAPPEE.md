@@ -74,6 +74,27 @@ This server is built for exactly that loop: `pr_list` with
 comments/updatedAt for triage, `fleet_morning_digest` for the daily weed,
 `ack_drafts` for the first reply. See [TOOLS.md](TOOLS.md).
 
+## "Delete all stale worktrees" — words are sharper than they look
+
+Try this on Claude Desktop with this server connected: *"delete all stale
+worktrees in the repo."* Sounds like tidying. Could be a week's work gone
+— because "stale" is doing an enormous amount of unexamined lifting. Stale
+since when? Merged already? Whose? The sentence contains no answers, only
+confidence.
+
+This is where the repo AI earns its keep, if it works: a vague destructive
+must never sail straight through to `worktree_remove`. The right response
+is pushback in the tool result — *here are the worktrees, here is what
+"stale" could mean for each, tell me exactly which ones, and here is how
+you'd recover if I'm wrong* — list first, demand precision, confirm, and
+attach mitigation hints. The response envelope already carries
+`recovery_options` for exactly this; the discipline is using the plan step
+for interrogation instead of obedience.
+
+The red shelf, for reference: `worktree_remove`, `clean`, `reset`,
+`branch_delete` — and `repo_delete`, which is exactly as final as it
+sounds. Adjectives are not identifiers. Never `force` from a vague prompt.
+
 ## Why this is central to FOSS dev
 
 Almost every dependency you have arrived via git + a forge: version tags
