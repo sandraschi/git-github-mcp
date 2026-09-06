@@ -32,6 +32,22 @@ use them without tripping over PATH, auth, or subprocess hangs.
 | Ship | `github_ops(operation="release_create", tag_name="v…")` |
 | Health of the fleet | `fleet_morning_digest()` / `fleet_ops(operation="full_suite")` |
 
+## "Everybody knows git" means everybody knows a subset
+
+git ships 150+ porcelain commands; `gh` spans repos, issues, PRs, releases,
+Actions, packages, projects, search. Nobody holds all of it — most
+developers live in `pull/commit/push` plus a few incantations copied from
+long ago. You could accuse both tools of featuritis; the kinder truth is
+they accreted 20 years of real workflows, sharp edges included.
+
+This repo is a bit of a lecturer here. The dangerous corners are
+first-class operations with guardrails and explanations, not footnotes:
+`rebase`, `reset` vs `revert`, `cherry_pick`, force push, `bisect` — all
+present in `git_branch` / `git_admin`, all taught in the in-app Lectures
+(`/lectures`), all returning structured results with recovery options
+instead of a mangled tree and silence. Rebase and force-push should not
+elicit a "haaaah?" reaction — neither the operation nor the aftermath.
+
 ## Why this is central to FOSS dev
 
 Almost every dependency you have arrived via git + a forge: version tags
