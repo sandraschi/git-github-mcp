@@ -60,9 +60,15 @@ nobody wants to.
 The healthier pattern won instead: solo devs and small teams now let their
 own AI weed the inbox first — triage, acknowledge, reproduce — and spend
 their human hours on judgment instead of janitorial reading. Everybody is
-happy (we wish). Helping the mood: agents keep turning up long-dormant
-bugs and CVEs that human reviewers walked past for years, which reframes
-the machine from nuisance to colleague fairly fast.
+happy (we wish). The mood shifter has a name: Mythos. When it started surfacing
+long-latent holes at scale — bugs and CVEs human reviewers had walked past
+for years — it made mainstream news, and then a brouhaha: it didn't just
+find the holes, it wrote working exploits. Goalposts moved weekly; access
+was temporarily blocked while everyone argued whether a finder that also
+forges weapons is a researcher or an arms dealer. The public-consumption
+successor, Fable, ships guardrailed against exactly that — findings yes,
+exploits no. The debate isn't settled, but the direction is: the machine
+finds, the human decides.
 
 This server is built for exactly that loop: `pr_list` with
 comments/updatedAt for triage, `fleet_morning_digest` for the daily weed,
