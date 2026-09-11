@@ -1,11 +1,11 @@
-# Per-repo fleet start config for git-github-mcp
+﻿# Per-repo fleet start config for git-github-mcp
 # Edit ports/backend target here - start.ps1 is fleet-standard.
 @{
     Name         = 'git-github-mcp'
     BackendPort  = 10713
     FrontendPort = 10714
     HealthPath   = '/health'
-    WebRoot      = 'D:\Dev\repos\git-github-mcp\web'
+    WebRoot      = 'web'
     Backend = @{
         Kind          = 'uvicorn-web-app'
         UvicornTarget = 'git_github_mcp.server:web_app'
