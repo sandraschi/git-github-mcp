@@ -15,6 +15,7 @@ def main() -> int:
     parser.add_argument("--stale-days", type=int, default=7)
     parser.add_argument("--no-issues", action="store_true")
     parser.add_argument("--no-notifications", action="store_true")
+    parser.add_argument("--no-local", action="store_true", help="Skip local dirty / sync drift checks")
     parser.add_argument("--limit", type=int, default=30, dest="limit_per_repo")
     parser.add_argument("--maintainer", dest="maintainer_login")
     parser.add_argument("--deliver", help="Comma-separated: file,aiwatcher,robofang")
@@ -28,6 +29,7 @@ def main() -> int:
         stale_days=args.stale_days,
         include_issues=not args.no_issues,
         include_notifications=not args.no_notifications,
+        include_local=not args.no_local,
         limit_per_repo=args.limit_per_repo,
         maintainer_login=args.maintainer_login,
         deliver=args.deliver,

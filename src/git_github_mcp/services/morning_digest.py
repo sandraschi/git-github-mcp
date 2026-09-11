@@ -14,6 +14,7 @@ import httpx
 from ..tools.github_ops import github_ops
 from ..utils.gh_cli import run_gh
 from ..utils.response import error_response, success_response
+from .fleet_workspace import op_local_dirty
 
 _SLUG_RE = re.compile(r"^([\w.-]+)/([\w.-]+)$")
 _DEFAULT_STATE_DIR = Path(os.getenv("LOCALAPPDATA", Path.home())) / "git-github-mcp"
@@ -241,6 +242,9 @@ def scan_fleet_repo(
 
 
 def build_markdown_digest(summary: dict[str, Any]) -> str:
+    dirty_count = summary.get("totals", {}).get("dirty_repos", 0)
+    drift_count = summary.get("totals", {}).get("drift_repos", 0)
+
     lines = [
         "# GitHub fleet morning digest",
         "",
@@ -254,6 +258,8 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
         f"- Stale PRs (≥{summary['stale_days']}d): **{summary['totals']['stale_prs']}**",
         f"- Stale issues: **{summary['totals']['stale_issues']}**",
         f"- New notifications: **{summary['totals']['notifications']}**",
+        f"- Dirty worktrees (uncommitted/untracked): **{dirty_count}**",
+        f"- Sync drift (ahead/behind origin): **{drift_count}**",
         "",
     ]
     if summary.get("notifications"):
@@ -288,6 +294,33 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
                 f"- **{issue.get('repo_slug')}** #{issue.get('number')} — {issue.get('title')} "
                 f"({issue.get('stale_reason')}) {issue.get('url', '')}"
             )
+        lines.append("")
+
+    local_dirty = summary.get("local_dirty") or {}
+    dirty_items = local_dirty.get("dirty") or []
+    if dirty_items:
+        lines.append("## Local workspace hygiene (uncommitted work)")
+        for item in dirty_items[:40]:
+            rid = item.get("id", "unknown")
+            cnt = item.get("changed_files", 0)
+            sample_str = ", ".join(item.get("sample", [])[:3])
+            if len(item.get("sample", [])) > 3:
+                sample_str += "..."
+            lines.append(f"- **{rid}** — {cnt} dirty file(s) ({sample_str})")
+        if len(dirty_items) > 40:
+            lines.append(f"- ... and {len(dirty_items) - 40} more dirty repos")
+        lines.append("")
+
+    drift_items = local_dirty.get("sync_drift") or []
+    if drift_items:
+        lines.append("## Sync drift (ahead/behind origin)")
+        for item in drift_items[:30]:
+            rid = item.get("id", "unknown")
+            ahead = item.get("ahead", 0)
+            behind = item.get("behind", 0)
+            lines.append(f"- **{rid}** — ahead {ahead}, behind {behind}")
+        if len(drift_items) > 30:
+            lines.append(f"- ... and {len(drift_items) - 30} more repos with drift")
         lines.append("")
 
     if summary.get("repo_errors"):
@@ -331,17 +364,30 @@ def deliver_digest(markdown: str, summary: dict[str, Any], deliver: list[str]) -
 
     if "aiwatcher" in deliver:
         base = os.getenv("AIWATCHER_HTTP_URL", "http://127.0.0.1:10946").rstrip("/")
+        dirty_n = summary.get("totals", {}).get("dirty_repos", 0)
+        drift_n = summary.get("totals", {}).get("drift_repos", 0)
+        title_parts = [
+            f"{summary['totals']['stale_prs']} stale PRs",
+            f"{summary['totals']['notifications']} notifications",
+        ]
+        if dirty_n > 0:
+            title_parts.append(f"{dirty_n} dirty repos")
+        if drift_n > 0:
+            title_parts.append(f"{drift_n} out of sync")
+
         ok, detail = _post_json(
             f"{base}/api/fleet/ingest",
             {
-                "title": f"GitHub morning: {summary['totals']['stale_prs']} stale PRs, "
-                f"{summary['totals']['notifications']} notifications",
+                "title": f"GitHub morning: {', '.join(title_parts)}",
                 "summary": markdown[:4000],
                 "source": "git-github-mcp",
                 "url": "http://127.0.0.1:10714/breakfast",
                 "urgency_hint": min(
                     10.0,
-                    3.0 + summary["totals"]["stale_prs"] + summary["totals"]["notifications"] / 5,
+                    3.0
+                    + summary["totals"]["stale_prs"]
+                    + (summary["totals"]["notifications"] / 5)
+                    + (min(4.0, dirty_n * 0.2)),
                 ),
             },
         )
@@ -369,6 +415,7 @@ def run_morning_digest(
     stale_days: int | None = None,
     include_issues: bool = True,
     include_notifications: bool = True,
+    include_local: bool = True,
     limit_per_repo: int = 30,
     maintainer_login: str | None = None,
     deliver: str | list[str] | None = None,
@@ -470,6 +517,18 @@ def run_morning_digest(
                         break
             all_open_issues.append(row)
 
+    local_dirty_data: dict[str, Any] = {}
+    if include_local:
+        try:
+            local_dirty_res = op_local_dirty(
+                fleet_repos=fleet_repos,
+                use_registry=(fleet_repos is None),
+            )
+            if local_dirty_res.get("success"):
+                local_dirty_data = local_dirty_res.get("result") or {}
+        except Exception as exc:
+            repo_errors.append(f"local_dirty: {exc}")
+
     def _sort_updated(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         epoch = datetime(1970, 1, 1, tzinfo=UTC)
 
@@ -495,7 +554,10 @@ def run_morning_digest(
             "stale_prs": len(all_stale_prs),
             "stale_issues": len(all_stale_issues),
             "notifications": len([n for n in notifications if not n.get("error")]),
+            "dirty_repos": local_dirty_data.get("dirty_count", 0),
+            "drift_repos": local_dirty_data.get("sync_drift_count", 0),
         },
+        "local_dirty": local_dirty_data,
         "all_stale_prs": sorted(all_stale_prs, key=lambda p: days_since(p.get("updatedAt")) or 0, reverse=True),
         "all_stale_issues": sorted(all_stale_issues, key=lambda i: days_since(i.get("updatedAt")) or 0, reverse=True),
         "notifications": notifications,
@@ -512,15 +574,25 @@ def run_morning_digest(
 
     _save_state({"last_run_at": generated_at, "repos": len(repos), "totals": summary["totals"]})
 
+    dirty_n = summary["totals"]["dirty_repos"]
+    drift_n = summary["totals"]["drift_repos"]
+    msg_parts = [
+        f"Scanned {len(repos)} repos",
+        f"{summary['totals']['stale_prs']} stale PRs",
+        f"{summary['totals']['notifications']} notifications",
+    ]
+    if dirty_n > 0:
+        msg_parts.append(f"{dirty_n} dirty worktrees")
+    if drift_n > 0:
+        msg_parts.append(f"{drift_n} out of sync")
+
     return success_response(
         summary,
         "fleet_morning_digest",
-        message=(
-            f"Scanned {len(repos)} repos — {summary['totals']['stale_prs']} stale PRs, "
-            f"{summary['totals']['notifications']} notifications"
-        ),
+        message=" — ".join(msg_parts),
         next_steps=[
             "Open http://127.0.0.1:10714/breakfast for human triage",
             "Acknowledge stale PRs via github_ops(pr_comment, ...)",
+            "Review uncommitted work with fleet_ops(local_dirty)",
         ],
     )

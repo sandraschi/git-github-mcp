@@ -622,6 +622,7 @@ async def fleet_morning_digest(
     deliver: str | None = None,
     output_file: str | None = None,
     since_last_run: bool = True,
+    include_local: bool = True,
 ) -> dict:
     """Breakfast runner: scan fleet repos for open PRs/issues, stale threads, and new notifications.
 
@@ -641,6 +642,7 @@ async def fleet_morning_digest(
         stale_days=stale_days,
         include_issues=include_issues,
         include_notifications=include_notifications,
+        include_local=include_local,
         limit_per_repo=limit_per_repo,
         maintainer_login=maintainer_login,
         deliver=deliver,
