@@ -20,7 +20,7 @@ def _no_prompt_env() -> dict:
     env["GIT_ASKPASS"] = "echo"
     env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
     env["GCM_INTERACTIVE"] = "never"
-    env["GCM_CREDENTIAL_STORE"] = "wincred"
+    env.setdefault("GCM_CREDENTIAL_STORE", "wincredman")
     env["GH_PROMPT_DISABLED"] = "1"
     env["GH_NO_UPDATE_NOTIFIER"] = "1"
     env["NO_COLOR"] = "1"

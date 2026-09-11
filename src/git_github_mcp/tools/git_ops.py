@@ -1,6 +1,7 @@
 """Git operations portmanteau — full local Git workflow via subprocess."""
 
 import asyncio
+import logging
 import os
 import subprocess
 import sys
@@ -8,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from ..utils.response import error_response, success_response
+
+logger = logging.getLogger("git-github-mcp.git_ops")
 
 _NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 # CREATE_NO_WINDOW only — CREATE_BREAKAWAY_FROM_JOB breaks under Electron job objects
@@ -109,16 +112,73 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
 
 
 def _git_env() -> dict:
-    """Build env for git subprocess — identical to github_ops' _no_prompt_env."""
+    """Build env for git subprocess — non-interactive, sandboxed prompts.
+
+    GCM store: modern Git Credential Manager only accepts 'wincredman'
+    (the legacy 'wincred' name is rejected). setdefault so an operator
+    override (e.g. 'cache' in a sandbox) is respected.
+    """
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["GIT_ASKPASS"] = "echo"
     env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
     env["GCM_INTERACTIVE"] = "never"
-    env["GCM_CREDENTIAL_STORE"] = "wincred"
+    env.setdefault("GCM_CREDENTIAL_STORE", "wincredman")
     env["NO_COLOR"] = "1"
     env["TERM"] = "dumb"
+    # Explicit server identity flows to both author and committer. Setting only
+    # GIT_AUTHOR_* would leave the committer to auto-detect (wrong user under
+    # launchers with a sanitized env, e.g. Claude Desktop's MCP host).
+    ops_name = env.get("GITOPS_USER_NAME")
+    ops_email = env.get("GITOPS_USER_EMAIL")
+    if ops_name and not env.get("GIT_AUTHOR_NAME"):
+        env["GIT_AUTHOR_NAME"] = ops_name
+    if ops_email and not env.get("GIT_AUTHOR_EMAIL"):
+        env["GIT_AUTHOR_EMAIL"] = ops_email
+    if env.get("GIT_AUTHOR_NAME") and not env.get("GIT_COMMITTER_NAME"):
+        env["GIT_COMMITTER_NAME"] = env["GIT_AUTHOR_NAME"]
+    if env.get("GIT_AUTHOR_EMAIL") and not env.get("GIT_COMMITTER_EMAIL"):
+        env["GIT_COMMITTER_EMAIL"] = env["GIT_AUTHOR_EMAIL"]
     return env
+
+
+# Placeholder identity shipped by installers — never a real author.
+_PLACEHOLDER_NAME = "User"
+_PLACEHOLDER_EMAIL = "user@example.com"
+
+
+def _resolve_identity(repo: Path) -> tuple[str | None, str | None, str]:
+    """Resolve an explicit commit identity. Never returns an auto-detected one.
+
+    Precedence: GITOPS_USER_NAME/EMAIL server env > GIT_AUTHOR_NAME/EMAIL env
+    > repo-local/global 'git config user.*'. The installer placeholder pair
+    ('User' / 'user@example.com') counts as unresolved.
+
+    Returns (name, email, source). (None, None, reason) when unresolvable —
+    callers must fail with the reason instead of committing unattributed.
+    """
+    ops_name = os.environ.get("GITOPS_USER_NAME", "").strip()
+    ops_email = os.environ.get("GITOPS_USER_EMAIL", "").strip()
+    if ops_name and ops_email:
+        return ops_name, ops_email, "server env GITOPS_USER_NAME/EMAIL"
+    env_name = os.environ.get("GIT_AUTHOR_NAME", "").strip()
+    env_email = os.environ.get("GIT_AUTHOR_EMAIL", "").strip()
+    if env_name and env_email:
+        return env_name, env_email, "env GIT_AUTHOR_NAME/EMAIL"
+    ok, out, _ = _run_git(repo, ["config", "user.name"])
+    cfg_name = out.strip() if ok else ""
+    ok, out, _ = _run_git(repo, ["config", "user.email"])
+    cfg_email = out.strip() if ok else ""
+    if cfg_name and cfg_email and not (cfg_name == _PLACEHOLDER_NAME and cfg_email == _PLACEHOLDER_EMAIL):
+        return cfg_name, cfg_email, "git config user.name/email"
+    return (
+        None,
+        None,
+        "no commit identity: set GITOPS_USER_NAME and GITOPS_USER_EMAIL in the "
+        "MCP server launch env (claude_desktop_config.json 'env' block, opencode.json "
+        "'environment', or start.ps1) and restart the server; repo-local "
+        "'git config user.name/email' also works",
+    )
 
 
 async def _run_git_async(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str, str]:
@@ -406,7 +466,13 @@ async def git_ops(
     if operation == "commit":
         if not message and not amend:
             return _err("commit", "message required (or set amend=True)")
-        cmd = ["commit"]
+        ident_name, ident_email, ident_src = _resolve_identity(repo)
+        if not ident_name or not ident_email:
+            return _err("commit", ident_src)
+        logger.info(f"commit identity via {ident_src}: {ident_name} <{ident_email}>")
+        # -c flags (before the subcommand) beat any auto-detect, regardless of
+        # the launcher env (Claude Desktop MCP host ships USERNAME=SYSTEM).
+        cmd = ["-c", f"user.name={ident_name}", "-c", f"user.email={ident_email}", "commit"]
         if amend:
             cmd.append("--amend")
             if not message:
