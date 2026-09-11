@@ -45,7 +45,7 @@ logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s %(message
 logger = logging.getLogger("git-github-mcp")
 install_log_handler()
 
-VERSION = "0.5.0"
+VERSION = "0.6.5"
 
 _READ_ONLY = {"readonly": True}
 _MUTATING = {}

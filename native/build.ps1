@@ -24,7 +24,7 @@ if (Test-Path $apiFile) {
 }
 
 # Step 1: TypeScript lint gate + frontend build
-$frontendDirs = @("web_sota", "webapp/frontend", "webapp")
+$frontendDirs = @("web", "web_sota", "webapp/frontend", "webapp")
 foreach ($dir in $frontendDirs) {
     $frontend = Join-Path $Root $dir
     if (Test-Path "$frontend\package.json") {

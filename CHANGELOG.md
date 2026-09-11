@@ -1,4 +1,17 @@
 
+## [0.6.5] — 2026-09-11
+
+### Added
+- **Morning digest local workspace hygiene**: `op_local_dirty` now scans for uncommitted/untracked files and sync drift across fleet worktrees, reporting findings in the daily morning digest and pushing alerts to aiwatcher.
+- **Just automation recipes**: Added `just morning-digest` and `just install-morning-task` recipes.
+- **Scheduled task automation**: Background task `GitHub-Fleet-Morning-Digest` scheduled to run daily at 07:00 via Task Scheduler.
+
+### Fixed
+- **Fleet start standalone mode**: Added fallback launcher logic for standalone clones when `mcp-central-docs` is absent.
+- **MCPB packaging retrofit**: Added `scripts/mcpb-pack.ps1` for Claude Desktop packaging.
+- **Destructive operations safety**: Destructive operations gated behind red shelf mechanism and `repo_delete` removed from MCP exposure.
+- **Git credential manager & identity**: Fixed commit identity fallbacks and wincredman integration.
+
 ## [0.6.3] — 2026-09-04
 
 ### Fixed
