@@ -613,7 +613,7 @@ wheels = [
 
 [[package]]
 name = "git-github-mcp"
-version = "0.6.3"
+version = "0.6.5"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

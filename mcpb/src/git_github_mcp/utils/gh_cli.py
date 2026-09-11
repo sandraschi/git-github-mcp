@@ -40,7 +40,7 @@ def _no_prompt_env() -> dict:
     env["GIT_ASKPASS"] = "echo"
     env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
     env["GCM_INTERACTIVE"] = "never"
-    env["GCM_CREDENTIAL_STORE"] = "wincred"  # Windows native store, no prompts
+    env.setdefault("GCM_CREDENTIAL_STORE", "wincredman")  # Windows native store, no prompts
     env["NO_COLOR"] = "1"
     env["TERM"] = "dumb"
     return env
@@ -52,12 +52,12 @@ def run_gh(
     timeout: int = 60,
 ) -> tuple[bool, str, str]:
     """Run gh CLI. Returns (success, stdout, stderr)."""
+    gh_path = _get_gh_path()
     try:
-        gh_path = _get_gh_path()
-
-        result = subprocess.run(  # noqa: S603 — list-based, no shell
+        result = subprocess.run(
             [gh_path, *args],
             cwd=cwd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",

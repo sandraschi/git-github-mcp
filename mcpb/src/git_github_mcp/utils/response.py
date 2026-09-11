@@ -1,6 +1,9 @@
 """SOTA dialogic tool return patterns."""
 
+import logging
 from typing import Any
+
+logger = logging.getLogger("git-github-mcp.response")
 
 
 def success_response(
@@ -35,7 +38,8 @@ def error_response(
     recovery_options: list[str] | None = None,
     suggested_fixes: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Enhanced error response for dialogic MCP."""
+    """Enhanced error response for dialogic MCP — auto-logs on failure."""
+    logger.exception("Tool error: %s [%s]", error, operation)
     out: dict[str, Any] = {
         "success": False,
         "operation": operation,

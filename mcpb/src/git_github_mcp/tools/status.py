@@ -20,7 +20,7 @@ def _no_prompt_env() -> dict:
     env["GIT_ASKPASS"] = "echo"
     env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
     env["GCM_INTERACTIVE"] = "never"
-    env["GCM_CREDENTIAL_STORE"] = "wincred"
+    env.setdefault("GCM_CREDENTIAL_STORE", "wincredman")
     env["GH_PROMPT_DISABLED"] = "1"
     env["GH_NO_UPDATE_NOTIFIER"] = "1"
     env["NO_COLOR"] = "1"
@@ -35,8 +35,9 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str, str]:
     label = " ".join(cmd[:2])
     logger.info(f"_run start: {label} (timeout={timeout})")
     try:
-        r = subprocess.run(  # noqa: S603 — list-based, no shell
+        r = subprocess.run(
             cmd,
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
             encoding="utf-8",
@@ -128,13 +129,21 @@ def _resolve_git_exe() -> str | None:
 
 
 def _check_git() -> dict:
-    """Check git availability by path existence only — no subprocess."""
-    logger.info("_check_git: resolving git exe (no subprocess)")
+    """Check git availability and version.
+
+    --version was previously skipped over a suspected cmd.exe-wrapper deadlock when
+    spawned from a consoleless process (MCP stdio). Reproduction under pythonw.exe
+    (genuinely consoleless) showed the wrapper itself is fine — the actual trigger was
+    inherited stdin, which _run() now redirects to DEVNULL. Safe to call directly.
+    """
+    logger.info("_check_git: resolving git exe")
     git_path = _resolve_git_exe()
     logger.info(f"_check_git: resolved path={git_path}")
     if not git_path or not os.path.isfile(git_path):
         return {"available": False, "error": "not found in PATH"}
-    return {"available": True, "version": "unknown (skipped --version to avoid hang)", "path": git_path}
+    rc, out, _err = _run([git_path, "--version"], 5)
+    version = out.strip() if rc == 0 and out.strip() else "unknown (version check failed)"
+    return {"available": True, "version": version, "path": git_path}
 
 
 def _check_gh() -> dict:
@@ -147,7 +156,9 @@ def _check_gh() -> dict:
     if not gh_path or not os.path.isfile(gh_path):
         return {"available": False, "error": "not found in PATH"}
 
-    info: dict = {"available": True, "version": "unknown (skipped --version)", "path": gh_path}
+    rc, out, _err = _run([gh_path, "--version"], 5)
+    version = out.strip().splitlines()[0] if rc == 0 and out.strip() else "unknown (version check failed)"
+    info: dict = {"available": True, "version": version, "path": gh_path}
 
     # GH_TOKEN in env means auth is handled without GCM — check it directly
     if os.environ.get("GH_TOKEN"):
@@ -156,11 +167,16 @@ def _check_gh() -> dict:
         info["auth_note"] = "GH_TOKEN set in environment"
         return info
 
-    # gh auth token: reads cached token locally, no network
-    logger.info("_check_gh: running gh auth token")
-    token_rc, token_out, _ = _run([gh_path, "auth", "token"], 5)
-    logger.info(f"_check_gh: auth token rc={token_rc}")
-    if token_rc == 0 and token_out.strip():
+    # gh auth status: reads the active account from ~/.config/gh/hosts.yml (offline, no
+    # keyring unlock). Do NOT use `gh auth token` here - that materializes the token via the
+    # Windows Credential Manager (keyring), which fails or times out when this server runs from
+    # a consoleless/service context even though gh is genuinely logged in. `gh auth status`
+    # reports the authenticated account without needing to unlock the token.
+    logger.info("_check_gh: running gh auth status")
+    status_rc, status_out, status_err = _run([gh_path, "auth", "status"], 10)
+    logger.info(f"_check_gh: auth status rc={status_rc}")
+    combined = (status_out + status_err).lower()
+    if status_rc == 0 and "logged in" in combined:
         info["auth"] = "ok"
     else:
         info["auth"] = "not logged in"

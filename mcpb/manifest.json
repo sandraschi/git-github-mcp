@@ -1,7 +1,7 @@
 {
   "manifest_version": "0.3",
   "name": "git-github-mcp",
-  "version": "0.5.0",
+  "version": "0.6.5",
   "description": "FastMCP 3.2+ portmanteau server: git_core/branch/admin/blame (43 local git ops) + github_ops (58 GitHub actions via gh CLI), fleet_morning_digest + fleet_ops maintainer toolkit (16 ops incl. full_suite), two sampling agentic workflows, 7 prompts, optional FastAPI web bridge on port 10702.",
   "author": {
     "name": "Sandra Schi",

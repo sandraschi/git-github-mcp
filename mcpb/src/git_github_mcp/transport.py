@@ -7,7 +7,7 @@ Provides unified transport configuration for STDIO, HTTP Streamable, and legacy 
 Environment Variables:
     MCP_TRANSPORT: Transport mode (stdio, http, sse). Default: stdio
     MCP_HOST: Bind address for HTTP/SSE. Default: 127.0.0.1
-    MCP_PORT: Port for HTTP/SSE. Default: 10702 (fleet 10700+; set MCP_PORT to override)
+    MCP_PORT: Port for HTTP/SSE. Default: 10713 (fleet 10700+; set MCP_PORT to override)
     MCP_PATH: HTTP endpoint path. Default: /mcp
 
 CLI Arguments:
@@ -41,7 +41,7 @@ TransportType = Literal["stdio", "http", "sse"]
 # Environment variable standards
 ENV_TRANSPORT = "MCP_TRANSPORT"  # stdio | http | sse
 ENV_HOST = "MCP_HOST"  # default: 127.0.0.1
-ENV_PORT = "MCP_PORT"  # default: 10702
+ENV_PORT = "MCP_PORT"  # default: 10713
 ENV_PATH = "MCP_PATH"  # default: /mcp (HTTP only)
 
 
@@ -55,7 +55,7 @@ def get_transport_config() -> dict:
     return {
         "transport": os.getenv(ENV_TRANSPORT, "stdio").lower(),
         "host": os.getenv(ENV_HOST, "127.0.0.1"),
-        "port": int(os.getenv(ENV_PORT, "10702")),
+        "port": int(os.getenv(ENV_PORT, "10713")),
         "path": os.getenv(ENV_PATH, "/mcp"),
     }
 
@@ -77,7 +77,7 @@ def create_argument_parser(server_name: str) -> argparse.ArgumentParser:
 Environment Variables:
   {ENV_TRANSPORT}    Transport mode: stdio, http, sse (default: stdio)
   {ENV_HOST}         Bind address (default: 127.0.0.1)
-  {ENV_PORT}         Port number (default: 10702)
+  {ENV_PORT}         Port number (default: 10713)
   {ENV_PATH}         HTTP endpoint path (default: /mcp)
 
 Examples:
@@ -85,10 +85,10 @@ Examples:
   python -m {server_name.replace("-", "_")} --stdio
 
   # HTTP mode (web apps)
-  python -m {server_name.replace("-", "_")} --http --port 10702
+  python -m {server_name.replace("-", "_")} --http --port 10713
 
   # Via environment
-  MCP_TRANSPORT=http MCP_PORT=10702 python -m {server_name.replace("-", "_")}
+  MCP_TRANSPORT=http MCP_PORT=10713 python -m {server_name.replace("-", "_")}
 """,
     )
 
@@ -98,7 +98,7 @@ Examples:
     transport_group.add_argument("--sse", action="store_true", help="Run in SSE mode (deprecated, use --http)")
 
     parser.add_argument("--host", default=None, help=f"Host to bind to (default: ${ENV_HOST} or 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=None, help=f"Port to listen on (default: ${ENV_PORT} or 10702)")
+    parser.add_argument("--port", type=int, default=None, help=f"Port to listen on (default: ${ENV_PORT} or 10713)")
     parser.add_argument("--path", default=None, help=f"HTTP endpoint path (default: ${ENV_PATH} or /mcp)")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
@@ -217,7 +217,31 @@ async def run_server_async(mcp_app, args: argparse.Namespace | None = None, serv
             path = config["path"]
             endpoint = f"http://{host}:{port}{path}"
             logger.info(f"Running in HTTP Streamable mode: {endpoint}")
-            await mcp_app.run_http_async(host=host, port=port, path=path)
+            # Build ASGI app with CORS middleware (run_http_async drops it)
+            http_app = mcp_app.http_app(path=path)
+            from fastapi.middleware.cors import CORSMiddleware
+
+            http_app.add_middleware(
+                CORSMiddleware,
+                allow_origins=[
+                    "http://localhost:10714",
+                    "http://127.0.0.1:10714",
+                    "http://localhost:10713",
+                    "http://127.0.0.1:10713",
+                    "http://tauri.localhost",
+                    "https://tauri.localhost",
+                    "tauri://localhost",
+                ],
+                allow_origin_regex=r"https?://(?:[a-zA-Z0-9-]+\.ts\.net|.*?\.tail-[a-f0-9]+\.ts\.net|tauri\.localhost|localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|100\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?$|^tauri://localhost$",
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+            import uvicorn
+
+            config_uv = uvicorn.Config(http_app, host=host, port=port, log_level="info")
+            server = uvicorn.Server(config_uv)
+            await server.serve()
 
         elif transport == "sse":
             host = config["host"]

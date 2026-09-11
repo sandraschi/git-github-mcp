@@ -25,6 +25,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastmcp import Context, FastMCP
 from fastmcp.server import create_proxy
+from fastmcp.tools import ToolResult
 
 from .activity_log import install_log_handler, log_activity
 from .capabilities import build_capabilities
@@ -36,6 +37,7 @@ from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
 from .tools.help import get_help as _get_help
 from .tools.status import get_status as _get_status
+from .utils import destructive_gate
 from .web_discovery import PRESETS as DISCOVERY_PRESETS
 from .web_discovery import run_discovery_workflow as _run_discovery_workflow
 
@@ -43,8 +45,11 @@ logging.basicConfig(level=logging.INFO, format="%(name)s %(levelname)s %(message
 logger = logging.getLogger("git-github-mcp")
 install_log_handler()
 
-VERSION = "0.5.0"
-WEB_PORT = int(os.getenv("WEB_PORT", "10702"))
+VERSION = "0.6.5"
+
+_READ_ONLY = {"readonly": True}
+_MUTATING = {}
+WEB_PORT = int(os.getenv("WEB_PORT", "10713"))
 WEB_HOST = os.getenv("WEB_HOST", "127.0.0.1")
 _START_TIME = time.time()
 
@@ -217,12 +222,12 @@ async def _run_git_tool(
             error=f"Git subprocess did not respond in {_wall_timeout}s",
             recovery_options=[
                 "Restart the git-github-mcp server",
-                "Connect via HTTP: http://127.0.0.1:10702/mcp",
+                "Connect via HTTP: http://127.0.0.1:10713/mcp",
                 "Check that git works: git status",
             ],
             suggested_fixes=[
-                "Use git_core via the REST API at http://127.0.0.1:10702/api/git",
-                "Set MCP_TRANSPORT=http and connect to port 10702",
+                "Use git_core via the REST API at http://127.0.0.1:10713/api/git",
+                "Set MCP_TRANSPORT=http and connect to port 10713",
             ],
         )
     except Exception as exc:
@@ -237,7 +242,7 @@ async def _run_git_tool(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_core(
     operation: str,
     repo_path: str | None = None,
@@ -258,11 +263,14 @@ async def git_core(
     commit2: str | None = None,
     oneline: bool = False,
     file_path: str | None = None,
+    confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
     """Git core operations — status, log, diff, show, init, clone, add, commit, push, pull, fetch.
 
     Core workflow tools. For branch/tag/stash operations use git_branch.
     For remote/reset/clean/submodule/bisect/worktree use git_admin.
+    Force-push/pull/fetch/clone need confirm=True + confirm_token (red-shelf gate).
     """
     if operation not in CORE_OPS:
         from .utils.response import error_response
@@ -272,6 +280,16 @@ async def git_core(
             f"Unknown operation '{operation}'. Valid: {sorted(CORE_OPS)}",
             recovery_options=["Use one of the listed operations"],
         )
+    refusal = destructive_gate.gate(
+        "git_core",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        force=force,
+        targets={"repo_path": repo_path, "branch": branch, "remote": remote},
+    )
+    if refusal is not None:
+        return refusal
     return await _run_git_tool(
         operation=operation,
         repo_path=repo_path,
@@ -295,7 +313,7 @@ async def git_core(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_branch(
     operation: str,
     repo_path: str | None = None,
@@ -307,11 +325,14 @@ async def git_branch(
     stash_index: int = 0,
     tag_name: str | None = None,
     tag_message: str | None = None,
+    confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
     """Git branch operations — branch lifecycle, merge, rebase, stash, tag.
 
     For core operations (status, log, commit, push) use git_core.
     For admin operations (remote, reset, clean, submodule) use git_admin.
+    branch_delete needs confirm=True + confirm_token (red-shelf gate).
     """
     if operation not in BRANCH_OPS:
         from .utils.response import error_response
@@ -321,6 +342,23 @@ async def git_branch(
             f"Unknown operation '{operation}'. Valid: {sorted(BRANCH_OPS)}",
             recovery_options=["Use one of the listed operations"],
         )
+    candidates = None
+    if operation == "branch_delete":
+        try:
+            listed = await _run_git_tool(operation="branch_list", repo_path=repo_path)
+            candidates = listed if isinstance(listed, dict) else None
+        except Exception:
+            candidates = None
+    refusal = destructive_gate.gate(
+        "git_branch",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        candidates=candidates,
+        targets={"repo_path": repo_path, "branch": branch},
+    )
+    if refusal is not None:
+        return refusal
     return await _run_git_tool(
         operation=operation,
         repo_path=repo_path,
@@ -335,7 +373,7 @@ async def git_branch(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_admin(
     operation: str,
     repo_path: str | None = None,
@@ -351,11 +389,14 @@ async def git_admin(
     submodule_path: str | None = None,
     recursive: bool = False,
     worktree_path: str | None = None,
+    confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
     """Git admin operations — remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree.
 
     For core operations (status, log, commit, push) use git_core.
     For branch operations use git_branch.
+    reset/clean/worktree_remove need confirm=True + confirm_token (red-shelf gate).
     """
     if operation not in ADMIN_OPS:
         from .utils.response import error_response
@@ -365,6 +406,23 @@ async def git_admin(
             f"Unknown operation '{operation}'. Valid: {sorted(ADMIN_OPS)}",
             recovery_options=["Use one of the listed operations"],
         )
+    candidates = None
+    if operation == "worktree_remove":
+        try:
+            listed = await _run_git_tool(operation="worktree_list", repo_path=repo_path)
+            candidates = listed if isinstance(listed, dict) else None
+        except Exception:
+            candidates = None
+    refusal = destructive_gate.gate(
+        "git_admin",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        candidates=candidates,
+        targets={"repo_path": repo_path, "worktree_path": worktree_path, "commit": commit},
+    )
+    if refusal is not None:
+        return refusal
     return await _run_git_tool(
         operation=operation,
         repo_path=repo_path,
@@ -383,7 +441,7 @@ async def git_admin(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def git_blame(
     repo_path: str | None = None,
     file_path: str | None = None,
@@ -413,7 +471,7 @@ async def git_blame(
     )
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def github_ops(
     operation: str,
     owner: str | None = None,
@@ -459,11 +517,13 @@ async def github_ops(
     package_name: str | None = None,
     subpath: str | None = None,
     github_url: str | None = None,
+    confirm: bool = False,
+    confirm_token: str | None = None,
 ) -> dict:
-    """GitHub operations via gh CLI — 58 actions. Requires: gh auth login.
+    """GitHub operations via gh CLI — 66 actions. Requires: gh auth login.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
-                   repo_delete, repo_rename, repo_archive
+                   repo_rename, repo_archive (repo_delete: REST/webapp only, not on MCP)
     ISSUES:        issue_list, issue_view, issue_create, issue_close, issue_comment
     PRs:           pr_list, pr_view, pr_create, pr_merge, pr_checkout, pr_close, pr_comment
     RELEASES:      release_list, release_view, release_create, release_delete, release_update
@@ -480,7 +540,24 @@ async def github_ops(
     MISC:          auth_status, gist_list
 
     Non-blocking: subprocess runs in thread pool, never freezes MCP server.
+    release_delete needs confirm=True + confirm_token (red-shelf gate).
+    repo_delete was removed from the MCP surface (webapp/CLI only).
     """
+    refusal = destructive_gate.gate(
+        "github_ops",
+        operation,
+        confirm=confirm,
+        confirm_token=confirm_token,
+        targets={
+            "owner": owner,
+            "repo": repo,
+            "tag_name": tag_name,
+            "pr_number": pr_number,
+            "issue_number": issue_number,
+        },
+    )
+    if refusal is not None:
+        return refusal
     start = time.perf_counter()
     result = await asyncio.to_thread(
         _github_ops,
@@ -533,7 +610,7 @@ async def github_ops(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def fleet_morning_digest(
     fleet_repos: str | None = None,
     fleet_repos_file: str | None = None,
@@ -545,6 +622,7 @@ async def fleet_morning_digest(
     deliver: str | None = None,
     output_file: str | None = None,
     since_last_run: bool = True,
+    include_local: bool = True,
 ) -> dict:
     """Breakfast runner: scan fleet repos for open PRs/issues, stale threads, and new notifications.
 
@@ -564,6 +642,7 @@ async def fleet_morning_digest(
         stale_days=stale_days,
         include_issues=include_issues,
         include_notifications=include_notifications,
+        include_local=include_local,
         limit_per_repo=limit_per_repo,
         maintainer_login=maintainer_login,
         deliver=deliver,
@@ -574,7 +653,7 @@ async def fleet_morning_digest(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def fleet_ops(
     operation: str,
     fleet_repos: str | None = None,
@@ -625,7 +704,7 @@ async def fleet_ops(
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def git_github_status(level: str = "basic") -> dict:
     """System status: git and gh CLI availability, versions, and GitHub login state.
 
@@ -642,7 +721,96 @@ async def git_github_status(level: str = "basic") -> dict:
     return await asyncio.to_thread(_get_status, level=level)
 
 
-@mcp.tool()
+@mcp.tool(app=True, annotations=_READ_ONLY)
+async def show_status_card() -> ToolResult:
+    """Show git/gh system health as a rich Prefab card in chat.
+
+    Use this to visualise whether git and gh CLI are available,
+    authenticated, and ready for use. Renders a structured card
+    with status indicators, not raw JSON.
+    """
+    status = await asyncio.to_thread(_get_status, level="detailed")
+    git = status.get("git", {})
+    gh = status.get("gh", {})
+    git_ok = bool(git.get("available", False))
+    gh_ok = bool(gh.get("available", False))
+    gh_auth = gh.get("auth") == "ok"
+    platform = f"{status.get('platform', '?')} {status.get('platform_release', '')}".strip()
+    text = "\n".join(
+        [
+            f"git: {'OK' if git_ok else 'MISSING'}",
+            f"gh:  {'OK' if gh_ok else 'MISSING'}",
+            f"auth: {'OK' if gh_auth else 'LOGIN REQUIRED'}" if gh_ok else "auth: n/a",
+            f"platform: {platform}",
+        ]
+    )
+    try:
+        from prefab_ui import PrefabApp
+        from prefab_ui.components import Row, Text
+
+        with PrefabApp(title="Git GitHub Status") as app:
+            Row(children=[Text(content="git CLI"), Text(content="Detected" if git_ok else "Not found")])
+            Row(children=[Text(content="gh CLI"), Text(content="Detected" if gh_ok else "Not found")])
+            if gh_ok:
+                Row(
+                    children=[
+                        Text(content="gh auth"),
+                        Text(content="Authenticated" if gh_auth else "Not logged in"),
+                    ]
+                )
+            Row(children=[Text(content="Platform"), Text(content=platform)])
+        return ToolResult(content=text, structured_content=app)
+    except ImportError:
+        return ToolResult(content=text)
+
+
+async def _gate_plan_step(tool_name: str | None, args: dict) -> tuple[dict, dict | None]:
+    """Red-shelf check for one planned workflow step.
+
+    Pops `confirm` (implementations don't accept it), resolves the wrapper
+    family from the operation, lists candidates best-effort for deletes.
+    Returns (clean_args, refusal_or_None). Unknown tools and read-only ops
+    pass through with (args, None).
+    """
+    args = dict(args or {})
+    confirm = args.pop("confirm", False)
+    confirm_token = args.pop("confirm_token", None)
+    op = str(args.get("operation") or "")
+    family: str | None = None
+    if tool_name == "github_ops":
+        family = "github_ops"
+    elif tool_name == "git_ops":
+        if op in CORE_OPS:
+            family = "git_core"
+        elif op in BRANCH_OPS:
+            family = "git_branch"
+        elif op in ADMIN_OPS:
+            family = "git_admin"
+    if family is None:
+        return args, None
+    candidates = None
+    if op in ("worktree_remove", "branch_delete"):
+        try:
+            listed = await _git_ops(
+                operation="worktree_list" if op == "worktree_remove" else "branch_list",
+                repo_path=args.get("repo_path"),
+            )
+            candidates = listed if isinstance(listed, dict) else None
+        except Exception:
+            candidates = None
+    refusal = destructive_gate.gate(
+        family,
+        op,
+        confirm=bool(confirm),
+        confirm_token=confirm_token,
+        force=bool(args.get("force", False)),
+        candidates=candidates,
+        targets={k: args.get(k) for k in destructive_gate.TARGET_KEYS if args.get(k) is not None},
+    )
+    return args, refusal
+
+
+@mcp.tool(annotations=_READ_ONLY)
 async def git_github_help(level: str = "basic", topic: str | None = None) -> dict:
     """Contextual help for git-github-mcp tools and operations.
 
@@ -652,13 +820,13 @@ async def git_github_help(level: str = "basic", topic: str | None = None) -> dic
     return _get_help(level=level, topic=topic)
 
 
-@mcp.tool()
+@mcp.tool(annotations=_MUTATING)
 async def git_agentic_workflow(
     task: str,
     repo_path: str | None = None,
     owner: str | None = None,
     repo: str | None = None,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Agentic multi-step Git/GitHub workflow using LLM sampling.
 
@@ -696,9 +864,17 @@ Available tools:
   search (search_repos, search_repos_topic, search_issues, search_code with pretty=,
   code_find_repos for extension/path-scoped hunts),
   Projects (project_*), Packages (package_*),
-  Gitingest helpers (gitingest_link, gitingest_convert_url with github_url, gitingest_help;
-  optional ref, subpath on link),
-  auth_status, gist_list.
+   Gitingest helpers (gitingest_link, gitingest_convert_url with github_url, gitingest_help;
+   optional ref, subpath on link),
+   auth_status, gist_list.
+
+Red shelf (a step using these without confirm=true + confirm_token returns
+confirmation_required and stops the plan): worktree_remove, clean, reset,
+branch_delete, force push/pull/fetch/clone, release_delete.
+(repo_delete is not on MCP at all — REST/webapp only.)
+List first (worktree_list/branch_list), demand precision in args, then echo
+the confirmation_token from the pushback with exact identifiers —
+adjectives are not identifiers, and a bare confirm=true is refused.
 
 Context:
 - {repo_ctx}
@@ -718,13 +894,18 @@ Respond with ONLY valid JSON:
   ]
 }}
 """
+    if ctx is None:
+        return {
+            "success": False,
+            "error": "Context not available — sampling requires an active MCP session",
+        }
 
     try:
         plan_response = await ctx.sample(
-            messages=[{"role": "user", "content": plan_prompt}],
+            messages=plan_prompt,
             max_tokens=1024,
         )
-        plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
+        plan_text = (plan_response.text if hasattr(plan_response, "text") else str(plan_response)) or ""
     except Exception as e:
         return {
             "success": False,
@@ -759,9 +940,11 @@ Respond with ONLY valid JSON:
 
         try:
             if tool_name == "git_ops":
-                result = await _git_ops(**args)
+                args, refusal = await _gate_plan_step(tool_name, args)
+                result = refusal if refusal is not None else await _git_ops(**args)
             elif tool_name == "github_ops":
-                result = await asyncio.to_thread(_github_ops, **args)
+                args, refusal = await _gate_plan_step(tool_name, args)
+                result = refusal if refusal is not None else await asyncio.to_thread(_github_ops, **args)
             else:
                 from .utils.response import error_response
 
@@ -797,13 +980,13 @@ Respond with ONLY valid JSON:
     }
 
 
-@mcp.tool()
+@mcp.tool(annotations=_READ_ONLY)
 async def git_github_search_workflow(
     task: str,
     owner: str | None = None,
     repo: str | None = None,
     limit: int = 30,
-    ctx: Context = None,
+    ctx: Context | None = None,
 ) -> dict:
     """Agentic GitHub discovery/search workflow (sampling-first).
 
@@ -836,6 +1019,9 @@ Available github_ops groups (all require valid gh auth unless read-only search f
 - LLM digest URLs (public repos / PAT for private): gitingest_link (owner, repo, ref?,
   subpath?), gitingest_convert_url (github_url= full tree URL), gitingest_help
 - Sanity: auth_status when authentication might be the blocker
+- Red shelf: release_delete needs confirm=true + confirm_token echoed from
+  its pushback in args plus working repo AI, else the step returns
+  confirmation_required and stops the plan. (repo_delete is REST/webapp only.)
 
 Context:
 - {gh_ctx}
@@ -858,10 +1044,10 @@ Return ONLY valid JSON:
 """
     try:
         plan_response = await ctx.sample(
-            messages=[{"role": "user", "content": plan_prompt}],
+            messages=plan_prompt,
             max_tokens=1200,
         )
-        plan_text = plan_response.text if hasattr(plan_response, "text") else str(plan_response)
+        plan_text = (plan_response.text if hasattr(plan_response, "text") else str(plan_response)) or ""
     except Exception as e:
         return {
             "success": False,
@@ -896,7 +1082,8 @@ Return ONLY valid JSON:
         desc = step.get("description", f"Step {i + 1}")
         await ctx.info(f"Step {i + 1}/{len(steps)}: {desc}")
         try:
-            result = await asyncio.to_thread(_github_ops, **args)
+            args, refusal = await _gate_plan_step("github_ops", args)
+            result = refusal if refusal is not None else await asyncio.to_thread(_github_ops, **args)
         except Exception as e:
             from .utils.response import error_response
 
@@ -1271,18 +1458,18 @@ def git_github_explain_concept(concept: str, level: str = "intermediate") -> str
 
 _mcp_http = mcp.http_app(path="/")
 
-web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}")
+web_app = FastAPI(title=f"git-github-mcp Web Bridge v{VERSION}", lifespan=_mcp_http.lifespan)
 web_app.include_router(_build_logs_router())
 
 web_app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:10703",
-        "http://127.0.0.1:10703",
-        "http://goliath:10703",
-        "http://localhost:10702",
-        "http://127.0.0.1:10702",
-        "http://goliath:10702",
+        "http://localhost:10714",
+        "http://127.0.0.1:10714",
+        "http://goliath:10714",
+        "http://localhost:10713",
+        "http://127.0.0.1:10713",
+        "http://goliath:10713",
         "http://tauri.localhost",
         "https://tauri.localhost",
         "tauri://localhost",
@@ -1486,7 +1673,7 @@ async def api_v1_health():
         "server": "git-github-mcp",
         "version": VERSION,
         "uptime_seconds": round(time.time() - _START_TIME, 1),
-        "tool_count": len([t for t in mcp._tool_manager._tools if not t.name.startswith("_")]),
+        "tool_count": len(await mcp.list_tools()),
         "providers": {
             "git": "available",
             "github": "available",
@@ -1498,7 +1685,8 @@ async def api_v1_health():
 async def api_v1_diagnostics():
     import platform as _platform
 
-    tool_names = [t.name for t in mcp._tool_manager._tools if not t.name.startswith("_")]
+    tools_list = await mcp.list_tools()
+    tool_names = [t.name for t in tools_list if not t.name.startswith("_")]
     return {
         "status": "ok",
         "server": "git-github-mcp",
@@ -1518,35 +1706,444 @@ async def api_capabilities():
 
 @web_app.get("/api/apps")
 async def api_apps():
-    """Fleet apps hub — entries with webapp ports from fleet registry."""
+    """Fleet apps hub — entries with webapp ports from fleet registry (enriched)."""
     from .services.fleet_catalog import load_registry
 
+    def _read_pyproject_desc(repo_path: Path) -> str | None:
+        p = repo_path / "pyproject.toml"
+        if not p.is_file():
+            return None
+        try:
+            import tomllib
+
+            data = tomllib.loads(p.read_text(encoding="utf-8"))
+            desc = str(data.get("project", {}).get("description") or "").strip()
+            if desc and len(desc) >= 10 and "hardened substrate" not in desc.lower():
+                return desc
+        except Exception:
+            pass
+        # fallback regex for older Python without tomllib or bad toml
+        try:
+            txt = p.read_text(encoding="utf-8", errors="ignore")
+            import re
+
+            m = re.search(r'description\s*=\s*["\']([^"\']+)["\']', txt)
+            if m:
+                d = m.group(1).strip()
+                if len(d) >= 10 and "hardened substrate" not in d.lower():
+                    return d
+        except Exception:
+            pass
+        return None
+
+    def _last_commit(repo_path: Path) -> str | None:
+        # fast git log, no gh call
+        from .services.fleet_common import run_git
+
+        ok, out, _ = run_git(["log", "-1", "--format=%ci", "--no-merges"], repo_path)
+        if ok and out.strip():
+            return out.strip()
+        return None
+
+    def _has_tauri(repo_path: Path) -> bool:
+        return (repo_path / "native" / "tauri.conf.json").is_file() or (
+            repo_path / "src-tauri" / "tauri.conf.json"
+        ).is_file()
+
+    def _is_hype(desc: str) -> bool:
+        low = desc.lower()
+        return (
+            any(k in low for k in ["industrial-grade", "agentic revolution", "hardened substrate"])
+            or len(desc.strip()) < 12
+        )
+
+    rows = load_registry()
     apps: list[dict] = []
-    for row in load_registry():
+    for row in rows:
         if not isinstance(row, dict):
             continue
         rid = str(row.get("id") or "")
         port = int(row.get("frontend_port") or row.get("port") or 0)
         if port <= 0:
             continue
+        raw_desc = str(row.get("description") or "")
+        cat = str(row.get("category") or "mcp")
+        # enrich description: prefer pyproject if registry is hype/missing
+        desc = raw_desc
+        repo_path = Path(str(row.get("repo_path") or f"D:/Dev/repos/{rid}"))
+        if _is_hype(raw_desc) or not raw_desc.strip():
+            py_desc = None
+            # file read is fast, sync is fine
+            py_desc = _read_pyproject_desc(repo_path)
+            if py_desc:
+                desc = py_desc
+            elif cat and cat.lower() != "mcp":
+                desc = cat
+            else:
+                desc = raw_desc or "Fleet MCP — local webapp"
+        has_tauri = _has_tauri(repo_path)
+        # installed Tauri exe check (current user)
+        has_tauri_installed = False
+        if has_tauri:
+            for cand in [
+                Path.home() / "AppData" / "Local" / "Programs" / rid / f"{rid}.exe",
+                repo_path / "native" / "target" / "release" / f"{rid}.exe",
+            ]:
+                if cand.is_file():
+                    has_tauri_installed = True
+                    break
+        gh_owner = str(row.get("github_owner") or "sandraschi")
+        gh_repo = str(row.get("github_repo") or rid)
+        gh_url = f"https://github.com/{gh_owner}/{gh_repo}"
+        # last commit is expensive (200 git calls) - return None here, frontend sorts by name/port; use /api/apps/health for recent if needed
+        last_commit = None
+        # optional: uncomment to enable recent sort (adds ~6s): last_commit = _last_commit(repo_path) if repo_path.is_dir() else None
         apps.append(
             {
                 "id": rid,
-                "name": rid,
-                "description": str(row.get("description") or row.get("category") or "fleet MCP"),
+                "name": str(row.get("name") or rid),
+                "description": desc,
+                "raw_description": raw_desc,
+                "pyproject_description": _read_pyproject_desc(repo_path),
                 "port": port,
-                "category": str(row.get("category") or "mcp"),
+                "backend_port": int(row.get("port") or 0),
+                "category": cat,
                 "url": f"http://127.0.0.1:{port}",
+                "gh_url": gh_url,
+                "repo_path": str(repo_path),
+                "has_tauri": has_tauri,
+                "has_tauri_installed": has_tauri_installed,
+                "last_commit": last_commit,
             }
         )
     apps.sort(key=lambda a: a["port"])
-    log_activity("api", f"apps hub listed {len(apps)} entries", level="INFO")
-    return {"apps": apps, "fleet_total": len(load_registry())}
+    log_activity("api", f"apps hub listed {len(apps)} entries (enriched)", level="INFO")
+    return {"apps": apps, "fleet_total": len(rows)}
+
+
+def _check_port_health_sync(port: int, timeout: float = 1.2) -> dict:
+    import socket
+
+    # quick TCP connect
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            pass
+    except Exception as e:
+        return {
+            "port": port,
+            "alive": False,
+            "reason": f"tcp refused: {e}",
+            "health_url": f"http://127.0.0.1:{port}/health",
+        }
+
+    # try health endpoints (include depot /api/capabilities and robotics /api/v1/health)
+    for path in (
+        "/health",
+        "/api/health",
+        "/api/status",
+        "/api/capabilities",
+        "/api/v1/health",
+        "/api/capabilities/health",
+    ):
+        try:
+            import httpx
+
+            with httpx.Client(timeout=timeout) as c:
+                r = c.get(f"http://127.0.0.1:{port}{path}")
+                if 200 <= r.status_code < 500:
+                    # 200-499 means something is listening
+                    return {
+                        "port": port,
+                        "alive": True,
+                        "status_code": r.status_code,
+                        "health_url": f"http://127.0.0.1:{port}{path}",
+                        "reason": "http ok",
+                    }
+        except Exception:
+            continue
+    return {
+        "port": port,
+        "alive": True,
+        "reason": "tcp open but health 404",
+        "health_url": f"http://127.0.0.1:{port}/health",
+    }
+
+
+@web_app.get("/api/apps/health")
+async def api_apps_health(port: int):
+    result = await asyncio.to_thread(_check_port_health_sync, port)
+    return result
+
+
+def _is_process_running(name: str) -> list[int]:
+    import subprocess
+
+    try:
+        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {name}.exe"], capture_output=True, text=True, timeout=4)
+        pids: list[int] = []
+        for line in out.stdout.splitlines():
+            if name.lower() in line.lower() and ".exe" in line.lower():
+                parts = line.split()
+                for p in parts:
+                    if p.isdigit():
+                        try:
+                            pid = int(p)
+                            if pid > 4:
+                                pids.append(pid)
+                        except Exception:
+                            pass
+        return pids
+    except Exception:
+        return []
+
+
+def _bring_to_foreground(pids: list[int]) -> bool:
+    import subprocess
+
+    if not pids:
+        return False
+    # Use powershell User32 SetForegroundWindow for first pid's main window
+    pid = pids[0]
+    ps = f"""
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class Win {{ [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); }}
+'@
+$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue
+if ($p) {{
+  $h = $p.MainWindowHandle
+  if ($h -eq 0) {{ $h = $p.Handle }}
+  [Win]::ShowWindow($h, 9) | Out-Null
+  [Win]::SetForegroundWindow($h) | Out-Null
+  exit 0
+}}
+exit 1
+"""
+    try:
+        r = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps], timeout=5)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _find_starts_for_id(app_id: str) -> list[str]:
+    candidates: list[str] = []
+
+    def _try_ids(base_id: str) -> list[str]:
+        ids_to_try = [base_id]
+        if base_id.endswith("-mcp"):
+            ids_to_try.append(base_id[:-4])
+            ids_to_try.append(base_id[:-4].replace("-mcp", ""))
+        # also try without suffix for cases like virtualization-mcp -> virtualization
+        return ids_to_try
+
+    for cand_id in _try_ids(app_id):
+        mcd = Path(r"D:\Dev\repos\mcp-central-docs\starts") / f"{cand_id}-start.bat"
+        if mcd.exists() and str(mcd) not in candidates:
+            candidates.append(str(mcd))
+    for cand_id in _try_ids(app_id):
+        repo_ps1 = Path(r"D:\Dev\repos") / cand_id / "start.ps1"
+        if repo_ps1.exists() and str(repo_ps1) not in candidates:
+            candidates.append(str(repo_ps1))
+        repo_bat = Path(r"D:\Dev\repos") / cand_id / "start.bat"
+        if repo_bat.exists() and str(repo_bat) not in candidates:
+            candidates.append(str(repo_bat))
+    # 4. Tauri installed exe (current user)
+    tauri_candidates = [
+        Path.home() / "AppData" / "Local" / "Programs" / app_id / f"{app_id}.exe",
+        Path.home() / "AppData" / "Local" / app_id / f"{app_id}.exe",
+        Path(r"D:\Dev\repos") / app_id / "native" / "target" / "release" / f"{app_id}.exe",
+        Path(r"D:\Dev\repos")
+        / app_id
+        / "native"
+        / "target"
+        / "release"
+        / "bundle"
+        / "nsis"
+        / f"{app_id}_0.5.0_x64-setup.exe",
+    ]
+    for p in tauri_candidates:
+        if p.exists():
+            candidates.append(str(p))
+    return candidates
+
+
+@web_app.post("/api/apps/ensure")
+async def api_apps_ensure(payload: dict):
+    app_id = str(payload.get("id") or payload.get("app_id") or "").strip()
+    port = int(payload.get("port") or 0)
+    if not app_id and port:
+        # try to resolve id from registry by port
+        from .services.fleet_catalog import load_registry
+
+        for row in load_registry():
+            if int(row.get("frontend_port") or row.get("port") or 0) == port:
+                app_id = str(row.get("id") or "")
+                break
+    if not port and app_id:
+        from .services.fleet_catalog import load_registry
+
+        for row in load_registry():
+            if str(row.get("id")) == app_id:
+                port = int(row.get("frontend_port") or row.get("port") or 0)
+                break
+    if not port:
+        return {"success": False, "error": "port or id required", "alive": False}
+
+    # 1. already healthy? also check backend_port for dual-port apps (depot-mcp 10726/10727)
+    health = await asyncio.to_thread(_check_port_health_sync, port)
+    # fallback: check backend_port from registry if frontend not alive
+    if not health.get("alive") and app_id:
+        try:
+            from .services.fleet_catalog import load_registry
+
+            for row in load_registry():
+                if str(row.get("id")) == app_id:
+                    bport = int(row.get("port") or 0)
+                    fport = int(row.get("frontend_port") or 0)
+                    cand = bport if bport != port and bport > 0 else (fport if fport != port and fport > 0 else 0)
+                    if cand:
+                        h2 = await asyncio.to_thread(_check_port_health_sync, cand)
+                        if h2.get("alive"):
+                            health = h2
+                            port = cand
+                    break
+        except Exception:
+            pass
+    if health.get("alive"):
+        # also try to bring existing window to front if Tauri
+        if app_id:
+            pids = await asyncio.to_thread(_is_process_running, app_id)
+            if pids:
+                await asyncio.to_thread(_bring_to_foreground, pids)
+                return {
+                    "success": True,
+                    "status": "brought_to_foreground",
+                    "alive": True,
+                    "url": f"http://127.0.0.1:{port}",
+                    "pids": pids,
+                    "port": port,
+                    "id": app_id,
+                }
+        return {
+            "success": True,
+            "status": "already_running",
+            "alive": True,
+            "url": f"http://127.0.0.1:{port}",
+            "port": port,
+            "id": app_id,
+        }
+
+    # 2. Tauri winapp already running but port not healthy? bring to front
+    if app_id:
+        pids = await asyncio.to_thread(_is_process_running, app_id)
+        # also check -native suffix
+        if not pids:
+            pids = await asyncio.to_thread(_is_process_running, f"{app_id}-native")
+        if pids:
+            ok = await asyncio.to_thread(_bring_to_foreground, pids)
+            # re-check health after bringing to front (maybe it was minimized)
+            health2 = await asyncio.to_thread(_check_port_health_sync, port)
+            return {
+                "success": True,
+                "status": "brought_to_foreground" if ok else "found_process",
+                "alive": bool(health2.get("alive")),
+                "url": f"http://127.0.0.1:{port}",
+                "pids": pids,
+                "port": port,
+                "id": app_id,
+            }
+
+    # 3. try to start via starts
+    if app_id:
+        candidates = await asyncio.to_thread(_find_starts_for_id, app_id)
+        # prefer mcd start.bat, then start.ps1
+        start_cmd = None
+        for c in candidates:
+            if c.lower().endswith("-start.bat") or c.lower().endswith("start.ps1"):
+                start_cmd = c
+                break
+        if start_cmd:
+            try:
+                import subprocess
+
+                # launch detached
+                if start_cmd.lower().endswith(".ps1"):
+                    subprocess.Popen(
+                        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", start_cmd],
+                        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0,
+                    )
+                else:
+                    subprocess.Popen(
+                        ["cmd.exe", "/c", start_cmd],
+                        creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0,
+                    )
+                # poll health up to 12s
+                for _ in range(12):
+                    await asyncio.sleep(1)
+                    h = await asyncio.to_thread(_check_port_health_sync, port)
+                    if h.get("alive"):
+                        return {
+                            "success": True,
+                            "status": "started",
+                            "alive": True,
+                            "url": f"http://127.0.0.1:{port}",
+                            "port": port,
+                            "id": app_id,
+                            "via": start_cmd,
+                        }
+                return {
+                    "success": True,
+                    "status": "start_initiated",
+                    "alive": False,
+                    "url": f"http://127.0.0.1:{port}",
+                    "port": port,
+                    "id": app_id,
+                    "via": start_cmd,
+                    "note": "started but health not yet ok - wait a few seconds and retry",
+                }
+            except Exception as e:
+                return {"success": False, "error": str(e), "port": port, "id": app_id}
+
+        # fallback: try Tauri exe directly
+        for c in candidates:
+            if c.lower().endswith(".exe") and "setup" not in c.lower():
+                try:
+                    import subprocess
+
+                    subprocess.Popen([c], creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == "nt" else 0)
+                    return {
+                        "success": True,
+                        "status": "tauri_started",
+                        "alive": False,
+                        "url": f"http://127.0.0.1:{port}",
+                        "port": port,
+                        "id": app_id,
+                        "via": c,
+                    }
+                except Exception as e:
+                    return {"success": False, "error": str(e), "port": port, "id": app_id}
+        return {
+            "success": False,
+            "error": f"no start entry found for {app_id} (checked {candidates})",
+            "port": port,
+            "id": app_id,
+        }
+
+    return {"success": False, "error": "could not start - no id", "port": port}
 
 
 @web_app.get("/api/status")
 async def api_status():
-    return await asyncio.to_thread(_get_status, level="basic")
+    result = await asyncio.to_thread(_get_status, level="basic")
+    if isinstance(result, dict):
+        result["version"] = VERSION
+        result["git_ops"] = len(CORE_OPS) + len(BRANCH_OPS) + len(ADMIN_OPS)
+        from .tools.github_ops import ACTION_TYPE
+
+        result["github_ops"] = len(ACTION_TYPE)
+    return result
 
 
 # Mount MCP HTTP transport alongside the web API
@@ -1624,7 +2221,9 @@ async def api_github(body: dict):
     args = body.get("arguments", body)
     op = args.get("operation", "?")
     log_activity("github_ops", f"operation={op}", level="INFO", meta={"operation": op})
-    return await github_ops(**args)
+    # REST calls the implementation directly — the red-shelf gate lives in the
+    # MCP wrapper above. Humans in the webapp confirm by clicking.
+    return await asyncio.to_thread(_github_ops, **args)
 
 
 @web_app.post("/api/morning-digest")
@@ -1759,45 +2358,31 @@ if os.path.isdir(_dist):
 
 
 def main():
-    import threading
-
     from .transport import get_transport_config, run_server
-
-    # Start the HTTP bridge on port 10702 in a background thread
-    http_thread = threading.Thread(
-        target=lambda: uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT, log_level="warning"),
-        daemon=True,
-    )
-    http_thread.start()
-    logger.info(f"HTTP bridge running on {WEB_HOST}:{WEB_PORT}")
 
     cfg = get_transport_config()
     transport = cfg.get("transport", "stdio")
 
-    if transport == "http":
-        # HTTP mode: run the MCP server via the transport module (blocks)
-        run_server(mcp, server_name="git-github-mcp")
-    else:
-        # STDIO mode: run in a thread, keep main alive for HTTP bridge
-        import asyncio
-
-        stdio_thread = threading.Thread(
-            target=lambda: asyncio.run(mcp.run_stdio_async()),
+    if transport != "http" and os.getenv("GIT_GITHUB_WEB", "0") == "1":
+        # Opt-in only. web_app carries the FastMCP lifespan from mcp.http_app(),
+        # so running it alongside stdio can double-start the session manager.
+        # daemon=True so the process dies when the client closes stdin, which
+        # also prevents the orphan holding WEB_PORT across restarts (WinError 10048).
+        threading.Thread(
+            target=lambda: uvicorn.run(web_app, host=WEB_HOST, port=WEB_PORT, log_level="warning"),
             daemon=True,
-        )
-        stdio_thread.start()
-        logger.info("MCP STDIO listener started in background thread")
+        ).start()
+        logger.info(f"HTTP bridge running on {WEB_HOST}:{WEB_PORT}")
 
-        # Orphan-process fix (2026-06-11): previously this was an
-        # unconditional `while True: sleep(1)`, which kept the process
-        # alive forever after the client died (stdio EOF). One zombie
-        # leaked per client restart. Now: stay alive only while the
-        # STDIO transport is connected; when it ends, exit — the daemon
-        # HTTP bridge dies with us. For a standalone HTTP server, run
-        # with transport=http instead.
-        try:
-            while stdio_thread.is_alive():
-                stdio_thread.join(timeout=1.0)
-            logger.info("STDIO transport ended (client disconnected) — shutting down")
-        except KeyboardInterrupt:
-            logger.info("Shutdown requested by user")
+    # stdio: run_stdio_async owns the main thread (required for Claude Desktop).
+    # http:  the transport module serves MCP over streamable HTTP itself.
+    try:
+        run_server(mcp, server_name="git-github-mcp")
+    except KeyboardInterrupt:
+        logger.info("Shutdown requested by user")
+
+    logger.info("git-github-mcp stopped")
+
+
+if __name__ == "__main__":
+    main()

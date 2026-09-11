@@ -1,15 +1,65 @@
 
-## [Unreleased] — 2026-06-14
+## [0.6.5] — 2026-09-11
 
 ### Added
-- Tauri native wrapper (native/ directory) with bundle.resources + std::process::Command
-- CUA-NSIS: just cua-nsis-test recipe, scripts/cua-smoke.py, scripts/cua-nsis-config.json
-- Tauri CORS: tauri://localhost origins for WebView API access
-- NSIS installer at dist/ and native/target/release/bundle/nsis/
+- **Morning digest local workspace hygiene**: `op_local_dirty` now scans for uncommitted/untracked files and sync drift across fleet worktrees, reporting findings in the daily morning digest and pushing alerts to aiwatcher.
+- **Just automation recipes**: Added `just morning-digest` and `just install-morning-task` recipes.
+- **Scheduled task automation**: Background task `GitHub-Fleet-Morning-Digest` scheduled to run daily at 07:00 via Task Scheduler.
 
-### Changed
-- Frontend API calls use absolute http://127.0.0.1:{port} URLs in production build
-- CORS middleware includes allow_origin_regex for tauri.localhost
+### Fixed
+- **Fleet start standalone mode**: Added fallback launcher logic for standalone clones when `mcp-central-docs` is absent.
+- **MCPB packaging retrofit**: Added `scripts/mcpb-pack.ps1` for Claude Desktop packaging.
+- **Destructive operations safety**: Destructive operations gated behind red shelf mechanism and `repo_delete` removed from MCP exposure.
+- **Git credential manager & identity**: Fixed commit identity fallbacks and wincredman integration.
+
+## [0.6.3] — 2026-09-04
+
+### Fixed
+- `apps` depot-mcp 404 → games: `fleet-registry.json` `depot-mcp` had `port:10726` (frontend) but backend was `10727` `/api/capabilities`; fixed to `port:10727` + `frontend_port:10726` + `backend_port:10727` and `starts/depot-mcp-start.bat` alias (depot→depot-mcp). `server.py: _check_port_health_sync` now probes `/api/capabilities` + `/api/v1/health` and `api_apps_ensure` falls back to backend port when frontend not alive — depot card now opens `http://127.0.0.1:10726` correctly instead of games (10987).
+
+## [0.6.2] — 2026-09-04
+
+### Fixed
+- **Chat borked revert — NO, you did not imagine it:** `web/src/pages/chat.tsx` had regressed to the old two-column `lg:flex-row` + embedded Discovery aside (22rem) we had killed in 0.6.0. Restored single-column `max-w-4xl mx-auto` with `Examples` dropdown and removed the `DISCOVERY_PRESETS` + aside from Chat. `web/src/pages/discovery.tsx` standalone page was present but unwired — now wired.
+- **Discovery workflow page missing:** `web/src/App.tsx` lacked `import { DiscoveryPage }` + `Route /discovery` and `web/src/components/layout/app-layout.tsx` had no `Compass` + `DOMAIN_NAV /discovery` entry. Added — nav now `Repos · Stars · Commits · Inbox · Breakfast · Issues · PRs · **Discovery** · Chat · Lectures`.
+
+## [0.6.1] — 2026-09-04
+
+### Fixed
+- `apps` virtualization-mcp 404: `_find_starts_for_id` now tries `*-mcp` stripped id for `mcd/starts/*-start.bat` + `repo/start.ps1|bat` (fixes ~108 fleet ids: `virtualization-mcp→virtualization`, `kyutai-mcp→kyutai` …) and alias `mcp-central-docs/starts/virtualization-mcp-start.bat`
+- `apps` headless Tauri handling: `brought_to_foreground` with `alive:false` (e.g. virtualization-mcp `:10700` no Vite web UI) now shows toast `Tauri window brought to front — no web UI` instead of `window.open` to dead port → 404; `else`/`catch` headless branches show `No web UI — headless MCP/Tauri app. Use its winapp via Starts or: uv run <id>` instead of blind open
+
+## [0.6.0] — 2026-09-04
+
+### Added
+- `github_ops` 58→61: `stars_summary`, `stars_per_repo`, `stars_history` (bucket trajectory via `starred_at` header, 591 received vs 183 given fix)
+- Web `/stars` page: KPIs, distribution, per-repo lookup, leaderboard + amber/sky SVG trajectory
+- Web `/ci` now shows success **and** failed stats: 5 tiles (Success/Failed/Cancelled/In progress/Total) + success rate, `Failed only` filter, help text for fixing broken CI (emails stop when green)
+- Web `/apps` health-first: card/list toggle, sort (port/name/recent), category filter, Tauri badge, GH link, enriched pyproject descriptions
+- Web `/chat` single-column, dropdown examples; `/discovery` with 5 presets; `/breakfast` beforeunload + depot; `/help` expanded
+- Dashboard densified: 6 KPIs, stars glance, quick actions; layout fixes (w-56 sidebar, min-h-screen, scrollbar)
+- Fleet collision warnings: Tauri `native/src/backend.rs` health reuse + `Invoke-FleetWebappStart.ps1` / `FleetStartMode.ps1` R7 warnings
+
+### Fixed
+- `native/src/backend.rs` `BACKEND_PORT 10702→10713`, `is_port_in_use` / `is_backend_healthy`, Tauri reuses healthy dev backend with dialog
+- `web/src/index.css` dark theme bg + scrollbar visibility, removed light-mode invert
+- `start.ps1` instacrash when `git-github-mcp.exe` holds 10713 — now warns + taskkill guidance
+
+## [Unreleased] — 2026-07-29
+
+### Fixed
+- @tauri-apps/api added to web/package.json dependencies (Tauri event listener was silently failing)
+- transport.py run_http_async() replaced with uvicorn.Server + CORS middleware (was dropping CORS in CLI --http mode)
+- use-zoom.ts dev-browser fallback now uses CSS zoom instead of silent no-op
+- Settings page stale hardcoded values replaced with dynamic API data (version, op counts)
+- utils/response.py error_response() now auto-logs with logger.exception()
+- .bak files untracked from git index
+- .gitignore covers reports/, *.bak-*
+
+### Added
+- .github/workflows/ci.yml ruff/pytest CI workflow
+- .github/copilot-instructions.md session context injection for GitHub Copilot
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -38,7 +88,7 @@ All notable changes to this project will be documented in this file.
   - `git_branch` (14 ops): branch lifecycle, merge, rebase, stash, tag
   - `git_admin` (16 ops): remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree
   - `git_blame` (1 op): file blame with optional commit ref
-- **Dual transport**: Server runs stdio AND HTTP bridge (port 10702) simultaneously
+- **Dual transport**: Server runs stdio AND HTTP bridge (port 10713) simultaneously
 - **REST API**: `/health`, `/api/git`, `/api/github`, `/api/tools`, `/api/status`
 - **Conversational error returns**: All tool handlers use `success_response`/`error_response` with `recovery_options` and `suggested_fixes`
 - **MCP HTTP mount**: `mcp.http_app()` mounted at `/mcp` for streamable HTTP clients

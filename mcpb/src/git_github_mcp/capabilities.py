@@ -22,7 +22,12 @@ _PORTMANTEAU = frozenset(
 )
 
 
-def _probe_local_llm() -> bool:
+def probe_local_llm() -> bool:
+    """True when a local LLM endpoint answers (Ollama :11434 or LM Studio :1234).
+
+    Canonical probe — reused by utils.destructive_gate for the repo-AI check.
+    Cloud providers are separate ongoing work and deliberately not checked here.
+    """
     for url in ("http://127.0.0.1:11434/api/tags", "http://127.0.0.1:1234/v1/models"):
         try:
             resp = httpx.get(url, timeout=1.2)
@@ -75,7 +80,7 @@ async def build_capabilities(mcp: Any, *, version: str = "0.4.0") -> dict[str, A
     except Exception:
         logger.debug("list_resources failed")
 
-    local_llm = _probe_local_llm()
+    local_llm = probe_local_llm()
 
     return {
         "status": "ok",

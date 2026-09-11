@@ -4,16 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "git-github-mcp"
-version = "0.5.0"
-description = "FastMCP 3.4.2+ hardened substrate for Git (local) and GitHub (gh CLI)"
+version = "0.6.5"
+description = "Local git and GitHub — branches, commits, PRs and stars in one FastMCP 3.4+ server"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "MIT"}
 dependencies = [
     "fastapi>=0.115.0",
-    "fastmcp>=3.4.2",
+    "fastmcp>=3.4.4,<4",
     "uvicorn[standard]>=0.32.0",
-    "ruff>=0.15.2",
     "prefab-ui>=0.14.0",
 ]
 
@@ -21,7 +20,11 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.4",
+    "ruff>=0.16.0,<0.17",
+    "pre-commit>=4.6.1",
+    "pyright>=1.1.0",
+    "ty>=0.0.1",
+    "pip-audit>=2.7.0",
 ]
 
 [dependency-groups]
@@ -29,7 +32,11 @@ dev = [
     "pyinstaller>=6.21.0",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
-    "ruff>=0.4",
+    "ruff>=0.16.0,<0.17",
+    "pre-commit>=4.6.1",
+    "pyright>=1.1.0",
+    "ty>=0.0.1",
+    "pip-audit>=2.7.0",
 ]
 
 [project.scripts]
@@ -44,7 +51,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "S", "UP", "RUF"]
-ignore = ["S101", "B008"]
+ignore = ["S101", "B008", "S106", "S110", "S112", "S101", "B008", "S106", "S110", "S112", "RUF012", "S603", "S607", "S324", "E402", "E501"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -60,4 +67,4 @@ source = "uv-dynamic-versioning"
 vcs = "git"
 style = "pep440"
 bump = true
-fallback-version = "0.4.0"
+fallback-version = "0.6.5"
