@@ -10,6 +10,7 @@ from .fleet_health import op_ci_pulse, op_dependabot_digest
 from .fleet_links import op_gitingest_bundle, op_grade_snapshot
 from .fleet_maintainer import op_ack_drafts, op_mention_inbox
 from .fleet_orchestrator import op_council_payload, op_runner_status, op_weekly_retro, run_full_suite
+from .fleet_workreport import op_work_report, post_to_discord
 from .fleet_workspace import op_local_dirty, op_release_drift
 
 OPERATIONS = frozenset(
@@ -29,6 +30,7 @@ OPERATIONS = frozenset(
         "runner_status",
         "weekly_retro",
         "council_payload",
+        "work_report",
         "full_suite",
     }
 )
@@ -49,6 +51,10 @@ def fleet_ops(
     owner: str | None = None,
     registry_path: str | None = None,
     repos_root: str | None = None,
+    since: str = "midnight",
+    until: str | None = None,
+    agent_only: bool = False,
+    discord_channel_id: str | None = None,
     scraper_url: str | None = None,
     suite_json: dict[str, Any] | None = None,
     template: str | None = None,
@@ -106,6 +112,14 @@ def fleet_ops(
         return op_runner_status()
     if op == "weekly_retro":
         return op_weekly_retro(fleet_repos=fleet_repos, use_registry=use_registry, days=days)
+    if op == "work_report":
+        report = op_work_report(
+            repos_root=repos_root, since=since, until=until, agent_only=agent_only
+        )
+        if discord_channel_id and report.get("success"):
+            payload = report.get("result") or {}
+            report["delivery"] = post_to_discord(payload.get("discord", ""), discord_channel_id)
+        return report
     if op == "council_payload":
         return op_council_payload(suite_json or {})
     if op == "full_suite":
