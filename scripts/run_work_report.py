@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from git_github_mcp.services.fleet_workreport import (
     op_work_report,
-    post_to_discord,
+    post_to_discord_blocks,
 )
 
 # Windows consoles and Task Scheduler default to cp1252 and cannot encode the arrows
@@ -81,20 +81,22 @@ def main() -> int:
 
     if not args.quiet:
         print()
-        print(payload.get("discord", ""))
+        for block in payload.get("discordBlocks") or []:
+            print(block)
+            print()
 
     if args.channel:
         if payload["totals"]["commits"] == 0:
             print("no commits in window; nothing posted to Discord")
             return 0
-        delivery = post_to_discord(payload.get("discord", ""), args.channel,
-                                   token=load_token())
+        delivery = post_to_discord_blocks(payload.get("discordBlocks") or [],
+                                          args.channel, token=load_token())
         if delivery.get("success"):
-            print(f"posted to Discord channel {args.channel} (message {delivery['messageId']})")
+            print(f"posted {delivery['parts']} part(s) to Discord channel {args.channel}")
         else:
             # A failed post must not fail the whole run: the report itself succeeded.
-            print(f"Discord delivery failed: {delivery.get('error')} "
-                  f"{delivery.get('detail', '')}".strip(), file=sys.stderr)
+            print(f"Discord delivery failed after {len(delivery['sent'])} part(s): "
+                  f"{delivery['failures']}", file=sys.stderr)
     return 0
 
 

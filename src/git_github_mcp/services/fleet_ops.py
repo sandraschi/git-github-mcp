@@ -10,7 +10,7 @@ from .fleet_health import op_ci_pulse, op_dependabot_digest
 from .fleet_links import op_gitingest_bundle, op_grade_snapshot
 from .fleet_maintainer import op_ack_drafts, op_mention_inbox
 from .fleet_orchestrator import op_council_payload, op_runner_status, op_weekly_retro, run_full_suite
-from .fleet_workreport import op_work_report, post_to_discord
+from .fleet_workreport import op_work_report, post_to_discord_blocks
 from .fleet_workspace import op_local_dirty, op_release_drift
 
 OPERATIONS = frozenset(
@@ -118,7 +118,9 @@ def fleet_ops(
         )
         if discord_channel_id and report.get("success"):
             payload = report.get("result") or {}
-            report["delivery"] = post_to_discord(payload.get("discord", ""), discord_channel_id)
+            report["delivery"] = post_to_discord_blocks(
+                payload.get("discordBlocks") or [], discord_channel_id
+            )
         return report
     if op == "council_payload":
         return op_council_payload(suite_json or {})

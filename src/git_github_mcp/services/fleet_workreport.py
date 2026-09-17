@@ -155,6 +155,7 @@ def op_work_report(
         "byRepo": by_repo,
         "markdown": render_markdown(by_repo, total_commits, total_agent, since),
         "discord": render_discord(by_repo, total_commits, total_agent, since),
+        "discordBlocks": render_discord_blocks(by_repo, total_commits, total_agent, since),
     }
     return success_response(
         result,
@@ -191,34 +192,83 @@ def render_markdown(by_repo: list[dict], commits: int, agent: int, since: str) -
     return "\n".join(lines)
 
 
-def render_discord(by_repo: list[dict], commits: int, agent: int, since: str,
-                   top: int = 8, limit: int = 1900) -> str:
-    """Compact enough for a channel: headline, top repos, one line each.
+def channel_name_for(repo: str) -> str:
+    """The guild's per-repo channel convention: fleet-<name with -mcp stripped>.
 
-    Discord hard-caps content at 2000 characters and rejects (never truncates) anything
-    longer, so this stays deliberately terse and is clamped before it is sent.
+    #fleet-arxiv for arxiv-mcp, #fleet-speech for speech-mcp, #fleet-robotics for
+    robotics-mcp. Recorded here because it is nowhere else: it has to be inferred by
+    reading the channel list against the repo list. Note that only ~40 of the 190+
+    repos have a channel, so callers must handle a miss.
+    """
+    name = repo[:-4] if repo.endswith("-mcp") else repo
+    return f"fleet-{name}"
+
+
+def _repo_block(entry: dict, max_lines: int = 3) -> list[str]:
+    """One repo: a header line plus up to max_lines full commit subjects.
+
+    Subjects get their own lines rather than being cut to fit a single line -- a
+    subject ending in "..." tells you a commit happened but not what it did, which is
+    the one thing the report exists to convey.
+    """
+    lines = [f"`{entry['repo']}` **{entry['commits']}** "
+             f"(+{entry['insertions']}/-{entry['deletions']})"]
+    for subject in entry["subjects"][:max_lines]:
+        lines.append(f"  - {subject}")
+    remaining = entry["commits"] - min(len(entry["subjects"]), max_lines)
+    if remaining > 0:
+        lines.append(f"  _+{remaining} more commit{'s' if remaining > 1 else ''}_")
+    return lines
+
+
+def render_discord_blocks(by_repo: list[dict], commits: int, agent: int, since: str,
+                          block_size: int = 20, limit: int = 1900,
+                          max_lines: int = 3) -> list[str]:
+    """Every repo, alphabetically, split across as many messages as it takes.
+
+    Discord rejects rather than truncates anything over 2000 characters, so the report
+    is chunked instead of trimmed: no repo is dropped and no subject is cut. Repos are
+    sorted alphabetically (not by commit count) so a given repo lands in a predictable
+    message when scanning several days of reports.
     """
     if not by_repo:
-        return f"**Fleet work report** -- no commits since {since}."
+        return [f"**Fleet work report** -- no commits since {since}."]
 
-    head = (f"**Fleet work report** -- {commits} commits / {len(by_repo)} repos "
-            f"since {since}  ({agent} by agent)")
-    lines = [head, ""]
-    for entry in by_repo[:top]:
-        headline = entry["subjects"][0] if entry["subjects"] else ""
-        if len(headline) > 72:
-            headline = headline[:69] + "..."
-        lines.append(
-            f"`{entry['repo']}` **{entry['commits']}** "
-            f"(+{entry['insertions']}/-{entry['deletions']}) - {headline}"
-        )
-    if len(by_repo) > top:
-        lines.append(f"_...and {len(by_repo) - top} more repos_")
+    ordered = sorted(by_repo, key=lambda r: r["repo"].lower())
+    chunks = [ordered[i:i + block_size] for i in range(0, len(ordered), block_size)]
 
-    text = "\n".join(lines)
-    if len(text) > limit:
-        text = text[:limit].rsplit("\n", 1)[0] + "\n_...truncated_"
-    return text
+    # A block of block_size repos can still exceed the cap once subjects are included,
+    # so split any oversized block again rather than emitting something Discord refuses.
+    rendered: list[list[str]] = []
+    for chunk in chunks:
+        current: list[str] = []
+        current_len = 0
+        for entry in chunk:
+            block = _repo_block(entry, max_lines)
+            block_len = sum(len(line) + 1 for line in block)
+            # 120 chars of headroom for the "[n/m]" header added below.
+            if current and current_len + block_len > limit - 120:
+                rendered.append(current)
+                current, current_len = [], 0
+            current.extend(block)
+            current_len += block_len
+        if current:
+            rendered.append(current)
+
+    total = len(rendered)
+    messages = []
+    for index, body in enumerate(rendered, start=1):
+        part = f"  [{index}/{total}]" if total > 1 else ""
+        head = (f"**Fleet work report** -- {commits} commits / {len(by_repo)} repos "
+                f"since {since}  ({agent} by agent){part}")
+        messages.append("\n".join([head, "", *body]))
+    return messages
+
+
+def render_discord(by_repo: list[dict], commits: int, agent: int, since: str,
+                   block_size: int = 20, limit: int = 1900) -> str:
+    """First message only -- kept for callers that want a single string."""
+    return render_discord_blocks(by_repo, commits, agent, since, block_size, limit)[0]
 
 
 def post_to_discord(content: str, channel_id: str, token: str | None = None) -> dict[str, Any]:
@@ -257,3 +307,33 @@ def post_to_discord(content: str, channel_id: str, token: str | None = None) -> 
                 "detail": exc.read().decode("utf-8", "replace")[:300]}
     except (urllib.error.URLError, OSError, ValueError) as exc:
         return {"success": False, "error": str(exc)}
+
+
+def post_to_discord_blocks(messages: list[str], channel_id: str,
+                           token: str | None = None,
+                           pause_seconds: float = 1.2) -> dict[str, Any]:
+    """Send a multi-part report in order, stopping at the first failure.
+
+    Discord rate-limits bots to roughly 5 messages per 5 seconds per channel, so parts
+    are paced. Sending stops on the first failure rather than continuing, because a
+    report missing its middle is worse than one that visibly ends early.
+    """
+    import time
+
+    sent, failures = [], []
+    for index, message in enumerate(messages):
+        if index:
+            time.sleep(pause_seconds)
+        outcome = post_to_discord(message, channel_id, token=token)
+        if outcome.get("success"):
+            sent.append(outcome.get("messageId"))
+        else:
+            failures.append({"part": index + 1, **outcome})
+            break
+    return {
+        "success": not failures,
+        "parts": len(messages),
+        "sent": sent,
+        "failures": failures,
+        "channelId": channel_id,
+    }
