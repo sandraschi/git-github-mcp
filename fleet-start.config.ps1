@@ -10,7 +10,7 @@
         Kind          = 'uvicorn-web-app'
         UvicornTarget = 'git_github_mcp.server:web_app'
         SyncExtras    = @('dev')
-        Env           = @{ WEB_PORT = '10713' }
+        Env           = @{ WEB_PORT = '10713'; GITOPS_USER_NAME = 'Sandra Schipal'; GITOPS_USER_EMAIL = 'sandraschipal@gmail.com' }
     }
     Frontend = @{
         Kind           = 'vite-npm'
