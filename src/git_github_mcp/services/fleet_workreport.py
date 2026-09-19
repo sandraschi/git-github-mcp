@@ -28,8 +28,19 @@ from ..utils.response import success_response
 from .fleet_common import DEFAULT_REPOS_ROOT, run_git
 
 SKIP_DIRS = {
-    "_archives", "_junk", "_upstream", "_sandbox_runs", "_workspaces", "backups",
-    "build", "data", "external", "externals", "analysis", "node_modules", ".git",
+    "_archives",
+    "_junk",
+    "_upstream",
+    "_sandbox_runs",
+    "_workspaces",
+    "backups",
+    "build",
+    "data",
+    "external",
+    "externals",
+    "analysis",
+    "node_modules",
+    ".git",
 }
 AGENT_TRAILER = "Co-Authored-By: Claude"
 RECORD_SEP = "\x1e"
@@ -39,16 +50,14 @@ FIELD_SEP = "\x1f"
 def _iter_repos(root: Path) -> list[Path]:
     if not root.is_dir():
         return []
-    return sorted(
-        p for p in root.iterdir()
-        if p.is_dir() and p.name not in SKIP_DIRS and (p / ".git").exists()
-    )
+    return sorted(p for p in root.iterdir() if p.is_dir() and p.name not in SKIP_DIRS and (p / ".git").exists())
 
 
 def _commits(repo: Path, since: str, until: str | None) -> list[dict[str, Any]]:
     """One git log call per repo; body included so the agent trailer is visible."""
     args = [
-        "log", f"--since={since}",
+        "log",
+        f"--since={since}",
         f"--pretty=format:%H{FIELD_SEP}%an{FIELD_SEP}%aI{FIELD_SEP}%s{FIELD_SEP}%b{RECORD_SEP}",
         "--no-merges",
     ]
@@ -68,13 +77,15 @@ def _commits(repo: Path, since: str, until: str | None) -> list[dict[str, Any]]:
             continue
         sha, author, when, subject = parts[0], parts[1], parts[2], parts[3]
         body = parts[4] if len(parts) > 4 else ""
-        found.append({
-            "sha": sha[:8],
-            "author": author,
-            "at": when,
-            "subject": subject.strip(),
-            "agent": AGENT_TRAILER.lower() in body.lower(),
-        })
+        found.append(
+            {
+                "sha": sha[:8],
+                "author": author,
+                "at": when,
+                "subject": subject.strip(),
+                "agent": AGENT_TRAILER.lower() in body.lower(),
+            }
+        )
     return found
 
 
@@ -122,16 +133,18 @@ def op_work_report(
             continue
         files, plus, minus = _churn(repo, since, until)
         shown = agent if agent_only else commits
-        by_repo.append({
-            "repo": repo.name,
-            "commits": len(commits),
-            "agentCommits": len(agent),
-            "files": files,
-            "insertions": plus,
-            "deletions": minus,
-            "subjects": [c["subject"] for c in shown[:max_subjects]],
-            "authors": sorted({c["author"] for c in commits}),
-        })
+        by_repo.append(
+            {
+                "repo": repo.name,
+                "commits": len(commits),
+                "agentCommits": len(agent),
+                "files": files,
+                "insertions": plus,
+                "deletions": minus,
+                "subjects": [c["subject"] for c in shown[:max_subjects]],
+                "authors": sorted({c["author"] for c in commits}),
+            }
+        )
         total_commits += len(commits)
         total_agent += len(agent)
         total_files += files
@@ -160,8 +173,7 @@ def op_work_report(
     return success_response(
         result,
         "work_report",
-        message=(f"{total_commits} commits across {len(by_repo)} repos since {since} "
-                 f"({total_agent} agent-attributed)"),
+        message=(f"{total_commits} commits across {len(by_repo)} repos since {since} ({total_agent} agent-attributed)"),
     )
 
 
@@ -211,8 +223,7 @@ def _repo_block(entry: dict, max_lines: int = 3) -> list[str]:
     subject ending in "..." tells you a commit happened but not what it did, which is
     the one thing the report exists to convey.
     """
-    lines = [f"`{entry['repo']}` **{entry['commits']}** "
-             f"(+{entry['insertions']}/-{entry['deletions']})"]
+    lines = [f"`{entry['repo']}` **{entry['commits']}** (+{entry['insertions']}/-{entry['deletions']})"]
     for subject in entry["subjects"][:max_lines]:
         lines.append(f"  - {subject}")
     remaining = entry["commits"] - min(len(entry["subjects"]), max_lines)
@@ -221,9 +232,15 @@ def _repo_block(entry: dict, max_lines: int = 3) -> list[str]:
     return lines
 
 
-def render_discord_blocks(by_repo: list[dict], commits: int, agent: int, since: str,
-                          block_size: int = 20, limit: int = 1900,
-                          max_lines: int = 3) -> list[str]:
+def render_discord_blocks(
+    by_repo: list[dict],
+    commits: int,
+    agent: int,
+    since: str,
+    block_size: int = 20,
+    limit: int = 1900,
+    max_lines: int = 3,
+) -> list[str]:
     """Every repo, alphabetically, split across as many messages as it takes.
 
     Discord rejects rather than truncates anything over 2000 characters, so the report
@@ -235,7 +252,7 @@ def render_discord_blocks(by_repo: list[dict], commits: int, agent: int, since: 
         return [f"**Fleet work report** -- no commits since {since}."]
 
     ordered = sorted(by_repo, key=lambda r: r["repo"].lower())
-    chunks = [ordered[i:i + block_size] for i in range(0, len(ordered), block_size)]
+    chunks = [ordered[i : i + block_size] for i in range(0, len(ordered), block_size)]
 
     # A block of block_size repos can still exceed the cap once subjects are included,
     # so split any oversized block again rather than emitting something Discord refuses.
@@ -259,14 +276,16 @@ def render_discord_blocks(by_repo: list[dict], commits: int, agent: int, since: 
     messages = []
     for index, body in enumerate(rendered, start=1):
         part = f"  [{index}/{total}]" if total > 1 else ""
-        head = (f"**Fleet work report** -- {commits} commits / {len(by_repo)} repos "
-                f"since {since}  ({agent} by agent){part}")
+        head = (
+            f"**Fleet work report** -- {commits} commits / {len(by_repo)} repos since {since}  ({agent} by agent){part}"
+        )
         messages.append("\n".join([head, "", *body]))
     return messages
 
 
-def render_discord(by_repo: list[dict], commits: int, agent: int, since: str,
-                   block_size: int = 20, limit: int = 1900) -> str:
+def render_discord(
+    by_repo: list[dict], commits: int, agent: int, since: str, block_size: int = 20, limit: int = 1900
+) -> str:
     """First message only -- kept for callers that want a single string."""
     return render_discord_blocks(by_repo, commits, agent, since, block_size, limit)[0]
 
@@ -303,15 +322,14 @@ def post_to_discord(content: str, channel_id: str, token: str | None = None) -> 
             payload = json.loads(response.read().decode("utf-8", "replace"))
             return {"success": True, "messageId": payload.get("id"), "channelId": channel_id}
     except urllib.error.HTTPError as exc:
-        return {"success": False, "error": f"HTTP {exc.code}",
-                "detail": exc.read().decode("utf-8", "replace")[:300]}
+        return {"success": False, "error": f"HTTP {exc.code}", "detail": exc.read().decode("utf-8", "replace")[:300]}
     except (urllib.error.URLError, OSError, ValueError) as exc:
         return {"success": False, "error": str(exc)}
 
 
-def post_to_discord_blocks(messages: list[str], channel_id: str,
-                           token: str | None = None,
-                           pause_seconds: float = 1.2) -> dict[str, Any]:
+def post_to_discord_blocks(
+    messages: list[str], channel_id: str, token: str | None = None, pause_seconds: float = 1.2
+) -> dict[str, Any]:
     """Send a multi-part report in order, stopping at the first failure.
 
     Discord rate-limits bots to roughly 5 messages per 5 seconds per channel, so parts

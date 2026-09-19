@@ -113,14 +113,10 @@ def fleet_ops(
     if op == "weekly_retro":
         return op_weekly_retro(fleet_repos=fleet_repos, use_registry=use_registry, days=days)
     if op == "work_report":
-        report = op_work_report(
-            repos_root=repos_root, since=since, until=until, agent_only=agent_only
-        )
+        report = op_work_report(repos_root=repos_root, since=since, until=until, agent_only=agent_only)
         if discord_channel_id and report.get("success"):
             payload = report.get("result") or {}
-            report["delivery"] = post_to_discord_blocks(
-                payload.get("discordBlocks") or [], discord_channel_id
-            )
+            report["delivery"] = post_to_discord_blocks(payload.get("discordBlocks") or [], discord_channel_id)
         return report
     if op == "council_payload":
         return op_council_payload(suite_json or {})
