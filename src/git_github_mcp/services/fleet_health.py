@@ -25,6 +25,39 @@ def _resolve_repos(
     return repos if repos else registry_to_github_slugs(load_registry())
 
 
+# Cap on per-failure `gh run view` lookups per scan. Reasons are best-effort
+# enrichment; a pathological scan with dozens of failures must not turn into
+# dozens of extra API calls.
+_MAX_FAILURE_REASONS = 10
+
+
+def _failed_jobs_summary(jobs: Any) -> list[dict[str, Any]]:
+    """Failed jobs/steps extracted from `gh run view --json jobs` output."""
+    summary: list[dict[str, Any]] = []
+    if not isinstance(jobs, list):
+        return summary
+    for job in jobs:
+        if not isinstance(job, dict):
+            continue
+        if str(job.get("conclusion") or "").lower() not in ("failure", "cancelled", "timed_out"):
+            continue
+        steps = [
+            str(step.get("name") or "")
+            for step in (job.get("steps") or [])
+            if isinstance(step, dict) and str(step.get("conclusion") or "").lower() == "failure"
+        ]
+        summary.append({"job": job.get("name"), "failed_steps": steps})
+    return summary
+
+
+def _failure_reason_text(failed_jobs: list[dict[str, Any]]) -> str:
+    parts = []
+    for entry in failed_jobs:
+        steps = ", ".join(s for s in entry.get("failed_steps", []) if s)
+        parts.append(f"job '{entry.get('job')}'" + (f" steps: {steps}" if steps else ""))
+    return "; ".join(parts)
+
+
 def op_ci_pulse(
     *,
     fleet_repos: str | None = None,
@@ -39,6 +72,8 @@ def op_ci_pulse(
     failures: list[dict[str, Any]] = []
     scanned = 0
     errors: list[str] = []
+    reason_lookups = 0
+    reasons_capped = False
 
     total = len(repos)
     for index, (owner, repo) in enumerate(repos, start=1):
@@ -60,18 +95,35 @@ def op_ci_pulse(
             created = parse_iso(run.get("createdAt"))
             if created and created < cutoff:
                 continue
-            failures.append(
-                {
-                    "repo_slug": slug,
-                    "repo_url": f"https://github.com/{slug}",
-                    "name": run.get("name"),
-                    "conclusion": conclusion,
-                    "status": run.get("status"),
-                    "branch": run.get("headBranch"),
-                    "created_at": run.get("createdAt"),
-                    "url": run.get("url"),
-                }
-            )
+            entry: dict[str, Any] = {
+                "repo_slug": slug,
+                "repo_url": f"https://github.com/{slug}",
+                "name": run.get("name"),
+                "conclusion": conclusion,
+                "status": run.get("status"),
+                "branch": run.get("headBranch"),
+                "created_at": run.get("createdAt"),
+                "url": run.get("url"),
+                "failed_jobs": [],
+                "failure_reason": "",
+            }
+            run_id = run.get("databaseId")
+            if run_id is not None and reason_lookups < _MAX_FAILURE_REASONS:
+                reason_lookups += 1
+                ok2, jobs_out, _ = run_gh(
+                    ["run", "view", str(run_id), "--repo", slug, "--json", "jobs", "-q", ".jobs"],
+                    timeout=30,
+                )
+                if ok2 and jobs_out.strip():
+                    try:
+                        failed = _failed_jobs_summary(json.loads(jobs_out))
+                    except json.JSONDecodeError:
+                        failed = []
+                    entry["failed_jobs"] = failed
+                    entry["failure_reason"] = _failure_reason_text(failed)
+            elif run_id is not None:
+                reasons_capped = True
+            failures.append(entry)
 
     failures.sort(key=lambda x: x.get("created_at") or "", reverse=True)
     return success_response(
@@ -81,6 +133,8 @@ def op_ci_pulse(
             "failure_count": len(failures),
             "failures": failures,
             "errors": errors,
+            "reason_lookups": reason_lookups,
+            "reasons_capped": reasons_capped,
         },
         "ci_pulse",
         message=f"{len(failures)} failed workflow runs in last {hours}h",
