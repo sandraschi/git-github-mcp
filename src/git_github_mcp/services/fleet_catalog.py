@@ -27,6 +27,32 @@ _STARTER_PATHS = (
 _DOC_PATHS = ("AGENTS.md", "CLAUDE.md")
 _INSTALL_PATHS = ("INSTALL.md",)
 
+_GITHUB_ORIGIN_RE = re.compile(
+    r"github\.com[:/](?P<owner>[^/\s]+)/(?P<repo>[^/\s]+?)(?:\.git)?/?\s*$",
+    re.IGNORECASE,
+)
+
+
+def _origin_slug(repo_path: Path) -> tuple[str, str] | None:
+    """owner/repo parsed from a local clone's origin URL. None when unresolvable.
+
+    Local dir names drift from GitHub names on renames (meta_mcp ->
+    meta-hypertools, avatar-mcp -> avatarmcp, ...). The clone's own remote is
+    ground truth; the bare dir name is only a fallback.
+    """
+    try:
+        if not repo_path.is_dir():
+            return None
+    except OSError:
+        return None
+    ok, out, _ = run_git(["remote", "get-url", "origin"], repo_path, timeout=10)
+    if not ok or not out.strip():
+        return None
+    match = _GITHUB_ORIGIN_RE.search(out.strip().splitlines()[0])
+    if not match:
+        return None
+    return match.group("owner"), match.group("repo")
+
 
 def load_registry(path: Path | None = None) -> list[dict[str, Any]]:
     reg_path = path or DEFAULT_REGISTRY_PATH
@@ -59,8 +85,21 @@ def registry_to_github_slugs(
         if not repo_id or repo_id in seen:
             continue
         seen.add(repo_id)
-        gh_owner = str(row.get("github_owner") or owner)
-        gh_repo = str(row.get("github_repo") or repo_id)
+        # Precedence: explicit github_repo field > local clone's origin remote >
+        # bare registry id (dir names drift on GitHub renames — BUG: slug from
+        # dirname 404s workflow_runs/dependabot for renamed repos).
+        explicit_repo = str(row.get("github_repo") or "").strip()
+        if explicit_repo:
+            gh_owner = str(row.get("github_owner") or owner)
+            gh_repo = explicit_repo
+        else:
+            clone_path = Path(str(row.get("repo_path") or DEFAULT_REPOS_ROOT / repo_id))
+            remote = _origin_slug(clone_path)
+            if remote:
+                gh_owner, gh_repo = remote
+            else:
+                gh_owner = str(row.get("github_owner") or owner)
+                gh_repo = repo_id
         out.append((gh_owner, gh_repo))
     return out
 
