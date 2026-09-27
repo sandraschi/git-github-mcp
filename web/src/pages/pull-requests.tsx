@@ -7,6 +7,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { githubOps } from "@/lib/api";
 
 interface PR {
@@ -24,8 +25,9 @@ interface PR {
 }
 
 export function PullRequests() {
-  const [owner, setOwner] = useState("sandraschi");
-  const [repo, setRepo] = useState("git-github-mcp");
+  const [params] = useSearchParams();
+  const [owner, setOwner] = useState(params.get("owner") ?? "sandraschi");
+  const [repo, setRepo] = useState(params.get("repo") ?? "git-github-mcp");
   const [state, setState] = useState<"open" | "closed">("open");
   const [prs, setPrs] = useState<PR[]>([]);
   const [loading, setLoading] = useState(false);

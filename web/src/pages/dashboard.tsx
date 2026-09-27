@@ -14,6 +14,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { getStatus, githubOps, gitOps } from "@/lib/api";
 
 interface StatusData {
@@ -101,6 +102,13 @@ export function Dashboard() {
 
   const online = sysStatus?.git_available;
   const ghAuth = sysStatus?.gh_authenticated;
+
+  const repoDetailPath = (name: string, url?: string) => {
+    // repo_list rows carry url; derive owner from it, default sandraschi
+    const parts = (url ?? "").split("/").filter(Boolean);
+    const owner = parts.length >= 2 ? parts[parts.length - 2] : "sandraschi";
+    return `/repos/${owner}/${name}`;
+  };
 
   return (
     <div
@@ -310,13 +318,14 @@ export function Dashboard() {
               {starsSummary.top_repos?.length ? (
                 <div className="flex flex-wrap gap-1.5 pt-1">
                   {starsSummary.top_repos.slice(0, 5).map((r) => (
-                    <span
+                    <Link
                       key={r.name}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono"
+                      to={repoDetailPath(r.name)}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/5 border border-white/10 text-xs font-mono hover:border-amber-400/40 transition-colors"
                     >
                       <Star className="w-3 h-3 text-amber-400" /> {r.name}{" "}
                       {r.stargazerCount}
-                    </span>
+                    </Link>
                   ))}
                 </div>
               ) : null}
@@ -401,8 +410,9 @@ export function Dashboard() {
               <LoadingState />
             ) : recentLog?.data?.entries?.length ? (
               recentLog.data.entries.map((e) => (
-                <div
+                <Link
                   key={e.hash}
+                  to="/commits"
                   className="group flex items-center gap-4 px-6 py-3.5 hover:bg-gh-green/[0.03] transition-all"
                 >
                   <span className="font-mono text-[10px] font-bold text-gh-green bg-gh-green/10 px-2 py-1 rounded border border-gh-green/20 group-hover:border-gh-green/40 transition-all">
@@ -422,7 +432,7 @@ export function Dashboard() {
                       </span>
                     </div>
                   </div>
-                </div>
+                </Link>
               ))
             ) : (
               <EmptyState
@@ -448,8 +458,9 @@ export function Dashboard() {
           <div className="divide-y divide-white/5 flex flex-col h-full">
             {myRepos.length > 0 ? (
               myRepos.map((r) => (
-                <div
+                <Link
                   key={r.name}
+                  to={repoDetailPath(r.name, r.url)}
                   className="flex items-center gap-3 px-6 py-4 hover:bg-gh-blue/[0.03] transition-all group"
                 >
                   <div className="h-2 w-2 rounded-full bg-gh-green shadow-[0_0_8px_rgba(34,197,94,0.4)] group-hover:scale-125 transition-transform" />
@@ -467,7 +478,7 @@ export function Dashboard() {
                       ★ {r.stargazerCount}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))
             ) : (
               <EmptyState message="No cloud repositories found" />

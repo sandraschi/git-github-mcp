@@ -9,6 +9,7 @@ import {
   Star,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { githubOps, gitOps } from "@/lib/api";
 
 interface GHRepo {
@@ -198,12 +199,13 @@ export function Repositories() {
                       size={13}
                       style={{ color: "var(--blue)", flexShrink: 0 }}
                     />
-                    <span
-                      className="mono text-sm font-semibold truncate"
+                    <Link
+                      to={`/repos/sandraschi/${r.name}`}
+                      className="mono text-sm font-semibold truncate hover:underline"
                       style={{ color: "var(--text)" }}
                     >
                       {r.name}
-                    </span>
+                    </Link>
                     {r.isPrivate ? (
                       <Lock
                         size={10}

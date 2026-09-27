@@ -1,5 +1,6 @@
 import { CircleDot, Loader2, Plus, RefreshCw, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { githubOps } from "@/lib/api";
 
 interface Issue {
@@ -14,8 +15,9 @@ interface Issue {
 }
 
 export function Issues() {
-  const [owner, setOwner] = useState("sandraschi");
-  const [repo, setRepo] = useState("git-github-mcp");
+  const [params] = useSearchParams();
+  const [owner, setOwner] = useState(params.get("owner") ?? "sandraschi");
+  const [repo, setRepo] = useState(params.get("repo") ?? "git-github-mcp");
   const [state, setState] = useState<"open" | "closed">("open");
   const [issues, setIssues] = useState<Issue[]>([]);
   const [loading, setLoading] = useState(false);
