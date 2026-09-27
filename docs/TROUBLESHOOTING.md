@@ -13,6 +13,23 @@ The server probes `Program Files`, Scoop, Winget and `WindowsApps` itself.
 **Fix**: `gh auth login` (browser flow) or set `GH_TOKEN` in the server
 `env` block. Check with `gh auth status` and the `git_github_status` tool.
 
+## `github_ops` green in terminal, "not logged in" via MCP (session-0 split)
+**Cause**: the :10713 backend runs under the `mcp-federation-hub` NSSM
+service as LocalSystem (session 0). Session-0 `gh` cannot unlock your
+interactive Windows keyring entry, so it falls back to
+`%APPDATA%\GitHub CLI\hosts.yml` -- which modern `gh` leaves token-free
+(browser and `--with-token` logins both go to the keyring). Re-authing in
+your terminal never reaches the daemon. A hardcoded `GH_TOKEN` in an MCP
+client `env` block shadows the keyring the same way -- never hardcode it.
+**Fix**: confirm via the port-owner PID chain ending in `nssm.exe`, and
+`hosts.yml` missing `oauth_token` (see BUG-052 in
+`mcp-central-docs/troubleshooting`). Then put the current token in the
+file (`gh auth token` in your terminal, add as `oauth_token:` under
+`github.com:`, backup first) -- no restart needed, `gh` re-reads per
+call. Prefer a dedicated PAT (scopes `repo`, `read:org`, `workflow`) over
+copying your interactive token. The file copy does NOT auto-rotate on the
+next browser re-auth -- repeat the step when `gitops` 401s again.
+
 ## `git_core` times out after 25 s (clone/push/pull/fetch)
 **Cause**: blanket MCP wrapper timeout; Electron/Windows Job Object stalls.
 **Fix**: network ops get 180 s server-side — retry once. For huge repos,
