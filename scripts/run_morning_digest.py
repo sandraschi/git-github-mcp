@@ -8,6 +8,16 @@ import sys
 
 from git_github_mcp.services.morning_digest import run_morning_digest
 
+# Windows consoles and Task Scheduler default to cp1252. The digest markdown contains
+# characters that codec cannot encode (>=, arrows, dashes), so printing it raised
+# UnicodeEncodeError and the scheduled task exited non-zero -- after the digest had
+# already been generated and delivered successfully.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # not a reconfigurable stream
+        pass
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="GitHub fleet morning digest (breakfast runner)")

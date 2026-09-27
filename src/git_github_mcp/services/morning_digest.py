@@ -1,4 +1,4 @@
-"""Fleet morning digest — open PRs/issues, stale triage, GitHub notifications."""
+"""Fleet morning digest - open PRs/issues, stale triage, GitHub notifications."""
 
 from __future__ import annotations
 
@@ -194,6 +194,76 @@ def fetch_notifications(*, since_iso: str | None = None) -> list[dict[str, Any]]
     return filtered
 
 
+_DISCUSSIONS_QUERY = (
+    "query($owner:String!,$name:String!,$first:Int!)"
+    "{repository(owner:$owner,name:$name){"
+    "hasDiscussionsEnabled "
+    "discussions(first:$first,orderBy:{field:CREATED_AT,direction:DESC}){"
+    "nodes{number title url createdAt updatedAt locked isAnswered "
+    "category{name slug isAnswerable} author{login} comments{totalCount}}}}}"
+)
+
+
+def fetch_repo_discussions(owner: str, repo: str, *, limit: int = 50) -> tuple[bool, list[dict[str, Any]], str]:
+    """Fetch recent discussions for one repo via `gh api graphql`.
+
+    Returns (enabled, discussions, error). `enabled=False` with no error means
+    the repo simply doesn't have Discussions turned on (most of the fleet) -
+    that is not a scan failure, callers should skip it silently.
+    """
+    first = max(1, min(limit, 100))
+    ok, out, err = run_gh(
+        [
+            "api",
+            "graphql",
+            "-f",
+            f"query={_DISCUSSIONS_QUERY}",
+            "-f",
+            f"owner={owner}",
+            "-f",
+            f"name={repo}",
+            "-F",
+            f"first={first}",
+        ],
+        timeout=30,
+    )
+    if not ok:
+        return False, [], err or "discussions fetch failed"
+    try:
+        payload = json.loads(out) if out.strip() else {}
+    except json.JSONDecodeError:
+        return False, [], "invalid JSON from gh api graphql (discussions)"
+    if isinstance(payload, dict) and payload.get("errors"):
+        msgs = [e.get("message", "") for e in payload["errors"] if isinstance(e, dict)]
+        return False, [], "; ".join(m for m in msgs if m) or "graphql errors (discussions)"
+    repo_node = (payload.get("data") or {}).get("repository") or {}
+    if not repo_node.get("hasDiscussionsEnabled"):
+        return False, [], ""
+    nodes = ((repo_node.get("discussions") or {}).get("nodes")) or []
+    return True, nodes, ""
+
+
+def classify_discussion_signal(node: dict[str, Any], *, since_dt: datetime | None) -> tuple[bool, bool, bool]:
+    """Return (has_new_activity, is_new_thread, is_unanswered_qa) for one discussion node.
+
+    `has_new_activity` fires on `updatedAt` (comments bump this, not just new threads) -
+    a comment on a discussion created long before `since_dt` still needs to show up in
+    the digest, that's the whole point of tracking Discussions here.
+    `is_new_thread` (createdAt-based) is kept separately so the digest can label a row
+    "new thread" vs "N new replies" instead of collapsing both into one vague bucket.
+    """
+    has_new_activity = False
+    is_new_thread = False
+    if since_dt is not None:
+        updated_dt = _parse_iso(node.get("updatedAt")) or _parse_iso(node.get("createdAt"))
+        has_new_activity = bool(updated_dt and updated_dt > since_dt)
+        created_dt = _parse_iso(node.get("createdAt"))
+        is_new_thread = bool(created_dt and created_dt > since_dt)
+    category = node.get("category") or {}
+    is_unanswered_qa = bool(category.get("isAnswerable") and not node.get("isAnswered") and not node.get("locked"))
+    return has_new_activity, is_new_thread, is_unanswered_qa
+
+
 def scan_fleet_repo(
     owner: str,
     repo: str,
@@ -202,6 +272,8 @@ def scan_fleet_repo(
     maintainer: str | None,
     limit: int,
     include_issues: bool,
+    include_discussions: bool = True,
+    since_dt: datetime | None = None,
 ) -> dict[str, Any]:
     slug = f"{owner}/{repo}"
     pr_res = github_ops(operation="pr_list", owner=owner, repo=repo, state="open", limit=limit)
@@ -222,6 +294,36 @@ def scan_fleet_repo(
         reason = classify_issue_stale(issue, stale_days=stale_days, maintainer=maintainer)
         if reason:
             stale_issues.append({**issue, "stale_reason": reason, "repo_slug": slug})
+
+    discussions_open = 0
+    new_discussions: list[dict[str, Any]] = []
+    unanswered_qa: list[dict[str, Any]] = []
+    discussion_errors: list[str] = []
+    if include_discussions:
+        enabled, nodes, disc_err = fetch_repo_discussions(owner, repo, limit=limit)
+        if disc_err:
+            discussion_errors.append(disc_err)
+        elif enabled:
+            discussions_open = len([n for n in nodes if not n.get("locked")])
+            for node in nodes:
+                has_new_activity, is_new_thread, is_unanswered = classify_discussion_signal(node, since_dt=since_dt)
+                row = {
+                    "repo_slug": slug,
+                    "number": node.get("number"),
+                    "title": node.get("title"),
+                    "url": node.get("url"),
+                    "createdAt": node.get("createdAt"),
+                    "updatedAt": node.get("updatedAt"),
+                    "category": (node.get("category") or {}).get("name"),
+                    "author": (node.get("author") or {}).get("login"),
+                    "comments": (node.get("comments") or {}).get("totalCount", 0),
+                    "activity_label": "new thread" if is_new_thread else "new replies",
+                }
+                if has_new_activity:
+                    new_discussions.append(row)
+                if is_unanswered:
+                    unanswered_qa.append(row)
+
     return {
         "slug": slug,
         "prs_open": len(prs),
@@ -230,11 +332,15 @@ def scan_fleet_repo(
         "issues": issues,
         "stale_prs": stale_prs,
         "stale_issues": stale_issues,
+        "discussions_open": discussions_open,
+        "new_discussions": new_discussions,
+        "unanswered_qa": unanswered_qa,
         "errors": [
             e
             for e in [
                 None if pr_res.get("success") else pr_res.get("error"),
                 None if issues_res.get("success") else issues_res.get("error"),
+                *discussion_errors,
             ]
             if e
         ],
@@ -257,6 +363,9 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
         f"- Open issues: **{summary['totals']['open_issues']}**",
         f"- Stale PRs (≥{summary['stale_days']}d): **{summary['totals']['stale_prs']}**",
         f"- Stale issues: **{summary['totals']['stale_issues']}**",
+        f"- Open discussions: **{summary['totals'].get('discussions_open', 0)}**",
+        f"- Discussion activity, new threads + comments (since last run): **{summary['totals'].get('new_discussions', 0)}**",
+        f"- Unanswered Q&A: **{summary['totals'].get('unanswered_qa', 0)}**",
         f"- New notifications: **{summary['totals']['notifications']}**",
         f"- Dirty worktrees (uncommitted/untracked): **{dirty_count}**",
         f"- Sync drift (ahead/behind origin): **{drift_count}**",
@@ -273,7 +382,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
             reason = n.get("reason") or ""
             url = n.get("subject_url") or ""
             unread = "🔴 " if n.get("unread") else ""
-            lines.append(f"- {unread}**{repo}** — {title} (`{reason}`) {url}")
+            lines.append(f"- {unread}**{repo}** - {title} (`{reason}`) {url}")
         lines.append("")
 
     stale_prs = summary.get("all_stale_prs") or []
@@ -281,7 +390,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
         lines.append("## Stale PRs (needs acknowledgment)")
         for pr in stale_prs[:30]:
             lines.append(
-                f"- **{pr.get('repo_slug')}** #{pr.get('number')} — {pr.get('title')} "
+                f"- **{pr.get('repo_slug')}** #{pr.get('number')} - {pr.get('title')} "
                 f"({pr.get('stale_reason')}) {pr.get('url', '')}"
             )
         lines.append("")
@@ -291,8 +400,29 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
         lines.append("## Stale issues")
         for issue in stale_issues[:30]:
             lines.append(
-                f"- **{issue.get('repo_slug')}** #{issue.get('number')} — {issue.get('title')} "
+                f"- **{issue.get('repo_slug')}** #{issue.get('number')} - {issue.get('title')} "
                 f"({issue.get('stale_reason')}) {issue.get('url', '')}"
+            )
+        lines.append("")
+
+    new_discussions = summary.get("all_new_discussions") or []
+    if new_discussions:
+        lines.append("## Discussion activity (since last run)")
+        for d in new_discussions[:30]:
+            lines.append(
+                f"- **{d.get('repo_slug')}** #{d.get('number')} [{d.get('category')}] "
+                f"({d.get('activity_label', 'activity')}) - "
+                f"{d.get('title')} (by {d.get('author') or '?'}) {d.get('url', '')}"
+            )
+        lines.append("")
+
+    unanswered_qa = summary.get("all_unanswered_qa") or []
+    if unanswered_qa:
+        lines.append("## Unanswered Q&A")
+        for d in unanswered_qa[:30]:
+            lines.append(
+                f"- **{d.get('repo_slug')}** #{d.get('number')} - {d.get('title')} "
+                f"({d.get('comments', 0)} replies) {d.get('url', '')}"
             )
         lines.append("")
 
@@ -306,7 +436,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
             sample_str = ", ".join(item.get("sample", [])[:3])
             if len(item.get("sample", [])) > 3:
                 sample_str += "..."
-            lines.append(f"- **{rid}** — {cnt} dirty file(s) ({sample_str})")
+            lines.append(f"- **{rid}** - {cnt} dirty file(s) ({sample_str})")
         if len(dirty_items) > 40:
             lines.append(f"- ... and {len(dirty_items) - 40} more dirty repos")
         lines.append("")
@@ -318,7 +448,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
             rid = item.get("id", "unknown")
             ahead = item.get("ahead", 0)
             behind = item.get("behind", 0)
-            lines.append(f"- **{rid}** — ahead {ahead}, behind {behind}")
+            lines.append(f"- **{rid}** - ahead {ahead}, behind {behind}")
         if len(drift_items) > 30:
             lines.append(f"- ... and {len(drift_items) - 30} more repos with drift")
         lines.append("")
@@ -415,6 +545,7 @@ def run_morning_digest(
     stale_days: int | None = None,
     include_issues: bool = True,
     include_notifications: bool = True,
+    include_discussions: bool = True,
     include_local: bool = True,
     limit_per_repo: int = 30,
     maintainer_login: str | None = None,
@@ -439,13 +570,17 @@ def run_morning_digest(
     maintainer = resolve_maintainer_login(maintainer_login)
     state = _load_state()
     since_iso = state.get("last_run_at") if since_last_run else None
+    since_dt = _parse_iso(since_iso)
 
     repo_results: list[dict[str, Any]] = []
     repo_errors: list[str] = []
     all_stale_prs: list[dict[str, Any]] = []
     all_stale_issues: list[dict[str, Any]] = []
+    all_new_discussions: list[dict[str, Any]] = []
+    all_unanswered_qa: list[dict[str, Any]] = []
     open_prs = 0
     open_issues = 0
+    discussions_open = 0
 
     total_repos = len(repos)
     for index, (owner, repo) in enumerate(repos, start=1):
@@ -459,12 +594,17 @@ def run_morning_digest(
             maintainer=maintainer,
             limit=limit_per_repo,
             include_issues=include_issues,
+            include_discussions=include_discussions,
+            since_dt=since_dt,
         )
         repo_results.append(scanned)
         open_prs += scanned["prs_open"]
         open_issues += scanned["issues_open"]
+        discussions_open += scanned.get("discussions_open", 0)
         all_stale_prs.extend(scanned["stale_prs"])
         all_stale_issues.extend(scanned["stale_issues"])
+        all_new_discussions.extend(scanned.get("new_discussions", []))
+        all_unanswered_qa.extend(scanned.get("unanswered_qa", []))
         for err in scanned["errors"]:
             repo_errors.append(f"{scanned['slug']}: {err}")
 
@@ -553,6 +693,9 @@ def run_morning_digest(
             "open_issues": open_issues,
             "stale_prs": len(all_stale_prs),
             "stale_issues": len(all_stale_issues),
+            "discussions_open": discussions_open,
+            "new_discussions": len(all_new_discussions),
+            "unanswered_qa": len(all_unanswered_qa),
             "notifications": len([n for n in notifications if not n.get("error")]),
             "dirty_repos": local_dirty_data.get("dirty_count", 0),
             "drift_repos": local_dirty_data.get("sync_drift_count", 0),
@@ -560,6 +703,8 @@ def run_morning_digest(
         "local_dirty": local_dirty_data,
         "all_stale_prs": sorted(all_stale_prs, key=lambda p: days_since(p.get("updatedAt")) or 0, reverse=True),
         "all_stale_issues": sorted(all_stale_issues, key=lambda i: days_since(i.get("updatedAt")) or 0, reverse=True),
+        "all_new_discussions": sorted(all_new_discussions, key=lambda d: d.get("updatedAt") or "", reverse=True),
+        "all_unanswered_qa": sorted(all_unanswered_qa, key=lambda d: d.get("comments", 0)),
         "notifications": notifications,
         "repo_errors": repo_errors,
         "output_file": output_file,
@@ -576,11 +721,17 @@ def run_morning_digest(
 
     dirty_n = summary["totals"]["dirty_repos"]
     drift_n = summary["totals"]["drift_repos"]
+    new_disc_n = summary["totals"]["new_discussions"]
+    unanswered_n = summary["totals"]["unanswered_qa"]
     msg_parts = [
         f"Scanned {len(repos)} repos",
         f"{summary['totals']['stale_prs']} stale PRs",
         f"{summary['totals']['notifications']} notifications",
     ]
+    if new_disc_n > 0:
+        msg_parts.append(f"{new_disc_n} new discussions")
+    if unanswered_n > 0:
+        msg_parts.append(f"{unanswered_n} unanswered Q&A")
     if dirty_n > 0:
         msg_parts.append(f"{dirty_n} dirty worktrees")
     if drift_n > 0:
@@ -589,10 +740,11 @@ def run_morning_digest(
     return success_response(
         summary,
         "fleet_morning_digest",
-        message=" — ".join(msg_parts),
+        message=" - ".join(msg_parts),
         next_steps=[
             "Open http://127.0.0.1:10714/breakfast for human triage",
             "Acknowledge stale PRs via github_ops(pr_comment, ...)",
+            "Answer unanswered Q&A via github_ops(discussion_comment, ...) + github_ops(discussion_answer, ...)",
             "Review uncommitted work with fleet_ops(local_dirty)",
         ],
     )
