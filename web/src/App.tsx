@@ -12,12 +12,14 @@ import { CiPage } from "@/pages/ci";
 import { Commits } from "@/pages/commits";
 import { Dashboard } from "@/pages/dashboard";
 import { DiscoveryPage } from "@/pages/discovery";
+import { Discussions } from "@/pages/discussions";
 import { HelpPage } from "@/pages/help";
 import { InboxPage } from "@/pages/inbox";
 import { Issues } from "@/pages/issues";
 import { Lectures } from "@/pages/lectures";
 import { LogsPage } from "@/pages/logs";
 import { PullRequests } from "@/pages/pull-requests";
+import { RepoDetail } from "@/pages/repo-detail";
 import { Repositories } from "@/pages/repos";
 import { Settings } from "@/pages/settings";
 import { StarsPage } from "@/pages/stars";
@@ -34,6 +36,7 @@ function App() {
           <Route path="/apps" element={<AppsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/repos" element={<Repositories />} />
+          <Route path="/repos/:owner/:repo" element={<RepoDetail />} />
           <Route path="/stars" element={<StarsPage />} />
           <Route path="/commits" element={<Commits />} />
           <Route path="/inbox" element={<InboxPage />} />
@@ -42,6 +45,7 @@ function App() {
           <Route path="/discovery" element={<DiscoveryPage />} />
           <Route path="/issues" element={<Issues />} />
           <Route path="/prs" element={<PullRequests />} />
+          <Route path="/discussions" element={<Discussions />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/lectures" element={<Lectures />} />
           <Route path="/settings" element={<Settings />} />
