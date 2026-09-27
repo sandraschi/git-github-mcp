@@ -47,17 +47,13 @@ def load_token() -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fleet work report")
-    parser.add_argument("--since", default="midnight",
-                        help="git --since expression (default: midnight)")
+    parser.add_argument("--since", default="midnight", help="git --since expression (default: midnight)")
     parser.add_argument("--until", default=None)
     parser.add_argument("--repos-root", default=None)
-    parser.add_argument("--agent-only", action="store_true",
-                        help="only repos with agent-attributed commits")
-    parser.add_argument("--channel", default=None,
-                        help="Discord channel id to post the compact report to")
+    parser.add_argument("--agent-only", action="store_true", help="only repos with agent-attributed commits")
+    parser.add_argument("--channel", default=None, help="Discord channel id to post the compact report to")
     parser.add_argument("--out", default=None, help="write the full markdown here")
-    parser.add_argument("--quiet", action="store_true",
-                        help="do not print the report body")
+    parser.add_argument("--quiet", action="store_true", help="do not print the report body")
     args = parser.parse_args()
 
     report = op_work_report(
@@ -89,14 +85,15 @@ def main() -> int:
         if payload["totals"]["commits"] == 0:
             print("no commits in window; nothing posted to Discord")
             return 0
-        delivery = post_to_discord_blocks(payload.get("discordBlocks") or [],
-                                          args.channel, token=load_token())
+        delivery = post_to_discord_blocks(payload.get("discordBlocks") or [], args.channel, token=load_token())
         if delivery.get("success"):
             print(f"posted {delivery['parts']} part(s) to Discord channel {args.channel}")
         else:
             # A failed post must not fail the whole run: the report itself succeeded.
-            print(f"Discord delivery failed after {len(delivery['sent'])} part(s): "
-                  f"{delivery['failures']}", file=sys.stderr)
+            print(
+                f"Discord delivery failed after {len(delivery['sent'])} part(s): {delivery['failures']}",
+                file=sys.stderr,
+            )
     return 0
 
 
