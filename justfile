@@ -73,8 +73,8 @@ e2e:
 
 # Run morning digest check (open PRs/issues, stale threads, notifications, and local workspace hygiene)
 morning-digest:
-    pwsh -NoProfile -ExecutionPolicy Bypass -File '{{justfile_directory()}}\scripts\run_morning_digest.ps1'
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File '{{justfile_directory()}}\scripts\run_morning_digest.ps1'
 
 # Install daily morning digest scheduled task (runs at 07:00 via Windows Task Scheduler)
 install-morning-task:
-    pwsh -NoProfile -ExecutionPolicy Bypass -File '{{justfile_directory()}}\scripts\install_morning_task.ps1'
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File '{{justfile_directory()}}\scripts\install_morning_task.ps1'
