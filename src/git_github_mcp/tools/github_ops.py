@@ -70,6 +70,15 @@ ACTION_TYPE = (
     # Collaborators
     "collaborator_add",
     "collaborator_remove",
+    # Discussions (GraphQL via gh api — no gh discussion subcommand exists)
+    "discussion_categories",
+    "discussion_list",
+    "discussion_view",
+    "discussion_create",
+    "discussion_comment",
+    "discussion_answer",
+    "discussion_lock",
+    "discussion_unlock",
     # Search
     "search_repos",
     "search_issues",
@@ -137,6 +146,95 @@ def _normalize_pr_row(row: dict[str, Any]) -> dict[str, Any]:
 
 def _ok(op: str, data: dict, message: str | None = None, next_steps: list | None = None) -> dict:
     return success_response(data, op, message=message or "", next_steps=next_steps or [])
+
+
+def _graphql(query: str, variables: dict[str, Any]) -> tuple[bool, Any]:
+    """Run a GraphQL query/mutation via `gh api graphql`.
+
+    Returns (True, data) or (False, error_message). gh passes typed params
+    via -F (numbers stay Ints) and raw strings via -f; None values are
+    omitted (nullable vars). Strings always go raw so titles like "123"
+    or bodies starting with "@" are never reinterpreted.
+    """
+    args = ["api", "graphql", "-f", "query=" + query]
+    for key, value in variables.items():
+        if value is None:
+            continue
+        if isinstance(value, bool):
+            args += ["-F", f"{key}={'true' if value else 'false'}"]
+        elif isinstance(value, int):
+            args += ["-F", f"{key}={value}"]
+        else:
+            args += ["-f", f"{key}={value}"]
+    ok, out, err = run_gh(args)
+    payload: Any = None
+    if out.strip():
+        try:
+            payload = json.loads(out)
+        except json.JSONDecodeError:
+            payload = None
+    if isinstance(payload, dict) and payload.get("errors"):
+        msgs = [e.get("message", "") for e in payload["errors"] if isinstance(e, dict)]
+        return False, "; ".join(m for m in msgs if m) or "graphql errors"
+    if not ok:
+        return False, err or "gh api graphql failed"
+    if not isinstance(payload, dict):
+        return False, "invalid JSON from gh api graphql"
+    return True, payload.get("data", payload)
+
+
+def _gh_repo_id(owner: str | None, repo: str | None) -> tuple[str | None, str]:
+    """Resolve owner/repo to its GraphQL node ID."""
+    ok, data = _graphql(
+        "query($owner:String!,$name:String!){repository(owner:$owner,name:$name){id}}",
+        {"owner": owner, "name": repo},
+    )
+    if not ok:
+        return None, data
+    rid = (data.get("repository") or {}).get("id")
+    if not rid:
+        return None, f"repository {owner}/{repo} not found"
+    return rid, ""
+
+
+def _gh_discussion_id(owner: str | None, repo: str | None, number: int, slug: str | None) -> tuple[str | None, str]:
+    """Resolve a discussion number to its GraphQL node ID."""
+    ok, data = _graphql(
+        "query($owner:String!,$name:String!,$number:Int!)"
+        "{repository(owner:$owner,name:$name){discussion(number:$number){id}}}",
+        {"owner": owner, "name": repo, "number": number},
+    )
+    if not ok:
+        return None, data
+    did = ((data.get("repository") or {}).get("discussion") or {}).get("id")
+    if not did:
+        return None, f"discussion #{number} not found in {slug}"
+    return did, ""
+
+
+def _gh_category_id(owner: str | None, repo: str | None, category: str) -> tuple[str | None, str | None, str]:
+    """Resolve a category slug (or raw ID) to (category_id, slug, error).
+
+    Accepts slugs like 'announcements'/'q-a' case-insensitively, or a
+    DIC_... node ID passed straight through.
+    """
+    want = (category or "").strip()
+    if want.startswith("DIC_"):
+        return want, None, ""
+    ok, data = _graphql(
+        "query($owner:String!,$name:String!)"
+        "{repository(owner:$owner,name:$name)"
+        "{discussionCategories(first:20){nodes{id name slug}}}}",
+        {"owner": owner, "name": repo},
+    )
+    if not ok:
+        return None, None, data
+    nodes = ((data.get("repository") or {}).get("discussionCategories") or {}).get("nodes") or []
+    for node in nodes:
+        if (node.get("slug") or "").lower() == want.lower():
+            return node.get("id"), node.get("slug"), ""
+    valid = ", ".join(n.get("slug", "") for n in nodes)
+    return None, None, f"unknown category '{want}' — valid: {valid}"
 
 
 def _err(op: str, msg: str, **kw) -> dict:
@@ -212,11 +310,18 @@ def github_ops(
     # GitHub Packages (gh api — scope read:packages / write:packages)
     package_type: str | None = None,
     package_name: str | None = None,
+    # Discussions (GraphQL via gh api — no gh discussion subcommand exists)
+    category: str | None = None,  # slug (announcements, general, ideas, polls, q-a, show-and-tell) or category ID
+    discussion_number: int | None = None,
+    comment_id: str | None = None,
+    answered: bool = True,  # discussion_answer: True = mark answer, False = unmark
+    answered_only: bool = False,  # discussion_list: only Q&A discussions with chosen answers
+    after: str | None = None,  # discussion_list pagination cursor
     # Gitingest: optional subpath under ref; full GitHub URL for convert
     subpath: str | None = None,
     github_url: str | None = None,
 ) -> dict[str, Any]:
-    """GitHub operations via gh CLI — 61 actions.
+    """GitHub operations via gh CLI — 73 actions.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
                    repo_delete, repo_rename, repo_archive
@@ -228,6 +333,9 @@ def github_ops(
     LABELS:        label_list, label_create, label_delete
     SECRETS:       secrets_list, secrets_set, secrets_delete
     COLLABORATORS: collaborator_add, collaborator_remove
+    DISCUSSIONS:   discussion_categories, discussion_list, discussion_view,
+                   discussion_create, discussion_comment, discussion_answer,
+                   discussion_lock, discussion_unlock (GraphQL via gh api)
     SEARCH:        search_repos, search_repos_topic, search_repos_by_topic, search_issues,
                    search_code (pretty=), code_find_repos
     FLEET AUDIT:   user_repos_full
@@ -1303,6 +1411,240 @@ def github_ops(
             "collaborator_remove",
             {"username": username},
             message=f"{username} removed as collaborator",
+        )
+
+    # ── Discussions (GraphQL via gh api) ──────────────────────────────────
+    # NOTE: gh has no `discussion` subcommand — everything here goes through
+    # `gh api graphql`. lockLockable takes NO lockReason on discussions
+    # (verified 2026-09-19: server rejects it, unlike issues/PRs).
+
+    if operation in (
+        "discussion_categories",
+        "discussion_list",
+        "discussion_view",
+        "discussion_create",
+        "discussion_comment",
+        "discussion_answer",
+        "discussion_lock",
+        "discussion_unlock",
+    ):
+        if not slug:
+            return _err(operation, "owner and repo required")
+
+    if operation == "discussion_categories":
+        ok, data = _graphql(
+            "query($owner:String!,$name:String!)"
+            "{repository(owner:$owner,name:$name)"
+            "{discussionCategories(first:20){nodes{id name slug emoji description}}}}",
+            {"owner": owner, "name": repo},
+        )
+        if not ok:
+            return _err("discussion_categories", data)
+        nodes = ((data.get("repository") or {}).get("discussionCategories") or {}).get("nodes") or []
+        return _ok(
+            "discussion_categories",
+            {"categories": nodes, "count": len(nodes), "owner": owner, "repo": repo},
+        )
+
+    if operation == "discussion_list":
+        first = max(1, min(limit, 100))
+        variables: dict[str, Any] = {"owner": owner, "name": repo, "first": first}
+        if after:
+            variables["after"] = after
+        ok, data = _graphql(
+            "query($owner:String!,$name:String!,$first:Int!,$after:String)"
+            "{repository(owner:$owner,name:$name)"
+            "{discussions(first:$first,after:$after,"
+            "orderBy:{field:CREATED_AT,direction:DESC})"
+            "{pageInfo{hasNextPage endCursor}nodes{"
+            "number title url createdAt updatedAt locked isAnswered upvoteCount "
+            "category{name slug emoji} author{login} comments{totalCount}}}}}",
+            variables,
+        )
+        if not ok:
+            return _err("discussion_list", data)
+        conn = (data.get("repository") or {}).get("discussions") or {}
+        nodes = conn.get("nodes") or []
+        if category:
+            want = category.strip().lower()
+            nodes = [n for n in nodes if ((n.get("category") or {}).get("slug") or "").lower() == want]
+        if answered_only:
+            nodes = [n for n in nodes if n.get("isAnswered")]
+        slim = [
+            {
+                "number": n.get("number"),
+                "title": n.get("title"),
+                "url": n.get("url"),
+                "createdAt": n.get("createdAt"),
+                "locked": n.get("locked"),
+                "isAnswered": n.get("isAnswered"),
+                "upvotes": n.get("upvoteCount"),
+                "comments": ((n.get("comments") or {}).get("totalCount")),
+                "category": ((n.get("category") or {}).get("slug")),
+                "author": ((n.get("author") or {}).get("login")),
+            }
+            for n in nodes
+        ]
+        page = conn.get("pageInfo") or {}
+        return _ok(
+            "discussion_list",
+            {
+                "discussions": slim,
+                "count": len(slim),
+                "has_next_page": page.get("hasNextPage"),
+                "end_cursor": page.get("endCursor"),
+                "owner": owner,
+                "repo": repo,
+            },
+            next_steps=[
+                f"github_ops(operation='discussion_view', owner='{owner}', repo='{repo}', discussion_number=N)"
+            ],
+        )
+
+    if operation == "discussion_view":
+        if not discussion_number:
+            return _err("discussion_view", "discussion_number required")
+        first = max(1, min(limit, 100))
+        ok, data = _graphql(
+            "query($owner:String!,$name:String!,$number:Int!,$first:Int!)"
+            "{repository(owner:$owner,name:$name)"
+            "{discussion(number:$number){"
+            "id number title url bodyText createdAt updatedAt locked isAnswered "
+            "category{name slug emoji} author{login} "
+            "comments(first:$first){totalCount nodes{"
+            "id author{login} bodyText createdAt isAnswer upvoteCount}}}}}",
+            {"owner": owner, "name": repo, "number": discussion_number, "first": first},
+        )
+        if not ok:
+            return _err("discussion_view", data)
+        d = (data.get("repository") or {}).get("discussion")
+        if not d:
+            return _err("discussion_view", f"discussion #{discussion_number} not found in {slug}")
+        comments = ((d.get("comments") or {}).get("nodes")) or []
+        return _ok(
+            "discussion_view",
+            {
+                "id": d.get("id"),
+                "number": d.get("number"),
+                "title": d.get("title"),
+                "url": d.get("url"),
+                "body": d.get("bodyText"),
+                "createdAt": d.get("createdAt"),
+                "locked": d.get("locked"),
+                "isAnswered": d.get("isAnswered"),
+                "category": (d.get("category") or {}).get("slug"),
+                "author": (d.get("author") or {}).get("login"),
+                "comments_total": ((d.get("comments") or {}).get("totalCount")),
+                "comments": [
+                    {
+                        "id": c.get("id"),
+                        "author": (c.get("author") or {}).get("login"),
+                        "body": c.get("bodyText"),
+                        "createdAt": c.get("createdAt"),
+                        "isAnswer": c.get("isAnswer"),
+                        "upvotes": c.get("upvoteCount"),
+                    }
+                    for c in comments
+                ],
+            },
+            next_steps=[
+                f"github_ops(operation='discussion_comment', owner='{owner}', repo='{repo}', discussion_number={discussion_number}, body='...')"
+            ],
+        )
+
+    if operation == "discussion_create":
+        if not category or not title or not body:
+            return _err("discussion_create", "category, title and body required (plus owner, repo)")
+        repo_id, err_msg = _gh_repo_id(owner, repo)
+        if repo_id is None:
+            return _err("discussion_create", err_msg)
+        cat_id, cat_slug, err_msg = _gh_category_id(owner, repo, category)
+        if cat_id is None:
+            return _err("discussion_create", err_msg)
+        ok, data = _graphql(
+            "mutation($repo:ID!,$cat:ID!,$title:String!,$body:String!)"
+            "{createDiscussion(input:{repositoryId:$repo,categoryId:$cat,title:$title,body:$body})"
+            "{discussion{number url title}}}",
+            {"repo": repo_id, "cat": cat_id, "title": title, "body": body},
+        )
+        if not ok:
+            return _err("discussion_create", data)
+        created = data.get("createDiscussion", {}).get("discussion") or {}
+        return _ok(
+            "discussion_create",
+            {
+                "number": created.get("number"),
+                "url": created.get("url"),
+                "title": created.get("title"),
+                "category": cat_slug,
+            },
+            message=f"Discussion #{created.get('number')} created in {cat_slug}",
+            next_steps=[
+                f"github_ops(operation='discussion_view', owner='{owner}', repo='{repo}', discussion_number={created.get('number')})"
+            ],
+        )
+
+    if operation == "discussion_comment":
+        if not discussion_number or not body:
+            return _err("discussion_comment", "discussion_number and body required (plus owner, repo)")
+        disc_id, err_msg = _gh_discussion_id(owner, repo, discussion_number, slug)
+        if disc_id is None:
+            return _err("discussion_comment", err_msg)
+        ok, data = _graphql(
+            "mutation($id:ID!,$body:String!)"
+            "{addDiscussionComment(input:{discussionId:$id,body:$body})"
+            "{comment{id url createdAt}}}",
+            {"id": disc_id, "body": body},
+        )
+        if not ok:
+            return _err("discussion_comment", data)
+        comment = data.get("addDiscussionComment", {}).get("comment") or {}
+        return _ok(
+            "discussion_comment",
+            {
+                "id": comment.get("id"),
+                "url": comment.get("url"),
+                "discussion_number": discussion_number,
+            },
+            message=f"Comment added to discussion #{discussion_number}",
+        )
+
+    if operation == "discussion_answer":
+        if not comment_id:
+            return _err("discussion_answer", "comment_id required (get it from discussion_view)")
+        mutation = "markDiscussionCommentAsAnswer" if answered else "unmarkDiscussionCommentAsAnswer"
+        ok, data = _graphql(
+            f"mutation($id:ID!){{{mutation}(input:{{id:$id}}){{discussion{{number isAnswered}}}}}}",
+            {"id": comment_id},
+        )
+        if not ok:
+            return _err("discussion_answer", data)
+        info = data.get(mutation, {}).get("discussion") or {}
+        verb = "marked as answer" if answered else "unmarked as answer"
+        return _ok(
+            "discussion_answer",
+            {"comment_id": comment_id, "answered": answered, "discussion_number": info.get("number")},
+            message=f"Comment {verb} (discussion #{info.get('number')})",
+        )
+
+    if operation in ("discussion_lock", "discussion_unlock"):
+        if not discussion_number:
+            return _err(operation, "discussion_number required (plus owner, repo)")
+        disc_id, err_msg = _gh_discussion_id(owner, repo, discussion_number, slug)
+        if disc_id is None:
+            return _err(operation, err_msg)
+        mutation = "lockLockable" if operation == "discussion_lock" else "unlockLockable"
+        ok, data = _graphql(
+            f"mutation($id:ID!){{{mutation}(input:{{lockableId:$id}}){{lockedRecord{{__typename}}}}}}",
+            {"id": disc_id},
+        )
+        if not ok:
+            return _err(operation, data)
+        locked = operation == "discussion_lock"
+        return _ok(
+            operation,
+            {"number": discussion_number, "locked": locked},
+            message=f"Discussion #{discussion_number} {'locked' if locked else 'unlocked'}",
         )
 
     # ── Search ────────────────────────────────────────────────────────────────
