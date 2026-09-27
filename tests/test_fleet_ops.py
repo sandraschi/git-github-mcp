@@ -18,7 +18,7 @@ from git_github_mcp.services.fleet_ops import OPERATIONS, fleet_ops
 def test_operations_set() -> None:
     assert "full_suite" in OPERATIONS
     assert "registry_load" in OPERATIONS
-    assert len(OPERATIONS) == 16
+    assert len(OPERATIONS) == 17  # was 16 before council_payload landed
 
 
 def test_fleet_ops_unknown_operation() -> None:
