@@ -61,7 +61,19 @@ git_core(operation="clone", repo_url="https://github.com/o/r", depth=1)
 
 `blame` with optional `commit` ref.
 
-## `github_ops` — GitHub via gh CLI (66 ops)
+## `github_ops` — GitHub via gh CLI (73 ops)
+
+Repos: `repo_list/view/create/fork/clone/delete/rename/archive`,
+`show_repo` (card), `user_repos_full`.
+Issues/PRs: `issue_list/view/create/close/comment`,
+`pr_list/view/create/merge/checkout/close/comment` (+ `comments`,
+`updatedAt` for triage).
+Releases: `release_list/view/create/update/delete`.
+Workflows: `workflow_list/view/runs/run/rerun/cancel/enable/disable`.
+Discussions (GraphQL via `gh api` — no `gh discussion` subcommand exists):
+`discussion_categories/list/view/create/comment/answer/lock/unlock`
+(+ `answered_only` list filter, `answered` mark/unmark flag; category
+accepts slug or `DIC_` ID; locking takes no reason).
 
 Repos: `repo_list/view/create/fork/clone/delete/rename/archive`,
 `show_repo` (card), `user_repos_full`.

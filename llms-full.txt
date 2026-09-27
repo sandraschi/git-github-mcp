@@ -1,5 +1,5 @@
 # git-github-mcp
-> Hardened FastMCP 3.4+ substrate for Git/GitHub operations. 101+ operations (43 git + 58 github) via portmanteau pattern. Fleet ops toolkit, breakfast runner, agentic workflows via LLM sampling. v0.5.0.
+> Hardened FastMCP 3.4+ substrate for Git/GitHub operations. 116+ operations (43 git + 73 github) via portmanteau pattern. Fleet ops toolkit, breakfast runner, agentic workflows via LLM sampling. v0.5.0.
 
 Generated on: 2026-07-03
 
@@ -11,11 +11,11 @@ Generated on: 2026-07-03
 | git_branch | 14 | Branch lifecycle, merge, rebase, stash, tag |
 | git_admin | 16 | Remote, reset, revert, cherry-pick, clean, submodule, bisect, worktree |
 | git_blame | 1 | File blame annotation |
-| github_ops | 58 | GitHub via gh CLI: repos, issues, PRs, releases, Actions, labels, secrets, collaborators, search, Projects, Packages, Gitingest |
+| github_ops | 73 | GitHub via gh CLI: repos, issues, PRs, releases, Actions, labels, secrets, collaborators, discussions, search, Projects, Packages, Gitingest |
 | git_agentic_workflow | - | Multi-step Git/GitHub workflow via LLM sampling (ctx.sample) |
 | git_github_search_workflow | - | Agentic GitHub discovery/search via LLM sampling |
 | fleet_morning_digest | - | Daily fleet PR/issue/notification breakfast summary |
-| fleet_ops | 16 | Fleet maintainer: registry_load, port_audit, ci_pulse, full_suite, etc. |
+| fleet_ops | 17 | Fleet maintainer: registry_load, port_audit, ci_pulse, full_suite, etc. |
 | git_github_status | - | System status: git/gh availability, versions, auth |
 | git_github_help | - | Contextual help at basic/intermediate/advanced levels |
 

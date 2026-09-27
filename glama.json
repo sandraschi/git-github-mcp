@@ -1,7 +1,7 @@
 {
   "name": "git-github-mcp",
   "version": "0.5.0",
-  "description": "Hardened FastMCP 3.4+ substrate for Git/GitHub — fleet SOTA webapp, 101+ operations, breakfast runner, fleet ops toolkit.",
+  "description": "Hardened FastMCP 3.4+ substrate for Git/GitHub — fleet SOTA webapp, 116+ operations, breakfast runner, fleet ops toolkit.",
   "homepage": "https://github.com/sandraschi/git-github-mcp",
   "repository": "https://github.com/sandraschi/git-github-mcp",
   "author": "sandraschi",
@@ -28,7 +28,7 @@
       },
       {
         "name": "github_ops",
-        "description": "GitHub API via gh CLI: repos, issues, PRs, releases, Actions, labels, secrets, collaborators, search, Projects, Packages, Gitingest (58 ops)"
+        "description": "GitHub API via gh CLI: repos, issues, PRs, releases, Actions, labels, secrets, collaborators, discussions, search, Projects, Packages, Gitingest (73 ops)"
       },
       {
         "name": "git_agentic_workflow",
@@ -44,7 +44,7 @@
       },
       {
         "name": "fleet_ops",
-        "description": "Fleet maintainer toolkit: registry_load, port_audit, ci_pulse, full_suite (16 ops)"
+        "description": "Fleet maintainer toolkit: registry_load, port_audit, ci_pulse, full_suite (17 ops)"
       },
       {
         "name": "git_github_status",

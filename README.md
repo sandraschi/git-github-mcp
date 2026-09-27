@@ -21,7 +21,7 @@ story, usage patterns, and the Gitee alternative: [docs/WRAPPEE.md](docs/WRAPPEE
 
 - **Everyday git**: status, log, diff, clone (shallow `depth=1`), commit, push/pull — `git_core`
 - **Branches & surgery**: merge, rebase, stash, tags, reset/revert, bisect, worktrees — `git_branch`, `git_admin`
-- **GitHub**: issues, PRs (with triage-ready comments metadata), releases, workflows, secrets, code search — `github_ops` (66 ops)
+- **GitHub**: issues, PRs (with triage-ready comments metadata), releases, workflows, secrets, code search, discussions (GraphQL via `gh api`) — `github_ops` (73 ops)
 - **Stars intelligence**: received-vs-given, per-repo boards, stargazer trajectory — `/stars`
 - **CI monitor**: success/failed tiles, log tails, rerun + AI diagnose — `/ci`
 - **Maintainer autopilot**: morning digest, stale flags, 15 fleet ops + full suite — `/breakfast`
