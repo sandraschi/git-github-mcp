@@ -218,6 +218,76 @@ def classify_pr_needs_reply(pr: dict[str, Any], *, stale_days: int, maintainer: 
     return f"no review in {age}d"
 
 
+def fetch_issue_comments(owner: str, repo: str, number: int, *, limit: int = 100) -> tuple[bool, list[dict[str, Any]]]:
+    """Fetch comment authorship for one issue via `gh issue view --json comments`.
+
+    Returns (ok, comments) where each comment is {author: login, createdAt}.
+    `ok=False` means the fetch failed - callers must degrade to the
+    updatedAt heuristic, never fail the whole scan over one thread.
+    """
+    ok, out, _err = run_gh(
+        [
+            "issue",
+            "view",
+            str(number),
+            "--repo",
+            f"{owner}/{repo}",
+            "--json",
+            "comments",
+        ],
+        timeout=30,
+    )
+    if not ok:
+        return False, []
+    try:
+        payload = json.loads(out) if out.strip() else {}
+    except json.JSONDecodeError:
+        return False, []
+    raw = (payload.get("comments") or []) if isinstance(payload, dict) else []
+    rows: list[dict[str, Any]] = []
+    for c in raw[:limit]:
+        if not isinstance(c, dict):
+            continue
+        author = c.get("author") or {}
+        rows.append(
+            {
+                "author": author.get("login") or "",
+                "createdAt": c.get("createdAt"),
+            }
+        )
+    return True, rows
+
+
+def last_maintainer_touch(
+    issue: dict[str, Any], comments: list[dict[str, Any]], *, maintainer: str | None
+) -> str | None:
+    """Latest ISO timestamp the maintainer visibly touched the thread, or None.
+
+    Counts issue authorship plus any comment by the maintainer login. Returns
+    the original timestamp string of the latest parseable touch.
+    """
+    if not maintainer:
+        return None
+    wants = maintainer.lower()
+    touches: list[str] = []
+    if _author_login(issue.get("author")).lower() == wants and issue.get("createdAt"):
+        touches.append(str(issue["createdAt"]))
+    for c in comments:
+        login = str(c.get("author") or "")
+        if login.lower() == wants and c.get("createdAt"):
+            touches.append(str(c["createdAt"]))
+    best: str | None = None
+    best_dt = None
+    for t in touches:
+        dt = _parse_iso(t)
+        if dt is None:
+            continue
+        if best_dt is None or dt > best_dt:
+            best_dt = dt
+            best = t
+    return best
+
+
 def fetch_notifications(*, since_iso: str | None = None) -> list[dict[str, Any]]:
     ok, out, err = run_gh(
         [
@@ -331,6 +401,8 @@ def scan_fleet_repo(
     include_issues: bool,
     include_discussions: bool = True,
     since_dt: datetime | None = None,
+    fetch_comments: bool = True,
+    comment_check_limit: int = 10,
 ) -> dict[str, Any]:
     slug = f"{owner}/{repo}"
     pr_res = github_ops(operation="pr_list", owner=owner, repo=repo, state="open", limit=limit)
@@ -364,6 +436,48 @@ def scan_fleet_repo(
         reason = classify_pr_needs_reply(pr, stale_days=stale_days, maintainer=maintainer)
         if reason:
             needs_reply_prs.append({**pr, "need_reply_reason": reason, "repo_slug": slug})
+
+    # Comment-depth pass: a reporter bumping their own thread (more logs,
+    # "any update?") moves updatedAt, which defeats BOTH the stale check and
+    # the untouched heuristic above - the thread would stay invisible forever.
+    # For external issues in neither bucket, look at who actually spoke.
+    if include_issues and fetch_comments:
+        bucketed = {int(i.get("number", 0)) for i in [*stale_issues, *needs_reply_issues]}
+        candidates = [
+            issue
+            for issue in issues
+            if _is_external_author(_author_login(issue.get("author")), maintainer)
+            and int(issue.get("number", 0)) not in bucketed
+        ][: max(0, comment_check_limit)]
+        for issue in candidates:
+            number = int(issue.get("number", 0))
+            ok, comments = fetch_issue_comments(owner, repo, number)
+            if not ok:
+                continue  # degrade to today's heuristic outcome, never fail the scan
+            user_comments = [c for c in comments if c.get("author")]
+            touch = last_maintainer_touch(issue, user_comments, maintainer=maintainer)
+            if touch is None:
+                n = len(user_comments)
+                reason = f"{n} user comments, none from maintainer" if n else "no maintainer reply yet"
+                needs_reply_issues.append(
+                    {
+                        **issue,
+                        "need_reply_reason": reason,
+                        "repo_slug": slug,
+                        "comment_count": n,
+                    }
+                )
+            else:
+                quiet = days_since(touch)
+                if quiet is not None and quiet >= stale_days:
+                    stale_issues.append(
+                        {
+                            **issue,
+                            "stale_reason": f"maintainer last touched {quiet}d ago",
+                            "repo_slug": slug,
+                            "comment_count": len(user_comments),
+                        }
+                    )
 
     discussions_open = 0
     new_discussions: list[dict[str, Any]] = []

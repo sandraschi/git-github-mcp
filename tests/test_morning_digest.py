@@ -10,8 +10,11 @@ from git_github_mcp.services.morning_digest import (
     classify_issue_needs_reply,
     classify_pr_needs_reply,
     classify_pr_stale,
+    fetch_issue_comments,
+    last_maintainer_touch,
     parse_fleet_repos,
     run_morning_digest,
+    scan_fleet_repo,
 )
 
 
@@ -120,6 +123,197 @@ def test_build_markdown_digest_needs_reply_section() -> None:
     assert "Needs first reply" in md
     assert "inkscape-mcp" in md
     assert "no maintainer reply yet" in md
+
+
+def test_fetch_issue_comments_parses_gh_shape(monkeypatch) -> None:
+    payload = {
+        "comments": [
+            {"author": {"login": "reporter"}, "createdAt": "2026-09-20T10:00:00Z"},
+            {"author": {"login": "sandraschi"}, "createdAt": "2026-09-21T10:00:00Z"},
+            "junk-entry",
+        ]
+    }
+
+    import json as _json
+
+    monkeypatch.setattr(
+        "git_github_mcp.services.morning_digest.run_gh",
+        lambda *_, **__: (True, _json.dumps(payload), ""),
+    )
+    ok, comments = fetch_issue_comments("sandraschi", "inkscape-mcp", 8)
+    assert ok is True
+    assert comments == [
+        {"author": "reporter", "createdAt": "2026-09-20T10:00:00Z"},
+        {"author": "sandraschi", "createdAt": "2026-09-21T10:00:00Z"},
+    ]
+
+
+def test_fetch_issue_comments_failure_degrades(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "git_github_mcp.services.morning_digest.run_gh",
+        lambda *_, **__: (False, "", "gh exploded"),
+    )
+    ok, comments = fetch_issue_comments("sandraschi", "inkscape-mcp", 8)
+    assert ok is False
+    assert comments == []
+
+
+def test_fetch_issue_comments_bad_json(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "git_github_mcp.services.morning_digest.run_gh",
+        lambda *_, **__: (True, "not json{{{", ""),
+    )
+    ok, comments = fetch_issue_comments("sandraschi", "inkscape-mcp", 8)
+    assert ok is False
+    assert comments == []
+
+
+def test_last_maintainer_touch_variants() -> None:
+    issue = {"author": {"login": "reporter"}, "createdAt": "2026-09-01T00:00:00Z"}
+    assert last_maintainer_touch(issue, [], maintainer="sandraschi") is None
+    comments = [{"author": "reporter", "createdAt": "2026-09-20T10:00:00Z"}]
+    assert last_maintainer_touch(issue, comments, maintainer="sandraschi") is None
+    comments = [
+        {"author": "reporter", "createdAt": "2026-09-20T10:00:00Z"},
+        {"author": "SandraSchi", "createdAt": "2026-09-21T10:00:00Z"},
+    ]
+    assert last_maintainer_touch(issue, comments, maintainer="sandraschi") == "2026-09-21T10:00:00Z"
+    own = {"author": {"login": "sandraschi"}, "createdAt": "2026-09-01T00:00:00Z"}
+    assert last_maintainer_touch(own, [], maintainer="sandraschi") == "2026-09-01T00:00:00Z"
+    assert last_maintainer_touch(issue, comments, maintainer=None) is None
+
+
+def _bumped_issue() -> dict:
+    """Reporter self-bump: created 20d ago, reporter commented yesterday.
+
+    updatedAt moved, so both the stale check and the untouched heuristic pass
+    it by - without comment depth it stays invisible forever.
+    """
+    from datetime import timedelta
+
+    now = datetime.now(UTC)
+    created = (now - timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    updated = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return {
+        "author": {"login": "reporter"},
+        "createdAt": created,
+        "updatedAt": updated,
+        "number": 9,
+        "title": "Bumped by reporter",
+        "url": "https://example.com/issues/9",
+    }
+
+
+def _scan_with(monkeypatch, issues, comments_fn) -> dict:
+    def fake_github_ops(operation: str, **kwargs):
+        if operation == "issue_list":
+            return {"success": True, "result": {"issues": issues}}
+        return {"success": True, "result": {"prs": []}}
+
+    monkeypatch.setattr("git_github_mcp.services.morning_digest.github_ops", fake_github_ops)
+    monkeypatch.setattr("git_github_mcp.services.morning_digest.fetch_issue_comments", comments_fn)
+    return scan_fleet_repo(
+        "sandraschi",
+        "inkscape-mcp",
+        stale_days=7,
+        maintainer="sandraschi",
+        limit=30,
+        include_issues=True,
+        include_discussions=False,
+    )
+
+
+def test_scan_reporter_bump_surfaces_via_comments(monkeypatch) -> None:
+    def comments(owner: str, repo: str, number: int, **kwargs):
+        assert (owner, repo, number) == ("sandraschi", "inkscape-mcp", 9)
+        return True, [
+            {"author": "reporter", "createdAt": "2026-09-20T10:00:00Z"},
+            {"author": "reporter", "createdAt": "2026-09-21T10:00:00Z"},
+            {"author": "reporter", "createdAt": "2026-09-22T10:00:00Z"},
+        ]
+
+    scanned = _scan_with(monkeypatch, [_bumped_issue()], comments)
+    assert scanned["stale_issues"] == []
+    assert len(scanned["needs_reply_issues"]) == 1
+    row = scanned["needs_reply_issues"][0]
+    assert row["need_reply_reason"] == "3 user comments, none from maintainer"
+    assert row["comment_count"] == 3
+
+
+def test_scan_maintainer_replied_stays_quiet(monkeypatch) -> None:
+    from datetime import timedelta
+
+    now = datetime.now(UTC)
+    recent = (now - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def comments(owner: str, repo: str, number: int, **kwargs):
+        return True, [
+            {"author": "reporter", "createdAt": recent},
+            {"author": "sandraschi", "createdAt": recent},
+        ]
+
+    scanned = _scan_with(monkeypatch, [_bumped_issue()], comments)
+    assert scanned["stale_issues"] == []
+    assert scanned["needs_reply_issues"] == []
+
+
+def test_scan_maintainer_touch_gone_quiet_goes_stale(monkeypatch) -> None:
+    """Maintainer replied once, long ago, reporter kept bumping since.
+
+    Old code: reporter bumps reset updatedAt, thread never goes stale.
+    New code: stale with a truthful reason.
+    """
+
+    def comments(owner: str, repo: str, number: int, **kwargs):
+        return True, [
+            {"author": "sandraschi", "createdAt": "2026-09-01T10:00:00Z"},
+            {"author": "reporter", "createdAt": "2026-10-05T10:00:00Z"},
+        ]
+
+    scanned = _scan_with(monkeypatch, [_bumped_issue()], comments)
+    assert scanned["needs_reply_issues"] == []
+    assert len(scanned["stale_issues"]) == 1
+    assert "maintainer last touched" in scanned["stale_issues"][0]["stale_reason"]
+
+
+def test_scan_comment_fetch_failure_degrades(monkeypatch) -> None:
+    def comments(owner: str, repo: str, number: int, **kwargs):
+        return False, []
+
+    scanned = _scan_with(monkeypatch, [_bumped_issue()], comments)
+    assert scanned["stale_issues"] == []
+    assert scanned["needs_reply_issues"] == []
+
+
+def test_scan_comment_check_respects_limit(monkeypatch) -> None:
+    seen: list[int] = []
+
+    def comments(owner: str, repo: str, number: int, **kwargs):
+        seen.append(number)
+        return True, []
+
+    issues = [{**_bumped_issue(), "number": n} for n in (1, 2, 3)]
+    monkeypatch.setattr(
+        "git_github_mcp.services.morning_digest.github_ops",
+        lambda operation, **kwargs: (
+            {"success": True, "result": {"issues": issues}}
+            if operation == "issue_list"
+            else {"success": True, "result": {"prs": []}}
+        ),
+    )
+    monkeypatch.setattr("git_github_mcp.services.morning_digest.fetch_issue_comments", comments)
+    scanned = scan_fleet_repo(
+        "sandraschi",
+        "inkscape-mcp",
+        stale_days=7,
+        maintainer="sandraschi",
+        limit=30,
+        include_issues=True,
+        include_discussions=False,
+        comment_check_limit=2,
+    )
+    assert seen == [1, 2]
+    assert len(scanned["needs_reply_issues"]) == 2
 
 
 def test_parse_fleet_repos() -> None:

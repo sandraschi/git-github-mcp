@@ -28,6 +28,7 @@ interface TriageRow {
   createdAt: string;
   reason: string;
   bucket: TriageBucket;
+  commentCount: number;
 }
 
 interface DetailState {
@@ -83,6 +84,10 @@ function rowsFromDigest(env: DigestEnvelope): TriageRow[] {
       createdAt: str(raw.createdAt),
       reason: str(raw.need_reply_reason, "no reply yet"),
       bucket: "needs_reply",
+      commentCount: num(
+        raw.comment_count,
+        typeof raw.comments === "number" ? raw.comments : -1,
+      ),
     });
   }
   for (const raw of res.all_stale_issues ?? []) {
@@ -102,6 +107,10 @@ function rowsFromDigest(env: DigestEnvelope): TriageRow[] {
       createdAt: str(raw.createdAt),
       reason: str(raw.stale_reason, "stale"),
       bucket: "stale",
+      commentCount: num(
+        raw.comment_count,
+        typeof raw.comments === "number" ? raw.comments : -1,
+      ),
     });
   }
   for (const raw of res.all_stale_prs ?? []) {
@@ -121,6 +130,10 @@ function rowsFromDigest(env: DigestEnvelope): TriageRow[] {
       createdAt: str(raw.createdAt),
       reason: str(raw.stale_reason, "stale"),
       bucket: "stale",
+      commentCount: num(
+        raw.comment_count,
+        typeof raw.comments === "number" ? raw.comments : -1,
+      ),
     });
   }
   return out;
@@ -613,6 +626,8 @@ export function Triage() {
                     style={{ color: "var(--text-dim)" }}
                   >
                     {row.author} · {relTime(row.createdAt)}
+                    {row.commentCount >= 0 &&
+                      ` · ${row.commentCount} comment${row.commentCount === 1 ? "" : "s"}`}
                   </div>
                 </div>
               </button>
