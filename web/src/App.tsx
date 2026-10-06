@@ -24,6 +24,7 @@ import { Repositories } from "@/pages/repos";
 import { Settings } from "@/pages/settings";
 import { StarsPage } from "@/pages/stars";
 import { ToolsPage } from "@/pages/tools";
+import { Triage } from "@/pages/triage";
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
           <Route path="/discovery" element={<DiscoveryPage />} />
           <Route path="/issues" element={<Issues />} />
           <Route path="/prs" element={<PullRequests />} />
+          <Route path="/triage" element={<Triage />} />
           <Route path="/discussions" element={<Discussions />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/lectures" element={<Lectures />} />

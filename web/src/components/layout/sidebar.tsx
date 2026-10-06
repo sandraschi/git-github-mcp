@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Radar,
   Settings,
+  Siren,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     { label: "Commits", icon: GitCommit, href: "/commits" },
     { label: "PRs & Issues", icon: Inbox, href: "/inbox" },
     { label: "Breakfast", icon: Coffee, href: "/breakfast" },
+    { label: "Triage", icon: Siren, href: "/triage" },
     { label: "CI Monitor", icon: Radar, href: "/ci" },
     { label: "Chat", icon: MessageSquare, href: "/chat" },
     { label: "Logs", icon: Activity, href: "/logs" },
