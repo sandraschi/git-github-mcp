@@ -161,6 +161,63 @@ def classify_issue_stale(issue: dict[str, Any], *, stale_days: int, maintainer: 
     return None
 
 
+def _is_external_author(author_login: str, maintainer: str | None) -> bool:
+    """True when the author is not the maintainer (empty author = not external)."""
+    if not author_login:
+        return False
+    if not maintainer:
+        return True
+    return author_login.lower() != maintainer.lower()
+
+
+def _untouched_since_creation(item: dict[str, Any]) -> bool:
+    """Heuristic for 'zero visible activity': updatedAt still equals createdAt.
+
+    gh issue_list rows carry no comment counts, so any comment, label change,
+    or assignment (all bump updatedAt) counts as 'touched'. Documented
+    approximation, not a full comment-thread check.
+    """
+    created = item.get("createdAt")
+    if not created:
+        return False
+    return (item.get("updatedAt") or created) == created
+
+
+def classify_issue_needs_reply(issue: dict[str, Any], *, stale_days: int, maintainer: str | None) -> str | None:
+    """Fresh external issue with zero maintainer-visible activity.
+
+    Complements classify_issue_stale: stale items are already listed under
+    stale_issues, so this bucket only fires below the stale threshold - the
+    ones the old report hid completely (e.g. a real user report opened today).
+    """
+    if not _is_external_author(_author_login(issue.get("author")), maintainer):
+        return None
+    if not _untouched_since_creation(issue):
+        return None
+    age = days_since(issue.get("createdAt"))
+    if age is None or age >= stale_days:
+        return None
+    if age <= 0:
+        return "opened today, no maintainer reply yet"
+    return f"no maintainer reply in {age}d"
+
+
+def classify_pr_needs_reply(pr: dict[str, Any], *, stale_days: int, maintainer: str | None) -> str | None:
+    """Fresh external PR with zero comments and no other visible activity."""
+    if not _is_external_author(_author_login(pr.get("author")), maintainer):
+        return None
+    if _pr_comment_count(pr.get("comments")) != 0:
+        return None
+    if not _untouched_since_creation(pr):
+        return None
+    age = days_since(pr.get("createdAt"))
+    if age is None or age >= stale_days:
+        return None
+    if age <= 0:
+        return "opened today, no review yet"
+    return f"no review in {age}d"
+
+
 def fetch_notifications(*, since_iso: str | None = None) -> list[dict[str, Any]]:
     ok, out, err = run_gh(
         [
@@ -295,6 +352,19 @@ def scan_fleet_repo(
         if reason:
             stale_issues.append({**issue, "stale_reason": reason, "repo_slug": slug})
 
+    # Fresh external items with zero visible activity - invisible to the stale
+    # threshold, but the rudest to ignore (real user waiting, no ack at all).
+    needs_reply_issues = []
+    for issue in issues:
+        reason = classify_issue_needs_reply(issue, stale_days=stale_days, maintainer=maintainer)
+        if reason:
+            needs_reply_issues.append({**issue, "need_reply_reason": reason, "repo_slug": slug})
+    needs_reply_prs = []
+    for pr in prs:
+        reason = classify_pr_needs_reply(pr, stale_days=stale_days, maintainer=maintainer)
+        if reason:
+            needs_reply_prs.append({**pr, "need_reply_reason": reason, "repo_slug": slug})
+
     discussions_open = 0
     new_discussions: list[dict[str, Any]] = []
     unanswered_qa: list[dict[str, Any]] = []
@@ -332,6 +402,8 @@ def scan_fleet_repo(
         "issues": issues,
         "stale_prs": stale_prs,
         "stale_issues": stale_issues,
+        "needs_reply_issues": needs_reply_issues,
+        "needs_reply_prs": needs_reply_prs,
         "discussions_open": discussions_open,
         "new_discussions": new_discussions,
         "unanswered_qa": unanswered_qa,
@@ -363,6 +435,7 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
         f"- Open issues: **{summary['totals']['open_issues']}**",
         f"- Stale PRs (≥{summary['stale_days']}d): **{summary['totals']['stale_prs']}**",
         f"- Stale issues: **{summary['totals']['stale_issues']}**",
+        f"- Needs first reply: **{summary['totals'].get('needs_reply', 0)}**",
         f"- Open discussions: **{summary['totals'].get('discussions_open', 0)}**",
         f"- Discussion activity, new threads + comments (since last run): **{summary['totals'].get('new_discussions', 0)}**",
         f"- Unanswered Q&A: **{summary['totals'].get('unanswered_qa', 0)}**",
@@ -383,6 +456,18 @@ def build_markdown_digest(summary: dict[str, Any]) -> str:
             url = n.get("subject_url") or ""
             unread = "🔴 " if n.get("unread") else ""
             lines.append(f"- {unread}**{repo}** - {title} (`{reason}`) {url}")
+        lines.append("")
+
+    needs_reply = summary.get("all_needs_reply") or []
+    if needs_reply:
+        lines.append("## Needs first reply (rude-if-ignored)")
+        for row in needs_reply[:30]:
+            kind = row.get("kind") or "issue"
+            reason = row.get("need_reply_reason") or "no reply yet"
+            lines.append(
+                f"- **{row.get('repo_slug')}** {kind} #{row.get('number')} - {row.get('title')} "
+                f"({reason}) {row.get('url', '')}"
+            )
         lines.append("")
 
     stale_prs = summary.get("all_stale_prs") or []
@@ -576,6 +661,7 @@ def run_morning_digest(
     repo_errors: list[str] = []
     all_stale_prs: list[dict[str, Any]] = []
     all_stale_issues: list[dict[str, Any]] = []
+    all_needs_reply: list[dict[str, Any]] = []
     all_new_discussions: list[dict[str, Any]] = []
     all_unanswered_qa: list[dict[str, Any]] = []
     open_prs = 0
@@ -603,6 +689,10 @@ def run_morning_digest(
         discussions_open += scanned.get("discussions_open", 0)
         all_stale_prs.extend(scanned["stale_prs"])
         all_stale_issues.extend(scanned["stale_issues"])
+        for issue in scanned.get("needs_reply_issues", []):
+            all_needs_reply.append({**issue, "kind": "issue"})
+        for pr in scanned.get("needs_reply_prs", []):
+            all_needs_reply.append({**pr, "kind": "pr"})
         all_new_discussions.extend(scanned.get("new_discussions", []))
         all_unanswered_qa.extend(scanned.get("unanswered_qa", []))
         for err in scanned["errors"]:
@@ -679,6 +769,8 @@ def run_morning_digest(
         )
 
     generated_at = datetime.now(UTC).isoformat()
+    # Longest-waiting external first - the rudest to keep ignoring.
+    all_needs_reply.sort(key=lambda x: x.get("createdAt") or "")
     summary: dict[str, Any] = {
         "generated_at": generated_at,
         "maintainer": maintainer,
@@ -693,6 +785,7 @@ def run_morning_digest(
             "open_issues": open_issues,
             "stale_prs": len(all_stale_prs),
             "stale_issues": len(all_stale_issues),
+            "needs_reply": len(all_needs_reply),
             "discussions_open": discussions_open,
             "new_discussions": len(all_new_discussions),
             "unanswered_qa": len(all_unanswered_qa),
@@ -703,6 +796,7 @@ def run_morning_digest(
         "local_dirty": local_dirty_data,
         "all_stale_prs": sorted(all_stale_prs, key=lambda p: days_since(p.get("updatedAt")) or 0, reverse=True),
         "all_stale_issues": sorted(all_stale_issues, key=lambda i: days_since(i.get("updatedAt")) or 0, reverse=True),
+        "all_needs_reply": all_needs_reply,
         "all_new_discussions": sorted(all_new_discussions, key=lambda d: d.get("updatedAt") or "", reverse=True),
         "all_unanswered_qa": sorted(all_unanswered_qa, key=lambda d: d.get("comments", 0)),
         "notifications": notifications,
@@ -723,11 +817,14 @@ def run_morning_digest(
     drift_n = summary["totals"]["drift_repos"]
     new_disc_n = summary["totals"]["new_discussions"]
     unanswered_n = summary["totals"]["unanswered_qa"]
+    needs_reply_n = summary["totals"]["needs_reply"]
     msg_parts = [
         f"Scanned {len(repos)} repos",
         f"{summary['totals']['stale_prs']} stale PRs",
         f"{summary['totals']['notifications']} notifications",
     ]
+    if needs_reply_n > 0:
+        msg_parts.append(f"{needs_reply_n} need first reply")
     if new_disc_n > 0:
         msg_parts.append(f"{new_disc_n} new discussions")
     if unanswered_n > 0:
@@ -742,6 +839,8 @@ def run_morning_digest(
         "fleet_morning_digest",
         message=" - ".join(msg_parts),
         next_steps=[
+            "Open http://127.0.0.1:10714/triage for per-item grading + reply actions",
+            "Post first replies via github_ops(issue_comment/pr_comment, ...)",
             "Open http://127.0.0.1:10714/breakfast for human triage",
             "Acknowledge stale PRs via github_ops(pr_comment, ...)",
             "Answer unanswered Q&A via github_ops(discussion_comment, ...) + github_ops(discussion_answer, ...)",

@@ -7,10 +7,119 @@ from datetime import UTC, datetime
 from git_github_mcp.services.morning_digest import (
     build_markdown_digest,
     classify_discussion_signal,
+    classify_issue_needs_reply,
+    classify_pr_needs_reply,
     classify_pr_stale,
     parse_fleet_repos,
     run_morning_digest,
 )
+
+
+def test_classify_issue_needs_reply_fresh_external() -> None:
+    """A real user report opened today with zero activity must surface -
+    this was the inkscape-mcp #8 hole: age 0 < stale_days meant invisibility."""
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    issue = {
+        "author": {"login": "NMDX0721"},
+        "createdAt": now,
+        "updatedAt": now,
+        "number": 8,
+        "title": "Windows: forcing LC_ALL breaks fontconfig",
+        "url": "https://example.com/issues/8",
+    }
+    reason = classify_issue_needs_reply(issue, stale_days=7, maintainer="sandraschi")
+    assert reason is not None
+    assert "no maintainer reply" in reason or "today" in reason
+
+
+def test_classify_issue_needs_reply_skips_maintainer() -> None:
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    issue = {"author": {"login": "sandraschi"}, "createdAt": now, "updatedAt": now}
+    assert classify_issue_needs_reply(issue, stale_days=7, maintainer="sandraschi") is None
+
+
+def test_classify_issue_needs_reply_skips_touched() -> None:
+    """Any activity bump (comment, label) means it had eyes on it."""
+    issue = {
+        "author": {"login": "outsider"},
+        "createdAt": "2026-09-01T00:00:00Z",
+        "updatedAt": "2026-09-02T00:00:00Z",
+    }
+    assert classify_issue_needs_reply(issue, stale_days=30, maintainer="sandraschi") is None
+
+
+def test_classify_issue_needs_reply_skips_stale_age() -> None:
+    """Old untouched externals belong to stale_issues, not this bucket."""
+    issue = {
+        "author": {"login": "outsider"},
+        "createdAt": "2020-01-01T00:00:00Z",
+        "updatedAt": "2020-01-01T00:00:00Z",
+    }
+    assert classify_issue_needs_reply(issue, stale_days=7, maintainer="sandraschi") is None
+
+
+def test_classify_pr_needs_reply_fresh_external() -> None:
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    pr = {
+        "author": {"login": "contributor"},
+        "createdAt": now,
+        "updatedAt": now,
+        "comments": 0,
+        "number": 6,
+        "title": "fix: docs",
+        "url": "https://example.com/pr/6",
+    }
+    reason = classify_pr_needs_reply(pr, stale_days=7, maintainer="sandraschi")
+    assert reason is not None
+
+
+def test_classify_pr_needs_reply_skips_commented() -> None:
+    now = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    pr = {
+        "author": {"login": "contributor"},
+        "createdAt": now,
+        "updatedAt": now,
+        "comments": 2,
+    }
+    assert classify_pr_needs_reply(pr, stale_days=7, maintainer="sandraschi") is None
+
+
+def test_build_markdown_digest_needs_reply_section() -> None:
+    summary = {
+        "generated_at": "2026-10-06T07:00:00+00:00",
+        "maintainer": "sandraschi",
+        "repo_count": 1,
+        "stale_days": 7,
+        "totals": {
+            "open_prs": 0,
+            "open_issues": 1,
+            "stale_prs": 0,
+            "stale_issues": 0,
+            "needs_reply": 1,
+            "notifications": 0,
+            "dirty_repos": 0,
+            "drift_repos": 0,
+        },
+        "notifications": [],
+        "all_stale_prs": [],
+        "all_stale_issues": [],
+        "all_needs_reply": [
+            {
+                "repo_slug": "sandraschi/inkscape-mcp",
+                "kind": "issue",
+                "number": 8,
+                "title": "Windows: forcing LC_ALL breaks fontconfig",
+                "need_reply_reason": "opened today, no maintainer reply yet",
+                "url": "https://github.com/sandraschi/inkscape-mcp/issues/8",
+            }
+        ],
+        "local_dirty": {},
+        "repo_errors": [],
+    }
+    md = build_markdown_digest(summary)
+    assert "Needs first reply" in md
+    assert "inkscape-mcp" in md
+    assert "no maintainer reply yet" in md
 
 
 def test_parse_fleet_repos() -> None:
@@ -342,3 +451,6 @@ def test_run_morning_digest_mocked_local(monkeypatch) -> None:
     assert res["totals"]["discussions_open"] == 0
     assert res["totals"]["new_discussions"] == 0
     assert res["totals"]["unanswered_qa"] == 0
+    # Same for the needs-first-reply bucket (mock predates those keys too).
+    assert res["totals"]["needs_reply"] == 0
+    assert res["all_needs_reply"] == []
