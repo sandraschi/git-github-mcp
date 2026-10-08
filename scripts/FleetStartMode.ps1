@@ -1,6 +1,3 @@
-﻿# FleetStartMode.ps1 - vendored per-repo copy (no mcp-central-docs required at runtime)
-# Canonical upstream: mcp-central-docs/scripts/FleetStartMode.ps1 (private fleet docs)
-
 # FleetStartMode.ps1 - shared launch modes for webapp/start.ps1 launchers
 # Canonical upstream: mcp-central-docs/scripts/FleetStartMode.ps1
 # Port clearing uses port-scoped netstat+findstr; Session 0 checks protect Windows services.
@@ -9,7 +6,7 @@ function Get-FleetStartModeBoundParameters {
     param([hashtable]$BoundParameters)
 
     $filtered = @{}
-    foreach ($key in @('Headless', 'BackendOnly', 'FrontendOnly', 'NoBrowser')) {
+    foreach ($key in @('Headless', 'BackendOnly', 'FrontendOnly', 'NoBrowser', 'SkipRestart')) {
         if ($BoundParameters.ContainsKey($key)) {
             $filtered[$key] = $BoundParameters[$key]
         }
@@ -201,8 +198,13 @@ function Stop-FleetProcessId {
         return [pscustomobject]@{ Ok = $true; Gone = $true }
     }
 
-    # Never attempt to kill Session 0 service processes from dev scripts
+    # Session 0 holds real Windows services AND orphaned dev remnants.
+    # Direct kills stay forbidden; orphans go through one UAC prompt.
     if ($before.SessionId -eq 0) {
+        if ($Elevated -and (Test-FleetProcessOrphanKillable -ProcessId $ProcessId)) {
+            $ok = Invoke-FleetElevatedTaskkill -ProcessIds @($ProcessId) -Label 'fleet'
+            return [pscustomobject]@{ Ok = $ok; Name = $before.ProcessName; SessionId = 0; Elevated = $true }
+        }
         return [pscustomobject]@{ Ok = $false; Name = $before.ProcessName; SessionId = 0; Error = 'Windows Service process (Session 0)' }
     }
 
@@ -219,6 +221,78 @@ function Stop-FleetProcessId {
     }
 
     return [pscustomobject]@{ Ok = ($null -eq $after) }
+}
+
+function Test-FleetProcessOrphanKillable {
+    param([Parameter(Mandatory)][int]$ProcessId)
+
+    # $true ONLY for session-0 processes with no Windows service behind them
+    # whose image is a known dev runtime. Everything else (svchost, services,
+    # databases, unknown binaries) stays untouchable - fail-closed.
+    if ($ProcessId -le 4 -or $ProcessId -eq $PID) { return $false }
+    try {
+        $svc = Get-CimInstance Win32_Service -Filter "ProcessId=$ProcessId" -ErrorAction Stop
+        if ($svc) { return $false }
+    } catch { }
+    $proc = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+    if (-not $proc -or $proc.SessionId -ne 0) { return $false }
+    $name = $proc.ProcessName.ToLower()
+    if ($name -in @('python', 'pythonw', 'uv', 'node', 'bun', 'bunx', 'npm', 'vite', 'tsc')) { return $true }
+    if ($name -like '*-mcp') { return $true }  # frozen fleet backends (git-github-mcp.exe)
+    return $false
+}
+
+function Get-FleetOrphanTree {
+    param([Parameter(Mandatory)][int[]]$ProcessIds)
+
+    # Walk UP from port holders to orphan-killable ancestors (uv -> frozen
+    # exe -> workers), so one UAC prompt clears the whole orphan tree.
+    # Stops at system PIDs, the current shell, non-session-0, or depth 5.
+    $all = @(); $seen = @{}; $queue = @($ProcessIds); $depth = 0
+    while ($queue.Count -gt 0 -and $depth -lt 5) {
+        $depth++; $next = @()
+        foreach ($id in $queue) {
+            if ($id -le 4 -or $id -eq $PID -or $seen.ContainsKey($id)) { continue }
+            $seen[$id] = $true
+            if (-not (Test-FleetProcessOrphanKillable -ProcessId $id)) { continue }
+            $all += $id
+            try {
+                $par = (Get-CimInstance Win32_Process -Filter "ProcessId=$id" -ErrorAction Stop).ParentProcessId
+                if ($par -and $par -gt 4 -and $par -ne $PID) { $next += $par }
+            } catch { }
+        }
+        $queue = $next
+    }
+    return @($all | Sort-Object -Unique)
+}
+
+function Invoke-FleetElevatedTaskkill {
+    param(
+        [Parameter(Mandatory)][int[]]$ProcessIds,
+        [string]$Label = "fleet"
+    )
+
+    # One UAC prompt for the whole set. Denial (exit 1223) is a refusal,
+    # not a hang - report it and let the caller decide.
+    $targets = @($ProcessIds | Where-Object { $_ -gt 4 } | Sort-Object -Unique)
+    if ($targets.Count -eq 0) { return $false }
+    $taskArgs = @('/F', '/T') + @($targets | ForEach-Object { @('/PID', "$_") })
+    Write-Host "[$Label] requesting elevation (UAC) to stop session-0 orphan(s): $($targets -join ', ') ..." -ForegroundColor Cyan
+    try {
+        $p = Start-Process -FilePath "taskkill.exe" -ArgumentList $taskArgs `
+            -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop
+    } catch {
+        Write-Host "[$Label] elevation refused or failed - orphan(s) still holding the port." -ForegroundColor Yellow
+        return $false
+    }
+    Start-Sleep -Milliseconds 800
+    $remaining = @($targets | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
+    if ($remaining.Count -eq 0) {
+        Write-Host "[$Label] orphan(s) cleared." -ForegroundColor Green
+        return $true
+    }
+    Write-Host "[$Label] still holding port after elevated kill: $($remaining -join ', ')" -ForegroundColor Red
+    return $false
 }
 
 function Stop-FleetPortSquatters {
@@ -244,6 +318,31 @@ function Stop-FleetPortSquatters {
             Write-Host "[$Label] Stopping stale PID $procId on port $port ..." -ForegroundColor DarkGray
             $res = Stop-FleetProcessId -ProcessId $procId
             if ($res.Ok) { $killedAny = $true }
+        }
+    }
+    if ($ElevatedFallback) {
+        # Holders can churn between enumeration and kill (supervisor loops,
+        # reload workers). Retry enumeration; attempt elevation at most once
+        # (a refused UAC prompt must not re-prompt in a loop). No silent
+        # path: every outcome logs.
+        for ($round = 1; $round -le 3; $round++) {
+            $holders = @()
+            foreach ($port in $uniquePorts) { $holders += @(Get-FleetPortListenerPids -Port $port) }
+            $killable = @($holders | Sort-Object -Unique | Where-Object { Test-FleetProcessOrphanKillable -ProcessId $_ })
+            if ($killable.Count -eq 0) {
+                if ($holders.Count -gt 0) {
+                    Write-Host "[$Label] port holder(s) present but not orphan-killable - leaving alone." -ForegroundColor DarkGray
+                }
+                break
+            }
+            $tree = @(Get-FleetOrphanTree -ProcessIds $killable)
+            if ($tree.Count -eq 0) {
+                Write-Host "[$Label] holders churned before kill (round $round) - re-enumerating ..." -ForegroundColor DarkGray
+                Start-Sleep -Milliseconds 500
+                continue
+            }
+            if (Invoke-FleetElevatedTaskkill -ProcessIds $tree -Label $Label) { $killedAny = $true }
+            break
         }
     }
     if ($killedAny) {
@@ -400,9 +499,19 @@ function Start-FleetDetachedShell {
         return Start-Process @psi
     }
 
+    # R8: title detached consoles from -Label so taskbar / taskkill can
+    # identify backend vs frontend without remembering ports. Probe runs
+    # use NoNewWindow + redirect, title is irrelevant there (early return).
+    $titledArgs = @($Args)
+    $cmdIdx = [Array]::IndexOf($titledArgs, '-Command')
+    if ($cmdIdx -ge 0 -and ($cmdIdx + 1) -lt $titledArgs.Count) {
+        $safe = ($Label -replace "'", "''")
+        $titledArgs[$cmdIdx + 1] = "`$Host.UI.RawUI.WindowTitle='$safe'; " + $titledArgs[$cmdIdx + 1]
+    }
+
     $normal = @{
         FilePath     = $Exe
-        ArgumentList = $Args
+        ArgumentList = $titledArgs
         PassThru     = $true
         WindowStyle  = $WindowStyle
     }
