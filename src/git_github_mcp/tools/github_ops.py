@@ -1660,8 +1660,8 @@ def github_ops(
                 str(limit),
                 "--json",
                 (
-                    "name,fullName,description,url,stargazerCount,language,"
-                    "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"
+                    "name,fullName,description,url,stargazersCount,language,"
+                    "isPrivate,isFork,isArchived,updatedAt,defaultBranch"
                 ),
             ]
         )
@@ -1735,8 +1735,8 @@ def github_ops(
                 str(limit),
                 "--json",
                 (
-                    "name,fullName,description,url,stargazerCount,language,"
-                    "isPrivate,isFork,isArchived,updatedAt,repositoryTopics,defaultBranchRef"
+                    "name,fullName,description,url,stargazersCount,language,"
+                    "isPrivate,isFork,isArchived,updatedAt,defaultBranch"
                 ),
             ]
         )
@@ -1775,8 +1775,7 @@ def github_ops(
                 "--limit",
                 str(limit),
                 "--json",
-                "name,fullName,description,url,stargazerCount,forkCount,"
-                "language,isPrivate,isFork,updatedAt,pushedAt,repositoryTopics",
+                "name,fullName,description,url,stargazersCount,forksCount,language,isPrivate,isFork,updatedAt,pushedAt",
             ]
         )
         if not ok:
