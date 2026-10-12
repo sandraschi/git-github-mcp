@@ -7,7 +7,11 @@ async def main():
     # Verify gh version first to be sure
     import subprocess
 
-    v = subprocess.run(["C:\\Program Files\\GitHub CLI\\gh.exe", "--version"], capture_output=True, text=True).stdout
+    v = (
+        await asyncio.to_thread(
+            subprocess.run, ["C:\\Program Files\\GitHub CLI\\gh.exe", "--version"], capture_output=True, text=True
+        )
+    ).stdout
     print(f"CLI Version: {v.splitlines()[0]}")
 
     print("Checking auth status...")
