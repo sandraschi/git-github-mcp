@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -80,7 +81,7 @@ async def build_capabilities(mcp: Any, *, version: str = "0.4.0") -> dict[str, A
     except Exception:
         logger.debug("list_resources failed")
 
-    local_llm = probe_local_llm()
+    local_llm = await asyncio.to_thread(probe_local_llm)
 
     return {
         "status": "ok",

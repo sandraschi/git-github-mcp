@@ -1557,7 +1557,7 @@ async def api_llm_discover():
     ollama_models: list[str] = []
 
     try:
-        r = httpx.get(f"{_OLLAMA_BASE}/api/tags", timeout=2.0)
+        r = await asyncio.to_thread(httpx.get, f"{_OLLAMA_BASE}/api/tags", timeout=2.0)
         ollama_available = r.status_code == 200
         if ollama_available:
             ollama_models = [m["name"] for m in r.json().get("models", [])]
@@ -1565,7 +1565,7 @@ async def api_llm_discover():
         logger.debug("Ollama discover probe failed: %s", exc)
 
     try:
-        r = httpx.get(f"{_LM_STUDIO_BASE}/v1/models", timeout=2.0)
+        r = await asyncio.to_thread(httpx.get, f"{_LM_STUDIO_BASE}/v1/models", timeout=2.0)
         lm_studio_available = r.status_code == 200
     except Exception as exc:
         logger.debug("LM Studio discover probe failed: %s", exc)
