@@ -1,4 +1,4 @@
-﻿# Per-repo fleet start config for git-github-mcp
+# Per-repo fleet start config for git-github-mcp
 # Edit ports/backend target here - start.ps1 is fleet-standard.
 @{
     Name         = 'git-github-mcp'
@@ -10,6 +10,7 @@
         Kind          = 'uvicorn-web-app'
         UvicornTarget = 'git_github_mcp.server:web_app'
         SyncExtras    = @('dev')
+        SyncOnStart  = $true
         Env           = @{ WEB_PORT = '10713'; GITOPS_USER_NAME = 'Sandra Schipal'; GITOPS_USER_EMAIL = 'sandraschipal@gmail.com' }
     }
     Frontend = @{
