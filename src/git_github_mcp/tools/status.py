@@ -27,7 +27,10 @@ def _no_prompt_env() -> dict:
     env["TERM"] = "dumb"
     env["GIT_CONFIG_NOSYSTEM"] = "1"
     # Point at a minimal gitconfig to bypass any user gitconfig credential helpers
-    env["GIT_CONFIG_GLOBAL"] = r"D:\Dev\repos\git-github-mcp\minimal.gitconfig"
+    # (repo root: src/git_github_mcp/tools/status.py -> parents[3]; installed copies
+    # have no such file, so fall back to an empty global config)
+    minimal = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "minimal.gitconfig")
+    env["GIT_CONFIG_GLOBAL"] = os.path.normpath(minimal) if os.path.isfile(minimal) else os.devnull
     return env
 
 
