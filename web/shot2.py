@@ -1,0 +1,17 @@
+from playwright.sync_api import sync_playwright
+
+p = sync_playwright().start()
+b = p.chromium.launch()
+pg = b.new_page(viewport={"width": 1280, "height": 900})
+pg.goto("http://127.0.0.1:10714/", wait_until="networkidle")
+pg.wait_for_timeout(2000)
+h = pg.evaluate("() => document.querySelector('main').scrollHeight")
+print("main scrollHeight", h)
+pg.locator("main").screenshot(path="D:/Dev/repos/git-github-mcp/web/shot-main.png")
+print("main shot done")
+pg.evaluate("() => document.querySelector('main').scrollTo(0, 10000)")
+pg.wait_for_timeout(800)
+pg.screenshot(path="D:/Dev/repos/git-github-mcp/web/shot-full2.png", full_page=True)
+print("full2 done")
+b.close()
+p.stop()
