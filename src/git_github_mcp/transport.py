@@ -219,6 +219,17 @@ async def run_server_async(mcp_app, args: argparse.Namespace | None = None, serv
             logger.info(f"Running in HTTP Streamable mode: {endpoint}")
             # Build ASGI app with CORS middleware (run_http_async drops it)
             http_app = mcp_app.http_app(path=path)
+            # The fleet health probe GETs /health. http_app() only mounts the MCP
+            # endpoint, so a process started with --http answers /mcp and 404s
+            # every health path. Register the probe route before CORS.
+            from starlette.responses import JSONResponse
+            from starlette.routing import Route
+
+            async def _health(_request):
+                return JSONResponse({"status": "ok", "service": server_name})
+
+            http_app.router.routes.insert(0, Route("/health", _health, methods=["GET"]))
+            http_app.router.routes.insert(1, Route("/api/v1/health", _health, methods=["GET"]))
             from fastapi.middleware.cors import CORSMiddleware
 
             http_app.add_middleware(
