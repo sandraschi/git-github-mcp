@@ -66,6 +66,15 @@ Windows 10/11 (or macOS), Claude Desktop (any recent version),
 `git` + `gh` CLI (`winget install Git.Git GitHub.cli`). No Python needed
 for Option A. No API keys — the server never calls an LLM itself.
 
+## Bugs
+
+Bug reports and feature requests go to [GitHub Issues](../../issues) using the
+issue forms (a bug report needs version + reproducer, no exceptions).
+GitHub is also where PRs happen; questions belong in
+[Discussions](../../discussions). Never post tokens or credentials — redact and
+rotate first; security-sensitive reports go through a
+[private advisory](../../security/advisories/new).
+
 ## License
 
 MIT
