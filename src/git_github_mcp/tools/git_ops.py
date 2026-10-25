@@ -118,8 +118,34 @@ def _git_env() -> dict:
     GCM store: modern Git Credential Manager only accepts 'wincredman'
     (the legacy 'wincred' name is rejected). setdefault so an operator
     override (e.g. 'cache' in a sandbox) is respected.
+
+    Discovery guard (issue #3): a launcher-inherited GIT_DIR / GIT_WORK_TREE /
+    GIT_INDEX_FILE silently redirects EVERY git invocation to a different repo
+    than repo_path/cwd selects — `git add` then exits 0 having staged (or
+    no-op'd) in the wrong index while commit/status read the real one, and the
+    tool reports the input list as staged. repo_path must be authoritative,
+    so these never pass through. GIT_AUTHOR_*/GIT_COMMITTER_* are kept
+    (commit identity relies on them).
     """
     env = os.environ.copy()
+    for _k in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_PREFIX",
+        "GIT_NAMESPACE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_CEILING_DIRECTORIES",
+    ):
+        env.pop(_k, None)
+    for _k in [
+        k
+        for k in env
+        if k.startswith("GIT_CONFIG_COUNT") or k.startswith("GIT_CONFIG_KEY_") or k.startswith("GIT_CONFIG_VALUE_")
+    ]:
+        env.pop(_k, None)
     env["GIT_TERMINAL_PROMPT"] = "0"
     env["GIT_ASKPASS"] = "echo"
     env["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=no"
@@ -230,6 +256,25 @@ async def _simple_async(repo: Path, op: str, args: list[str], timeout: int = 60)
     if not ok:
         return _err(op, (err or out).strip() or f"{op} failed")
     return _ok(op, {"output": out.strip()})
+
+
+async def _index_state(repo: Path, paths: list[str] | None = None) -> tuple[set[str] | None, set[str] | None]:
+    """Worktree-vs-index and index-vs-HEAD file sets (None on git failure).
+
+    Returns (unstaged, staged): `git diff --name-only [-- paths]` (worktree
+    still differs from index) and `git diff --cached --name-only [-- paths]`
+    (index differs from HEAD). Used to verify `add` actually landed.
+    """
+    scope = ["--", *(paths or [])] if paths else []
+    ok, out, _ = await _run_git_async(repo, ["diff", "--name-only", *scope])
+    if not ok:
+        return None, None
+    unstaged = {line.strip() for line in out.splitlines() if line.strip()}
+    ok, out, _ = await _run_git_async(repo, ["diff", "--cached", "--name-only", *scope])
+    if not ok:
+        return None, None
+    staged = {line.strip() for line in out.splitlines() if line.strip()}
+    return unstaged, staged
 
 
 async def git_ops(
@@ -444,23 +489,66 @@ async def git_ops(
         )
 
     if operation == "add":
+        # Verification (issue #3): git add exits 0 even when it staged
+        # nothing in THIS repo's index (e.g. a launcher-inherited GIT_DIR
+        # used to redirect the index elsewhere — now scrubbed in _git_env —
+        # or paths resolving to already-clean files). Echoing the input list
+        # as "staged" turned that into a silent lie, so the index is read
+        # back and anything still differing worktree-vs-index fails LOUDLY.
         if all_files:
-            ok, _, err = await _run_git_async(repo, ["add", "."])
+            ok, _, err = await _run_git_async(repo, ["add", "--", "."])
             if not ok:
                 return _err("add", err or "add . failed")
+            unstaged, staged = await _index_state(repo)
+            if unstaged is None or staged is None:
+                return _err("add", "add ran but the index could not be verified — run git status manually")
+            if unstaged:
+                left = sorted(unstaged)[:20]
+                return _err(
+                    "add",
+                    f"add reported success but {len(unstaged)} file(s) still have unstaged changes: {', '.join(left)}",
+                    recovery_options=[
+                        f"git_ops(operation='status', repo_path='{repo}') to inspect",
+                        "Check .gitignore / skip-worktree bits on the listed files",
+                    ],
+                )
             return _ok(
                 "add",
-                {"staged": "all files"},
+                {"staged": "all files", "staged_count": len(staged)},
+                message="All files staged" if staged else "Nothing to stage — worktree already clean",
                 next_steps=[f"git_ops(operation='commit', message='...', repo_path='{repo}')"],
             )
         if not files:
             return _err("add", "Provide files list or set all_files=True")
-        ok, _, err = await _run_git_async(repo, ["add", *files])
+        ok, _, err = await _run_git_async(repo, ["add", "--", *files])
         if not ok:
             return _err("add", err or "add failed")
+        unstaged, staged = await _index_state(repo, files)
+        if unstaged is None or staged is None:
+            return _err("add", "add ran but the index could not be verified — run git status manually")
+        if unstaged:
+            left = sorted(unstaged)
+            detail = f"add reported success but {len(left)} requested path(s) still differ from the index: {', '.join(left[:20])}"
+            if staged:
+                detail += f" (already staged in index: {', '.join(sorted(staged)[:20])})"
+            return _err(
+                "add",
+                detail,
+                recovery_options=[
+                    f"git_ops(operation='status', repo_path='{repo}') to inspect",
+                    "Verify repo_path points at the repo holding these files",
+                ],
+            )
+        staged_now = sorted(staged)
+        already_clean = [f for f in files if f not in staged and f not in unstaged]
         return _ok(
             "add",
-            {"staged_files": files, "count": len(files)},
+            {"staged_files": staged_now, "count": len(staged_now), "already_clean": already_clean},
+            message=(
+                f"Staged {len(staged_now)} file(s)"
+                if staged_now
+                else "Nothing to stage — requested files already match the index"
+            ),
             next_steps=[f"git_ops(operation='commit', message='...', repo_path='{repo}')"],
         )
 

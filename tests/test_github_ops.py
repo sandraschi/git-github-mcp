@@ -5,10 +5,29 @@ import json
 
 import pytest
 
+from git_github_mcp.utils.gh_cli import _no_prompt_env
+
 # NOTE: git_github_mcp.tools.__init__ re-exports the github_ops function,
 # shadowing the submodule attribute — importlib gets the real module.
 ops_mod = importlib.import_module("git_github_mcp.tools.github_ops")
 from git_github_mcp.tools.github_ops import github_ops
+
+
+def test_gh_env_scrubs_discovery_hijackers(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Issue #3: gh shells out to git for repo resolution — same scrub as git_ops."""
+    for k, v in {
+        "GIT_DIR": "/elsewhere",
+        "GIT_WORK_TREE": "/elsewhere",
+        "GIT_INDEX_FILE": "Z:/nonexistent/alt-index",
+        "GIT_COMMON_DIR": "/elsewhere",
+        "GIT_PREFIX": "sub/",
+        "GIT_NAMESPACE": "ns",
+    }.items():
+        monkeypatch.setenv(k, v)
+    env = _no_prompt_env()
+    for k in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX", "GIT_NAMESPACE"):
+        assert k not in env, k
+    assert env["GH_PROMPT_DISABLED"] == "1"
 
 
 def test_github_ops_unknown_operation() -> None:

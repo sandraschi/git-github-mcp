@@ -32,8 +32,31 @@ def _get_gh_path() -> str:
 
 
 def _no_prompt_env() -> dict:
-    """Build env dict that prevents all interactive prompts / credential UI / browser launches."""
+    """Build env dict that prevents all interactive prompts / credential UI / browser launches.
+
+    Discovery guard (issue #3): gh shells out to git for repo resolution, so a
+    launcher-inherited GIT_DIR / GIT_WORK_TREE / GIT_INDEX_FILE would retarget
+    it exactly like the git Ops hijack — scrubbed here too.
+    """
     env = os.environ.copy()
+    for _k in (
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_PREFIX",
+        "GIT_NAMESPACE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_CEILING_DIRECTORIES",
+    ):
+        env.pop(_k, None)
+    for _k in [
+        k
+        for k in env
+        if k.startswith("GIT_CONFIG_COUNT") or k.startswith("GIT_CONFIG_KEY_") or k.startswith("GIT_CONFIG_VALUE_")
+    ]:
+        env.pop(_k, None)
     env["GH_PROMPT_DISABLED"] = "1"
     env["GH_NO_UPDATE_NOTIFIER"] = "1"
     env["GIT_TERMINAL_PROMPT"] = "0"

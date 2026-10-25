@@ -96,7 +96,7 @@ def _intermediate_help(topic: str | None) -> str:
                 "|------------------|-----------------------|-------------------------------|",
                 "| init             | —                     | repo_path, initial_branch     |",
                 "| clone            | repo_url              | target_dir, branch            |",
-                "| add              | files or all_files    | repo_path                     |",
+                "| add              | files or all_files    | repo_path; index re-read, loud fail if unlanded |",
                 "| commit           | message               | all_files, amend              |",
                 "| push             | —                     | remote, branch, force, tag_name|",
                 "| tag_push         | tag_name              | remote, force                 |",
