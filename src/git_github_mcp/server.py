@@ -536,6 +536,14 @@ async def github_ops(
     package_name: str | None = None,
     subpath: str | None = None,
     github_url: str | None = None,
+    triage_mode: str = "shadow",
+    triage_allowlist: list[str] | str | None = None,
+    triage_title_filter: str | None = None,
+    triage_model: str | None = None,
+    triage_max_actions: int = 5,
+    triage_force: bool = False,
+    triage_live_confirm: bool = False,
+    triage_ignore_trust: bool = False,
     confirm: bool = False,
     confirm_token: str | None = None,
 ) -> dict:
@@ -558,6 +566,7 @@ async def github_ops(
     PROJECTS:      project_list, project_view, project_create, project_delete, project_edit
     PACKAGES:      package_list, package_view, package_delete
     GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
+    TRIAGE:        triage_inbound (shadow labels by default; live gated)
     MISC:          auth_status, gist_list
 
     Non-blocking: subprocess runs in thread pool, never freezes MCP server.
@@ -632,6 +641,14 @@ async def github_ops(
         package_name=package_name,
         subpath=subpath,
         github_url=github_url,
+        triage_mode=triage_mode,
+        triage_allowlist=triage_allowlist,
+        triage_title_filter=triage_title_filter,
+        triage_model=triage_model,
+        triage_max_actions=triage_max_actions,
+        triage_force=triage_force,
+        triage_live_confirm=triage_live_confirm,
+        triage_ignore_trust=triage_ignore_trust,
     )
     result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
