@@ -30,6 +30,8 @@ ACTION_TYPE = (
     "repo_delete",
     "repo_rename",
     "repo_archive",
+    "repo_edit",
+    "repo_set_topics",
     # Issues
     "issue_list",
     "issue_view",
@@ -50,6 +52,7 @@ ACTION_TYPE = (
     "release_create",
     "release_delete",
     "release_update",
+    "release_upload",
     # Workflows (Actions)
     "workflow_list",
     "workflow_run",
@@ -247,6 +250,43 @@ def _repo_arg(owner: str | None, repo: str | None) -> str | None:
     return None
 
 
+def _as_str_list(value: list[str] | str | None) -> list[str]:
+    """Normalize a topic/file arg: list passthrough, comma/space-split string, None -> []."""
+    if value is None:
+        return []
+    if isinstance(value, str):
+        # Accept "a,b c" style; drop empties
+        parts: list[str] = []
+        for chunk in value.replace(",", " ").split():
+            chunk = chunk.strip()
+            if chunk:
+                parts.append(chunk)
+        return parts
+    return [str(v).strip() for v in value if str(v).strip()]
+
+
+def _current_topics(slug: str) -> tuple[list[str] | None, str]:
+    """Fetch current repo topics via gh. Returns (topics, error)."""
+    ok, out, err = run_gh(["repo", "view", slug, "--json", "repositoryTopics"])
+    if not ok:
+        return None, err or "repo view failed"
+    try:
+        data = json.loads(out) if out.strip() else {}
+    except json.JSONDecodeError:
+        return None, "invalid JSON from gh repo view"
+    nodes = []
+    if isinstance(data, dict):
+        rt = data.get("repositoryTopics") or data.get("repositoryTopics", [])
+        # gh returns {"repositoryTopics": {"nodes": [{"name": ...}]}} or {"nodes":[...]}?
+        if isinstance(rt, dict):
+            nodes = rt.get("nodes") or []
+        elif isinstance(rt, list):
+            nodes = rt
+    topics = [n.get("name") for n in nodes if isinstance(n, dict) and n.get("name")]
+    # Fallback shape: {"nodes": [...]} at top level? keep empty rather than fail
+    return topics, ""
+
+
 def github_ops(
     operation: str,
     # Repo identifiers
@@ -262,10 +302,14 @@ def github_ops(
     limit: int = 20,
     label: str | None = None,
     assignee: str | None = None,
-    # Repo create / rename
+    # Repo create / rename / edit
     description: str | None = None,
     private: bool = False,
     new_name: str | None = None,
+    homepage: str | None = None,
+    add_topics: list[str] | str | None = None,
+    remove_topics: list[str] | str | None = None,
+    topics: list[str] | str | None = None,
     # PR
     base_branch: str | None = None,
     head_branch: str | None = None,
@@ -275,6 +319,8 @@ def github_ops(
     tag_name: str | None = None,
     release_name: str | None = None,
     prerelease: bool = False,
+    asset_files: list[str] | str | None = None,
+    clobber: bool = False,
     # Search
     query: str | None = None,
     # Workflow
@@ -324,10 +370,11 @@ def github_ops(
     """GitHub operations via gh CLI — 73 actions.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
-                   repo_delete, repo_rename, repo_archive
+                   repo_delete, repo_rename, repo_archive, repo_edit, repo_set_topics
     ISSUES:        issue_list, issue_view, issue_create, issue_close, issue_comment
     PRs:           pr_list, pr_view, pr_create, pr_merge, pr_checkout, pr_close, pr_comment
-    RELEASES:      release_list, release_view, release_create, release_delete, release_update
+    RELEASES:      release_list, release_view, release_create, release_delete, release_update,
+                   release_upload
     ACTIONS:       workflow_list, workflow_run, workflow_runs,
                    workflow_cancel, workflow_disable, workflow_enable
     LABELS:        label_list, label_create, label_delete
@@ -851,6 +898,91 @@ def github_ops(
             return _err("repo_archive", err or "repo archive failed")
         return _ok("repo_archive", {"repo": slug}, message=f"Repository {slug} archived")
 
+    if operation == "repo_edit":
+        if not slug:
+            return _err("repo_edit", "owner and repo required")
+        adds = _as_str_list(add_topics)
+        removes = _as_str_list(remove_topics)
+        if description is None and homepage is None and not adds and not removes:
+            return _err(
+                "repo_edit",
+                "nothing to edit: provide description, homepage, add_topics and/or remove_topics",
+                recovery_options=[
+                    "github_ops(operation='repo_edit', owner='o', repo='r', description='...')",
+                    "github_ops(operation='repo_edit', owner='o', repo='r', add_topics=['mcp','ai'])",
+                ],
+            )
+        args = ["repo", "edit", slug]
+        if description is not None:
+            args += ["--description", description]
+        if homepage is not None:
+            args += ["--homepage", homepage]
+        for t in adds:
+            args += ["--add-topic", t]
+        for t in removes:
+            args += ["--remove-topic", t]
+        ok, out, err = run_gh(args)
+        if not ok:
+            return _err("repo_edit", err or "repo edit failed")
+        return _ok(
+            "repo_edit",
+            {
+                "repo": slug,
+                "description": description,
+                "homepage": homepage,
+                "added_topics": adds,
+                "removed_topics": removes,
+                "output": (out + err).strip(),
+            },
+            message=f"Repository {slug} updated",
+        )
+
+    if operation == "repo_set_topics":
+        if not slug:
+            return _err("repo_set_topics", "owner and repo required")
+        if topics is None:
+            return _err(
+                "repo_set_topics",
+                "topics required (list or comma-separated string; empty list clears all topics)",
+                recovery_options=[
+                    "github_ops(operation='repo_set_topics', owner='o', repo='r', topics=['mcp','ai'])",
+                ],
+            )
+        desired = sorted(set(_as_str_list(topics)))
+        current, terr = _current_topics(slug)
+        if current is None:
+            return _err("repo_set_topics", terr or "could not read current topics")
+        have = set(current)
+        want = set(desired)
+        adds = sorted(want - have)
+        removes = sorted(have - want)
+        if not adds and not removes:
+            return _ok(
+                "repo_set_topics",
+                {"repo": slug, "topics": desired, "added": [], "removed": [], "unchanged": True},
+                message=f"Topics already exact on {slug}",
+            )
+        args = ["repo", "edit", slug]
+        for t in adds:
+            args += ["--add-topic", t]
+        for t in removes:
+            args += ["--remove-topic", t]
+        ok, out, err = run_gh(args)
+        if not ok:
+            return _err("repo_set_topics", err or "repo edit failed")
+        return _ok(
+            "repo_set_topics",
+            {
+                "repo": slug,
+                "topics": desired,
+                "added": adds,
+                "removed": removes,
+                "previous": sorted(have),
+                "output": (out + err).strip(),
+            },
+            message=f"Topics set on {slug}: {len(desired)} topic(s)",
+        )
+
     if operation == "user_repos_full":
         args = [
             "repo",
@@ -1167,6 +1299,39 @@ def github_ops(
         if not ok:
             return _err("release_update", err or "release update failed")
         return _ok("release_update", {"tag": tag_name, "output": out.strip()}, message="Release updated")
+
+    if operation == "release_upload":
+        if not slug or not tag_name:
+            return _err("release_upload", "owner, repo, tag_name required")
+        files = _as_str_list(asset_files)
+        if not files:
+            return _err(
+                "release_upload",
+                "asset_files required (list or comma-separated string of local paths)",
+                recovery_options=[
+                    "github_ops(operation='release_upload', owner='o', repo='r', tag_name='v0.1.0', asset_files=['dist/app.exe'])",
+                ],
+            )
+        from pathlib import Path as _Path
+
+        missing = [f for f in files if not _Path(f).is_file()]
+        if missing:
+            return _err(
+                "release_upload",
+                f"asset file(s) not found: {', '.join(missing)}",
+                recovery_options=["Check paths are local files readable by the server"],
+            )
+        args = ["release", "upload", tag_name, *files, "--repo", slug]
+        if clobber:
+            args.append("--clobber")
+        ok, out, err = run_gh(args, timeout=300)
+        if not ok:
+            return _err("release_upload", err or "release upload failed")
+        return _ok(
+            "release_upload",
+            {"repo": slug, "tag": tag_name, "files": files, "clobbered": clobber, "output": (out + err).strip()},
+            message=f"Uploaded {len(files)} asset(s) to {tag_name}",
+        )
 
     # ── Workflows ─────────────────────────────────────────────────────────────
     if operation == "workflow_list":

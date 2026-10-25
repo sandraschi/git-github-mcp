@@ -55,6 +55,7 @@ ACTION_TYPE = (
     "tag_list",
     "tag_create",
     "tag_delete",
+    "tag_push",
     # Undo
     "reset",
     "revert",
@@ -285,7 +286,7 @@ async def git_ops(
     BRANCH:    branch_list, branch_create, branch_switch, branch_delete, branch_rename, branch_merge, rebase
     REMOTE:    remote_list, remote_add, remote_remove
     STASH:     stash, stash_pop, stash_list, stash_drop
-    TAG:       tag_list, tag_create, tag_delete
+    TAG:       tag_list, tag_create, tag_delete, tag_push (push also accepts tag_name)
     UNDO:      reset, revert, cherry_pick
     CLEANUP:   clean
     SUBMODULE: submodule_add, submodule_update, submodule_sync, submodule_status
@@ -491,6 +492,23 @@ async def git_ops(
         )
 
     if operation == "push":
+        if tag_name:
+            cmd = ["push"]
+            if force:
+                cmd.append("--force-with-lease")
+            cmd += [remote, "tag", tag_name]
+            ok, out, err = await _run_git_async(repo, cmd, timeout=120)
+            if not ok:
+                return _err(
+                    "push",
+                    (err or out).strip() or "tag push failed",
+                    recovery_options=["Check remote", "git tag --list (tag exists locally?)", "git pull first"],
+                )
+            return _ok(
+                "push",
+                {"remote": remote, "tag": tag_name, "forced": force, "output": (out + err).strip()},
+                message=f"Tag {tag_name} pushed to {remote}",
+            )
         cmd = ["push"]
         if force:
             cmd.append("--force-with-lease")
@@ -500,7 +518,7 @@ async def git_ops(
             cmd.append(remote)
             if branch:
                 cmd.append(branch)
-        ok, out, err = await _run_git_async(repo, cmd, timeout=60)
+        ok, out, err = await _run_git_async(repo, cmd, timeout=120)
         if not ok:
             return _err(
                 "push",
@@ -682,6 +700,30 @@ async def git_ops(
         if not tag_name:
             return _err("tag_delete", "tag_name required")
         return await _simple_async(repo, "tag_delete", ["tag", "-d", tag_name])
+
+    if operation == "tag_push":
+        if not tag_name:
+            return _err(
+                "tag_push",
+                "tag_name required",
+                recovery_options=["git_ops(operation='tag_push', repo_path='...', tag_name='v0.1.0')"],
+            )
+        cmd = ["push"]
+        if force:
+            cmd.append("--force-with-lease")
+        cmd += [remote, "tag", tag_name]
+        ok, out, err = await _run_git_async(repo, cmd, timeout=120)
+        if not ok:
+            return _err(
+                "tag_push",
+                (err or out).strip() or "tag push failed",
+                recovery_options=["Check remote", "git tag --list (tag exists locally?)", "git pull first"],
+            )
+        return _ok(
+            "tag_push",
+            {"remote": remote, "tag": tag_name, "forced": force, "output": (out + err).strip()},
+            message=f"Tag {tag_name} pushed to {remote}",
+        )
 
     # ── Undo ─────────────────────────────────────────────────────────────────
     if operation == "reset":

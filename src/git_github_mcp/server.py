@@ -111,6 +111,7 @@ BRANCH_OPS = {
     "tag_list",
     "tag_create",
     "tag_delete",
+    "tag_push",
 }
 ADMIN_OPS = {
     "remote_list",
@@ -171,8 +172,8 @@ async def _run_git_tool(
     worktree_path: str | None = None,
 ) -> dict:
     """Run git_ops (async) with an operation-aware timeout to catch hangs before the MCP client does."""
-    # Network ops (clone, push, pull, fetch) can be slow on large repos; local ops keep 25s.
-    _NETWORK_OPS = {"clone", "push", "pull", "fetch"}
+    # Network ops (clone, push, pull, fetch, tag_push) can be slow on large repos; local ops keep 25s.
+    _NETWORK_OPS = {"clone", "push", "pull", "fetch", "tag_push"}
     _wall_timeout = 180 if operation in _NETWORK_OPS else 25
     start = time.perf_counter()
     try:
@@ -263,6 +264,7 @@ async def git_core(
     commit2: str | None = None,
     oneline: bool = False,
     file_path: str | None = None,
+    tag_name: str | None = None,
     confirm: bool = False,
     confirm_token: str | None = None,
 ) -> dict:
@@ -271,6 +273,7 @@ async def git_core(
     Core workflow tools. For branch/tag/stash operations use git_branch.
     For remote/reset/clean/submodule/bisect/worktree use git_admin.
     Force-push/pull/fetch/clone need confirm=True + confirm_token (red-shelf gate).
+    push accepts tag_name to push a single tag (git push <remote> tag <tag_name>).
     """
     if operation not in CORE_OPS:
         from .utils.response import error_response
@@ -286,7 +289,7 @@ async def git_core(
         confirm=confirm,
         confirm_token=confirm_token,
         force=force,
-        targets={"repo_path": repo_path, "branch": branch, "remote": remote},
+        targets={"repo_path": repo_path, "branch": branch, "remote": remote, "tag_name": tag_name},
     )
     if refusal is not None:
         return refusal
@@ -310,6 +313,7 @@ async def git_core(
         commit2=commit2,
         oneline=oneline,
         file_path=file_path,
+        tag_name=tag_name,
     )
 
 
@@ -487,6 +491,10 @@ async def github_ops(
     description: str | None = None,
     private: bool = False,
     new_name: str | None = None,
+    homepage: str | None = None,
+    add_topics: list[str] | str | None = None,
+    remove_topics: list[str] | str | None = None,
+    topics: list[str] | str | None = None,
     base_branch: str | None = None,
     head_branch: str | None = None,
     draft: bool = False,
@@ -494,6 +502,8 @@ async def github_ops(
     tag_name: str | None = None,
     release_name: str | None = None,
     prerelease: bool = False,
+    asset_files: list[str] | str | None = None,
+    clobber: bool = False,
     query: str | None = None,
     workflow_id: str | None = None,
     run_id: str | None = None,
@@ -523,10 +533,12 @@ async def github_ops(
     """GitHub operations via gh CLI — 66 actions. Requires: gh auth login.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
-                   repo_rename, repo_archive (repo_delete: REST/webapp only, not on MCP)
+                   repo_rename, repo_archive, repo_edit, repo_set_topics
+                   (repo_delete: REST/webapp only, not on MCP)
     ISSUES:        issue_list, issue_view, issue_create, issue_close, issue_comment
     PRs:           pr_list, pr_view, pr_create, pr_merge, pr_checkout, pr_close, pr_comment
-    RELEASES:      release_list, release_view, release_create, release_delete, release_update
+    RELEASES:      release_list, release_view, release_create, release_delete, release_update,
+                   release_upload
     ACTIONS:       workflow_list, workflow_run, workflow_runs,
                    workflow_cancel, workflow_disable, workflow_enable
     LABELS:        label_list, label_create, label_delete
@@ -575,6 +587,10 @@ async def github_ops(
         description=description,
         private=private,
         new_name=new_name,
+        homepage=homepage,
+        add_topics=add_topics,
+        remove_topics=remove_topics,
+        topics=topics,
         base_branch=base_branch,
         head_branch=head_branch,
         draft=draft,
@@ -582,6 +598,8 @@ async def github_ops(
         tag_name=tag_name,
         release_name=release_name,
         prerelease=prerelease,
+        asset_files=asset_files,
+        clobber=clobber,
         query=query,
         workflow_id=workflow_id,
         run_id=run_id,
