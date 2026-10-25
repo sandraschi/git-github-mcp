@@ -9,7 +9,7 @@ from pathlib import Path
 # NOTE: git_github_mcp.tools.__init__ re-exports the git_ops function,
 # shadowing the submodule attribute — importlib gets the real module.
 git_ops_mod = _import_module("git_github_mcp.tools.git_ops")
-from git_github_mcp.tools.git_ops import _git_env, git_ops
+from git_github_mcp.tools.git_ops import _check_git_dir, _git_env, git_env_hijack_present, git_ops
 
 _GIT = git_ops_mod._GIT_EXE
 
@@ -175,6 +175,8 @@ async def test_add_loud_when_index_differs(monkeypatch) -> None:  # type: ignore
     """
 
     async def fake_runner(path, args, timeout=60):  # type: ignore[no-untyped-def]
+        if args[:2] == ["rev-parse", "--absolute-git-dir"]:
+            return True, str(Path(path) / ".git") + "\n", ""
         if args[0] == "add":
             return True, "", ""
         if args[:2] == ["diff", "--name-only"]:
@@ -190,3 +192,44 @@ async def test_add_loud_when_index_differs(monkeypatch) -> None:  # type: ignore
     assert r["success"] is False, r
     assert "f.txt" in r["error"]
     assert "unstaged" in r["error"].lower() or "differ" in r["error"].lower()
+
+
+# ── Issue #3 follow-up: pre-flight git-dir identity + startup probe ─────────
+
+
+async def test_check_git_dir_ok_real_repo() -> None:
+    """Pre-flight passes on a genuine checkout."""
+    with tempfile.TemporaryDirectory() as tmp:
+        await _init_repo(tmp, "f.txt")
+        assert await _check_git_dir(Path(tmp)) is None
+
+
+async def test_mutating_op_refuses_foreign_git_dir(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """rev-parse pointing elsewhere → add refuses BEFORE touching anything."""
+
+    async def fake_runner(path, args, timeout=60):  # type: ignore[no-untyped-def]
+        if args[:2] == ["rev-parse", "--absolute-git-dir"]:
+            return True, "Z:/elsewhere/.git\n", ""
+        raise AssertionError(f"must not run git beyond rev-parse: {args}")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        await _init_repo(tmp, "f.txt")  # real runner still in place here
+        monkeypatch.setattr(git_ops_mod, "_run_git_async", fake_runner)
+        (Path(tmp) / "f.txt").write_text("v2")
+        r = await git_ops(operation="add", repo_path=tmp, files=["f.txt"])
+    assert r["success"] is False, r
+    assert "different repository" in r["error"]
+    assert "Z:/elsewhere/.git" in r["error"]
+
+
+def test_git_env_hijack_present_flags_vars(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """Probe helper flags hijack vars; clean env reports none."""
+    monkeypatch.setenv("GIT_DIR", "/elsewhere")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "a.b")
+    flagged = git_env_hijack_present()
+    assert "GIT_DIR" in flagged
+    assert "GIT_CONFIG_KEY_0" in flagged
+    assert "GIT_AUTHOR_NAME" not in flagged
+    monkeypatch.delenv("GIT_DIR")
+    monkeypatch.delenv("GIT_CONFIG_KEY_0")
+    assert git_env_hijack_present() == []

@@ -112,6 +112,35 @@ def _run_git(path: Path, args: list[str], timeout: int = 60) -> tuple[bool, str,
         return False, "", str(e)
 
 
+# Discovery-hijacking env vars (issue #3): launcher-inherited values silently
+# redirect git to a different repo than repo_path/cwd selects. _git_env(),
+# utils/gh_cli._no_prompt_env() (keep in sync) and git_env_hijack_present()
+# all derive from these.
+_GIT_DISCOVERY_HIJACK_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_NAMESPACE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_CEILING_DIRECTORIES",
+)
+_GIT_CONFIG_ENV_PREFIXES = ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
+def git_env_hijack_present() -> list[str]:
+    """Names of inherited GIT_* vars that would redirect git discovery.
+
+    Used by the server lifespan probe to warn at startup. Per-call env is
+    scrubbed regardless, so a hit here is hygiene noise, not breakage.
+    """
+    present = [k for k in _GIT_DISCOVERY_HIJACK_VARS if k in os.environ]
+    present += [k for k in os.environ if k.startswith(_GIT_CONFIG_ENV_PREFIXES)]
+    return sorted(present)
+
+
 def _git_env() -> dict:
     """Build env for git subprocess — non-interactive, sandboxed prompts.
 
@@ -128,17 +157,9 @@ def _git_env() -> dict:
     (commit identity relies on them).
     """
     env = os.environ.copy()
-    for _k in (
-        "GIT_DIR",
-        "GIT_WORK_TREE",
-        "GIT_INDEX_FILE",
-        "GIT_COMMON_DIR",
-        "GIT_PREFIX",
-        "GIT_NAMESPACE",
-        "GIT_OBJECT_DIRECTORY",
-        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
-        "GIT_CEILING_DIRECTORIES",
-    ):
+    for _k in _GIT_DISCOVERY_HIJACK_VARS:
+        env.pop(_k, None)
+    for _k in [k for k in env if k.startswith(_GIT_CONFIG_ENV_PREFIXES)]:
         env.pop(_k, None)
     for _k in [
         k
@@ -275,6 +296,57 @@ async def _index_state(repo: Path, paths: list[str] | None = None) -> tuple[set[
         return None, None
     staged = {line.strip() for line in out.splitlines() if line.strip()}
     return unstaged, staged
+
+
+async def _check_git_dir(repo: Path) -> str | None:
+    """Pre-flight: git must resolve the same repo that repo_path names.
+
+    Returns error text when `git rev-parse --absolute-git-dir` points
+    elsewhere (a hijack var surviving in some other layer, symlink/junction
+    drift, a stale or typo'd repo_path), else None. Mutating ops call this
+    before touching the index so a wrong-repo write fails loudly here
+    instead of landing silently in the wrong place (issue #3 follow-up).
+    """
+    ok, out, err = await _run_git_async(repo, ["rev-parse", "--absolute-git-dir"])
+    if not ok or not out.strip():
+        return f"Cannot resolve git dir for {repo}: {(err or out).strip() or 'rev-parse failed'}"
+    actual = os.path.normcase(str(Path(out.strip()).resolve()))
+    candidates = {os.path.normcase(str(repo.resolve()))}
+    dotgit = repo / ".git"
+    if dotgit.is_dir():
+        candidates.add(os.path.normcase(str(dotgit.resolve())))
+    elif dotgit.is_file():
+        try:
+            ptr = dotgit.read_text(encoding="utf-8", errors="replace").strip()
+            if ptr.startswith("gitdir:"):
+                candidates.add(os.path.normcase(str((repo / ptr[7:].strip()).resolve())))
+        except OSError:
+            pass
+    if actual not in candidates:
+        return (
+            f"git resolves a different repository ({out.strip()}) than repo_path ({repo}) - "
+            "refusing to mutate. Check repo_path for typos/stale copies and symlinks."
+        )
+    return None
+
+
+async def _preflight_repo(repo: Path, operation: str) -> dict[str, Any] | None:
+    """Wrong-repo guard for mutating ops: fail loudly here, never write elsewhere.
+
+    Called AFTER per-op argument validation (so "message required" style
+    errors keep priority) and BEFORE any git write.
+    """
+    mismatch = await _check_git_dir(repo)
+    if mismatch:
+        return _err(
+            operation,
+            mismatch,
+            recovery_options=[
+                f"git_ops(operation='status', repo_path='{repo}') to inspect",
+                "Verify repo_path points at the intended checkout (no stale copy/symlink)",
+            ],
+        )
+    return None
 
 
 async def git_ops(
@@ -495,6 +567,11 @@ async def git_ops(
         # or paths resolving to already-clean files). Echoing the input list
         # as "staged" turned that into a silent lie, so the index is read
         # back and anything still differing worktree-vs-index fails LOUDLY.
+        if not all_files and not files:
+            return _err("add", "Provide files list or set all_files=True")
+        blocked = await _preflight_repo(repo, operation)
+        if blocked:
+            return blocked
         if all_files:
             ok, _, err = await _run_git_async(repo, ["add", "--", "."])
             if not ok:
@@ -555,6 +632,9 @@ async def git_ops(
     if operation == "commit":
         if not message and not amend:
             return _err("commit", "message required (or set amend=True)")
+        blocked = await _preflight_repo(repo, operation)
+        if blocked:
+            return blocked
         ident_name, ident_email, ident_src = _resolve_identity(repo)
         if not ident_name or not ident_email:
             return _err("commit", ident_src)
@@ -580,6 +660,9 @@ async def git_ops(
         )
 
     if operation == "push":
+        blocked = await _preflight_repo(repo, operation)
+        if blocked:
+            return blocked
         if tag_name:
             cmd = ["push"]
             if force:
@@ -796,6 +879,9 @@ async def git_ops(
                 "tag_name required",
                 recovery_options=["git_ops(operation='tag_push', repo_path='...', tag_name='v0.1.0')"],
             )
+        blocked = await _preflight_repo(repo, operation)
+        if blocked:
+            return blocked
         cmd = ["push"]
         if force:
             cmd.append("--force-with-lease")

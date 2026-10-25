@@ -33,6 +33,7 @@ from .logs_api import build_router as _build_logs_router
 from .services.fleet_ops import fleet_ops as _fleet_ops
 from .services.fleet_orchestrator import run_full_suite as _run_full_suite
 from .services.morning_digest import run_morning_digest as _run_morning_digest
+from .tools.git_ops import git_env_hijack_present as _git_env_hijack_present
 from .tools.git_ops import git_ops as _git_ops
 from .tools.github_ops import github_ops as _github_ops
 from .tools.help import get_help as _get_help
@@ -57,6 +58,14 @@ _START_TIME = time.time()
 @asynccontextmanager
 async def server_lifespan(mcp_instance: FastMCP):
     logger.info(f"git-github-mcp v{VERSION} starting (FastMCP 3.1+)")
+    hijacked = _git_env_hijack_present()
+    if hijacked:
+        logger.warning(
+            "Inherited GIT discovery vars present (%s) - per-call env is scrubbed so "
+            "repo_path stays authoritative, but clean the launcher env "
+            "(NSSM service env / Claude Desktop env block / opencode.json environment)",
+            ", ".join(hijacked),
+        )
     yield
     logger.info("git-github-mcp shutting down")
 
