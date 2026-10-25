@@ -536,6 +536,7 @@ async def github_ops(
     package_name: str | None = None,
     subpath: str | None = None,
     github_url: str | None = None,
+    category: str | None = None,
     confirm: bool = False,
     confirm_token: str | None = None,
 ) -> dict:
@@ -632,6 +633,7 @@ async def github_ops(
         package_name=package_name,
         subpath=subpath,
         github_url=github_url,
+        category=category,
     )
     result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
