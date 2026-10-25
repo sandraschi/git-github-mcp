@@ -113,6 +113,8 @@ ACTION_TYPE = (
     # Auth / misc
     "auth_status",
     "gist_list",
+    # Inbound triage (shadow-first bot)
+    "triage_inbound",
 )
 
 
@@ -366,8 +368,17 @@ def github_ops(
     # Gitingest: optional subpath under ref; full GitHub URL for convert
     subpath: str | None = None,
     github_url: str | None = None,
+    # Inbound triage (shadow-first; live needs confirm_live via triage_live_confirm)
+    triage_mode: str = "shadow",  # shadow | live
+    triage_allowlist: list[str] | str | None = None,
+    triage_title_filter: str | None = None,
+    triage_model: str | None = None,
+    triage_max_actions: int = 5,
+    triage_force: bool = False,
+    triage_live_confirm: bool = False,
+    triage_ignore_trust: bool = False,
 ) -> dict[str, Any]:
-    """GitHub operations via gh CLI — 73 actions.
+    """GitHub operations via gh CLI — 74 actions.
 
     REPOS:         repo_list, repo_view, show_repo, repo_create, repo_fork, repo_clone,
                    repo_delete, repo_rename, repo_archive, repo_edit, repo_set_topics
@@ -390,6 +401,7 @@ def github_ops(
     PROJECTS:      project_list, project_view, project_create, project_delete, project_edit
     PACKAGES:      package_list, package_view, package_delete
     GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
+    TRIAGE:        triage_inbound (shadow labels by default; live gated)
     MISC:          auth_status, gist_list
 
     Requires gh CLI: https://cli.github.com — run 'gh auth login' first.
@@ -1118,6 +1130,33 @@ def github_ops(
         if not ok:
             return _err("issue_comment", err or "comment failed")
         return _ok("issue_comment", {"url": out.strip()}, message="Comment added")
+
+    # ── Inbound triage (shadow-first bot, see standards/INBOUND_TRIAGE.md) ──
+    if operation == "triage_inbound":
+        from .triage import run_triage
+
+        report = run_triage(
+            owner=owner,
+            repo=repo,
+            mode=triage_mode or "shadow",
+            allowlist=triage_allowlist,
+            title_filter=triage_title_filter,
+            limit=limit,
+            model=triage_model,
+            max_actions=triage_max_actions,
+            force=triage_force,
+            confirm_live=triage_live_confirm,
+            ignore_trust=triage_ignore_trust,
+        )
+        if not report.get("success"):
+            return _err("triage_inbound", report.get("error") or "triage failed")
+        summary = report.get("summary", {})
+        return _ok(
+            "triage_inbound",
+            report,
+            message=f"triage {report.get('mode')}: {summary.get('scanned', 0)} scanned, "
+            f"{summary.get('triaged', 0)} triaged, {summary.get('closed', 0)} closed",
+        )
 
     # ── PRs ───────────────────────────────────────────────────────────────────
     if operation == "pr_list":
