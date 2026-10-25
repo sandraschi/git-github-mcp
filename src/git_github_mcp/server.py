@@ -537,6 +537,13 @@ async def github_ops(
     subpath: str | None = None,
     github_url: str | None = None,
     category: str | None = None,
+    visibility: str = "",
+    failed_job_id: str | None = None,
+    discussion_number: int | None = None,
+    comment_id: str | None = None,
+    answered: bool = True,
+    answered_only: bool = False,
+    after: str | None = None,
     confirm: bool = False,
     confirm_token: str | None = None,
 ) -> dict:
@@ -634,6 +641,13 @@ async def github_ops(
         subpath=subpath,
         github_url=github_url,
         category=category,
+        visibility=visibility,
+        failed_job_id=failed_job_id,
+        discussion_number=discussion_number,
+        comment_id=comment_id,
+        answered=answered,
+        answered_only=answered_only,
+        after=after,
     )
     result["execution_time_ms"] = round((time.perf_counter() - start) * 1000, 2)
     return result
