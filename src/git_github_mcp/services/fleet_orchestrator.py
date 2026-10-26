@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ..utils.gh_cli import run_gh
+from ..utils.github_format import gh_search_args
 from ..utils.response import success_response
 from .fleet_catalog import op_docs_gate, op_port_audit, op_quarantine_report, op_registry_load
 from .fleet_common import DEFAULT_FLEET_OWNER, state_dir
@@ -92,7 +93,7 @@ def op_weekly_retro(
             on_repo_progress(slug, index, total)
         q_prs = f"repo:{slug} is:pr is:merged merged:>{since}"
         ok, out, _ = run_gh(
-            ["search", "prs", q_prs, "--limit", "10", "--json", "number,title,url,mergedAt,author"],
+            gh_search_args("prs", q_prs, ["--limit", "10", "--json", "number,title,url,mergedAt,author"]),
             timeout=60,
         )
         if ok and out.strip():
@@ -105,7 +106,7 @@ def op_weekly_retro(
                 pass
         q_issues = f"repo:{slug} is:issue created:>{since}"
         ok2, out2, _ = run_gh(
-            ["search", "issues", q_issues, "--limit", "10", "--json", "number,title,url,createdAt,author"],
+            gh_search_args("issues", q_issues, ["--limit", "10", "--json", "number,title,url,createdAt,author"]),
             timeout=60,
         )
         if ok2 and out2.strip():
