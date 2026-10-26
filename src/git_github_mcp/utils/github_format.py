@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import shlex
 from typing import Any
 
 
@@ -162,6 +163,49 @@ def format_code_search_markdown(results: list[dict[str, Any]]) -> tuple[str, lis
 
     summary = f"**{len(results)} hit(s)** across **{len(seen)}** repo(s).\n\n" + "\n".join(lines)
     return summary, seen
+
+
+_SCOPE_QUALIFIERS = ("user:", "org:", "repo:", "owner:")
+_PR_QUALIFIERS = ("is:pr", "type:pr", "is:pull-request", "type:pull-request")
+
+
+def split_search_query(query: str | None) -> list[str]:
+    """Split a GitHub search string into the separate argv words gh expects.
+
+    gh search treats each positional argument as one keyword and wraps any
+    keyword that contains a space in quotes. Passing "user:x updated:>=D" as a
+    single argument therefore becomes the phrase ("user:x updated:>=D"), which
+    GitHub rejects (issues) or silently mis-matches (repos/code). Quoted phrases
+    in the input stay together as one word; gh re-quotes them itself.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    try:
+        return shlex.split(q, posix=True)
+    except ValueError:
+        # Unbalanced quote: fall back to plain whitespace split rather than fail.
+        return q.split()
+
+
+def query_has_scope(tokens: list[str]) -> bool:
+    """True if the query already names a user/org/repo scope."""
+    return any(t.lower().lstrip("-").startswith(_SCOPE_QUALIFIERS) for t in tokens)
+
+
+def query_wants_prs(tokens: list[str]) -> bool:
+    """True if the query explicitly asks for pull requests."""
+    return any(t.lower() in _PR_QUALIFIERS for t in tokens)
+
+
+def gh_search_args(kind: str, query: str | None, flags: list[str]) -> list[str]:
+    """argv for `gh search <kind>`: flags first, then `--`, then query words.
+
+    Everything after `--` is read as query text, so flags must precede it. The
+    separator also keeps negated qualifiers such as -label:bug from being parsed
+    as unknown flags.
+    """
+    return ["search", kind, *flags, "--", *split_search_query(query)]
 
 
 def build_code_find_query(

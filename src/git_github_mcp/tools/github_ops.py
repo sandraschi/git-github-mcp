@@ -12,6 +12,10 @@ from ..utils.github_format import (
     build_topic_repo_query,
     format_code_search_markdown,
     format_repo_card,
+    gh_search_args,
+    query_has_scope,
+    query_wants_prs,
+    split_search_query,
 )
 from ..utils.gitingest_urls import (
     GITINGEST_HELP_MARKDOWN,
@@ -349,6 +353,8 @@ def github_ops(
     search_scope: str | None = None,
     # If True with search_code: add markdown table + unique_repositories
     pretty: bool = False,
+    # search_issues: also return pull requests (implied by is:pr / type:pr in query)
+    include_prs: bool = False,
     # For user_repos_full: filter by visibility
     visibility: str = "",  # "public", "private", "internal", or "" for all
     # GitHub Projects (gh project — may need: gh auth refresh -s project)
@@ -1817,18 +1823,19 @@ def github_ops(
         if not query:
             return _err("search_repos", "query required")
         ok, out, err = run_gh(
-            [
-                "search",
+            gh_search_args(
                 "repos",
                 query,
-                "--limit",
-                str(limit),
-                "--json",
-                (
-                    "name,fullName,description,url,stargazersCount,language,"
-                    "isPrivate,isFork,isArchived,updatedAt,defaultBranch"
-                ),
-            ]
+                [
+                    "--limit",
+                    str(limit),
+                    "--json",
+                    (
+                        "name,fullName,description,url,stargazersCount,language,"
+                        "isPrivate,isFork,isArchived,updatedAt,defaultBranch"
+                    ),
+                ],
+            )
         )
         if not ok:
             return _err("search_repos", err or "search failed")
@@ -1843,37 +1850,67 @@ def github_ops(
         )
 
     if operation == "search_issues":
-        if not query:
-            return _err("search_issues", "query required")
-        ok, out, err = run_gh(
-            [
-                "search",
-                "issues",
-                query,
-                "--limit",
-                str(limit),
-                "--json",
-                "number,title,state,url,repository,author,createdAt",
-            ]
-        )
+        tokens = split_search_query(query)
+        scoped = query_has_scope(tokens)
+        if not tokens and not owner:
+            return _err(
+                "search_issues",
+                "query or owner required",
+                recovery_options=[
+                    "github_ops(operation='search_issues', owner='YOU', query='updated:>=2026-01-01')",
+                    "github_ops(operation='search_issues', query='user:YOU is:open', include_prs=True)",
+                ],
+            )
+        flags = ["--limit", str(limit)]
+        scope_note = None
+        if owner and repo:
+            if scoped:
+                scope_note = "owner/repo ignored: query already names a user/org/repo scope"
+            else:
+                flags += ["--repo", f"{owner}/{repo}"]
+        elif owner:
+            if scoped:
+                scope_note = "owner ignored: query already names a user/org/repo scope"
+            else:
+                flags += ["--owner", owner]
+        want_prs = include_prs or query_wants_prs(tokens)
+        if want_prs:
+            flags.append("--include-prs")
+        flags += [
+            "--json",
+            "number,title,state,url,repository,author,createdAt,updatedAt,isPullRequest",
+        ]
+        ok, out, err = run_gh(gh_search_args("issues", query, flags))
         if not ok:
             return _err("search_issues", err or "search failed")
         data = _j(out)
-        return _ok("search_issues", {"issues": data, "count": len(data)})
+        if not isinstance(data, list):
+            data = []
+        res: dict[str, Any] = {
+            "issues": data,
+            "count": len(data),
+            "query": query,
+            "query_terms": tokens,
+            "include_prs": want_prs,
+        }
+        if scope_note:
+            res["note"] = scope_note
+        return _ok("search_issues", res)
 
     if operation == "search_code":
         if not query:
             return _err("search_code", "query required")
         ok, out, err = run_gh(
-            [
-                "search",
+            gh_search_args(
                 "code",
                 query,
-                "--limit",
-                str(limit),
-                "--json",
-                "path,repository,url,textMatches",
-            ]
+                [
+                    "--limit",
+                    str(limit),
+                    "--json",
+                    "path,repository,url,textMatches",
+                ],
+            )
         )
         if not ok:
             return _err("search_code", err or "search failed")
@@ -1892,18 +1929,19 @@ def github_ops(
             return _err("search_repos_topic", "topic required (GitHub repo topic / tag)")
         qtopic = build_topic_repo_query(topic, owner, query)
         ok, out, err = run_gh(
-            [
-                "search",
+            gh_search_args(
                 "repos",
                 qtopic,
-                "--limit",
-                str(limit),
-                "--json",
-                (
-                    "name,fullName,description,url,stargazersCount,language,"
-                    "isPrivate,isFork,isArchived,updatedAt,defaultBranch"
-                ),
-            ]
+                [
+                    "--limit",
+                    str(limit),
+                    "--json",
+                    (
+                        "name,fullName,description,url,stargazersCount,language,"
+                        "isPrivate,isFork,isArchived,updatedAt,defaultBranch"
+                    ),
+                ],
+            )
         )
         if not ok:
             return _err("search_repos_topic", err or "search failed")
@@ -1933,15 +1971,16 @@ def github_ops(
             return _err("search_repos_by_topic", "topic required (GitHub repo topic / tag)")
         qtopic = build_topic_repo_query(topic, owner, query)
         ok, out, err = run_gh(
-            [
-                "search",
+            gh_search_args(
                 "repos",
                 qtopic,
-                "--limit",
-                str(limit),
-                "--json",
-                "name,fullName,description,url,stargazersCount,forksCount,language,isPrivate,isFork,updatedAt,pushedAt",
-            ]
+                [
+                    "--limit",
+                    str(limit),
+                    "--json",
+                    "name,fullName,description,url,stargazersCount,forksCount,language,isPrivate,isFork,updatedAt,pushedAt",
+                ],
+            )
         )
         if not ok:
             return _err("search_repos_by_topic", err or "search failed")
@@ -1972,15 +2011,16 @@ def github_ops(
                 ],
             )
         ok, out, err = run_gh(
-            [
-                "search",
+            gh_search_args(
                 "code",
                 built,
-                "--limit",
-                str(limit),
-                "--json",
-                "path,repository,url,textMatches",
-            ]
+                [
+                    "--limit",
+                    str(limit),
+                    "--json",
+                    "path,repository,url,textMatches",
+                ],
+            )
         )
         if not ok:
             return _err("code_find_repos", err or "code search failed")

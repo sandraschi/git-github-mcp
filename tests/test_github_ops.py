@@ -424,3 +424,88 @@ def test_mcp_surface_covers_impl_params() -> None:
     impl = _func_params(root / "tools" / "github_ops.py", "github_ops")
     surface = _func_params(root / "server.py", "github_ops")
     assert impl - {"operation"} <= surface, sorted(impl - {"operation"} - surface)
+
+
+# -- search ops: argv shape (regression for single-word query quoting) -------
+
+
+class SearchGh:
+    def __init__(self) -> None:
+        self.calls: list[list[str]] = []
+
+    def __call__(self, args: list[str], **kwargs):  # type: ignore[no-untyped-def]
+        self.calls.append(args)
+        return True, "[]", ""
+
+
+@pytest.fixture()
+def search_gh(monkeypatch: pytest.MonkeyPatch) -> SearchGh:
+    fake = SearchGh()
+    monkeypatch.setattr(ops_mod, "run_gh", fake)
+    return fake
+
+
+def _query_words(args: list[str]) -> list[str]:
+    return args[args.index("--") + 1 :]
+
+
+def _flags(args: list[str]) -> list[str]:
+    return args[: args.index("--")]
+
+
+def test_search_issues_splits_qualifiers(search_gh: SearchGh) -> None:
+    r = github_ops(operation="search_issues", query="user:sandraschi updated:>=2026-10-23")
+    assert r["success"] is True
+    args = search_gh.calls[0]
+    assert _query_words(args) == ["user:sandraschi", "updated:>=2026-10-23"]
+    assert "--include-prs" not in args
+
+
+def test_search_issues_owner_scopes_and_include_prs(search_gh: SearchGh) -> None:
+    r = github_ops(operation="search_issues", owner="sandraschi", query="updated:>=2026-10-23", include_prs=True)
+    assert r["success"] is True
+    flags = _flags(search_gh.calls[0])
+    assert flags[flags.index("--owner") + 1] == "sandraschi"
+    assert "--include-prs" in flags
+    assert r["result"]["include_prs"] is True
+
+
+def test_search_issues_owner_repo_uses_repo_flag(search_gh: SearchGh) -> None:
+    github_ops(operation="search_issues", owner="o", repo="r", query="is:open")
+    flags = _flags(search_gh.calls[0])
+    assert flags[flags.index("--repo") + 1] == "o/r"
+    assert "--owner" not in flags
+
+
+def test_search_issues_owner_alone_is_enough(search_gh: SearchGh) -> None:
+    r = github_ops(operation="search_issues", owner="o")
+    assert r["success"] is True
+    assert _query_words(search_gh.calls[0]) == []
+
+
+def test_search_issues_query_scope_wins_over_owner(search_gh: SearchGh) -> None:
+    r = github_ops(operation="search_issues", owner="o", query="org:acme bug")
+    assert "--owner" not in _flags(search_gh.calls[0])
+    assert "ignored" in r["result"]["note"]
+
+
+def test_search_issues_is_pr_implies_include_prs(search_gh: SearchGh) -> None:
+    github_ops(operation="search_issues", query="user:o is:pr is:open")
+    assert "--include-prs" in _flags(search_gh.calls[0])
+
+
+def test_search_issues_requires_query_or_owner() -> None:
+    r = github_ops(operation="search_issues")
+    assert r["success"] is False
+    assert "query or owner required" in (r.get("error") or "")
+
+
+def test_other_search_ops_split_query(search_gh: SearchGh) -> None:
+    github_ops(operation="search_repos", query="topic:mcp user:o")
+    github_ops(operation="search_code", query="extension:bak user:o")
+    github_ops(operation="search_repos_topic", topic="mcp", owner="o")
+    for args in search_gh.calls:
+        assert "--" in args
+        words = _query_words(args)
+        assert len(words) == 2, args
+        assert all(" " not in w for w in words), args
