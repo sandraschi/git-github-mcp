@@ -3,7 +3,10 @@
 Requires: gh auth login (https://cli.github.com)
 """
 
+import ast
+import inspect
 import json
+from pathlib import Path
 from typing import Any
 
 from ..utils.gh_cli import run_gh
@@ -291,7 +294,7 @@ def _current_topics(slug: str) -> tuple[list[str] | None, str]:
     return topics, ""
 
 
-def github_ops(
+def _github_ops_impl(
     operation: str,
     # Repo identifiers
     owner: str | None = None,
@@ -1851,7 +1854,6 @@ def github_ops(
 
     if operation == "search_issues":
         tokens = split_search_query(query)
-        scoped = query_has_scope(tokens)
         if not tokens and not owner:
             return _err(
                 "search_issues",
@@ -1861,6 +1863,24 @@ def github_ops(
                     "github_ops(operation='search_issues', query='user:YOU is:open', include_prs=True)",
                 ],
             )
+        state_norm = (state or "open").strip().lower()
+        if state_norm not in ("", "all"):
+            if state_norm not in ("open", "closed", "merged"):
+                return _err(
+                    "search_issues",
+                    f"invalid state {state!r}: use open, closed, merged, or all",
+                    recovery_options=[
+                        "Omit state (defaults to open)",
+                        "Use state='all' for unfiltered search",
+                    ],
+                )
+            # Honor state explicitly: the search backend has no state flag and
+            # defaults to every state, so an unscoped call would silently
+            # return closed items to a caller asking for open ones (or vice
+            # versa). Appended qualifier ANDs with any in-query qualifiers.
+            query = f"{query} is:{state_norm}".strip() if query else f"is:{state_norm}"
+            tokens = split_search_query(query)
+        scoped = query_has_scope(tokens)
         flags = ["--limit", str(limit)]
         scope_note = None
         if owner and repo:
@@ -2252,3 +2272,191 @@ def github_ops(
         )
 
     return _err(operation, "Not implemented")
+
+
+# ── Per-operation parameter map (no silent wrong answers) ────────────────
+# Each op maps to EXACTLY the params its branch reads (slug counts as
+# owner+repo). The public github_ops() wrapper below reports any
+# explicitly-passed, non-default parameter an op ignores, instead of silently
+# returning plausible-but-wrong output. Regenerate with derive_op_params();
+# the test suite fails on any drift.
+OP_PARAMS: dict[str, frozenset[str]] = {
+    "auth_status": frozenset([]),
+    "code_find_repos": frozenset(["extension", "limit", "owner", "path_pattern", "query", "search_scope"]),
+    "collaborator_add": frozenset(["owner", "permission", "repo", "username"]),
+    "collaborator_remove": frozenset(["owner", "repo", "username"]),
+    "discussion_answer": frozenset(["answered", "comment_id", "owner", "repo"]),
+    "discussion_categories": frozenset(["owner", "repo"]),
+    "discussion_comment": frozenset(["body", "discussion_number", "owner", "repo"]),
+    "discussion_create": frozenset(["body", "category", "owner", "repo", "title"]),
+    "discussion_list": frozenset(["after", "answered_only", "category", "limit", "owner", "repo"]),
+    "discussion_lock": frozenset(["discussion_number", "owner", "repo"]),
+    "discussion_unlock": frozenset(["discussion_number", "owner", "repo"]),
+    "discussion_view": frozenset(["discussion_number", "limit", "owner", "repo"]),
+    "gist_list": frozenset(["limit"]),
+    "gitingest_convert_url": frozenset(["github_url", "query"]),
+    "gitingest_help": frozenset([]),
+    "gitingest_link": frozenset(["owner", "ref", "repo", "subpath"]),
+    "issue_close": frozenset(["body", "issue_number", "owner", "repo"]),
+    "issue_comment": frozenset(["body", "issue_number", "owner", "repo"]),
+    "issue_create": frozenset(["assignee", "body", "label", "owner", "repo", "title"]),
+    "issue_list": frozenset(["assignee", "label", "limit", "owner", "repo", "state"]),
+    "issue_view": frozenset(["issue_number", "owner", "repo"]),
+    "label_create": frozenset(["label_color", "label_description", "label_name", "owner", "repo"]),
+    "label_delete": frozenset(["label_name", "owner", "repo"]),
+    "label_list": frozenset(["owner", "repo"]),
+    "package_delete": frozenset(["owner", "package_name", "package_type"]),
+    "package_list": frozenset(["owner", "package_type"]),
+    "package_view": frozenset(["owner", "package_name", "package_type"]),
+    "pr_checkout": frozenset(["owner", "pr_number", "repo"]),
+    "pr_close": frozenset(["body", "owner", "pr_number", "repo"]),
+    "pr_comment": frozenset(["body", "owner", "pr_number", "repo"]),
+    "pr_create": frozenset(["base_branch", "body", "draft", "head_branch", "owner", "repo", "title"]),
+    "pr_list": frozenset(["limit", "owner", "repo", "state"]),
+    "pr_merge": frozenset(["merge_method", "owner", "pr_number", "repo"]),
+    "pr_view": frozenset(["owner", "pr_number", "repo"]),
+    "project_create": frozenset(["body", "owner", "title"]),
+    "project_delete": frozenset(["owner", "project_number"]),
+    "project_edit": frozenset(["owner", "project_number", "title"]),
+    "project_list": frozenset(["limit", "owner"]),
+    "project_view": frozenset(["owner", "project_number"]),
+    "release_create": frozenset(["body", "owner", "prerelease", "release_name", "repo", "tag_name"]),
+    "release_delete": frozenset(["owner", "repo", "tag_name"]),
+    "release_list": frozenset(["limit", "owner", "repo"]),
+    "release_update": frozenset(["body", "owner", "prerelease", "release_name", "repo", "tag_name"]),
+    "release_upload": frozenset(["asset_files", "clobber", "owner", "repo", "tag_name"]),
+    "release_view": frozenset(["owner", "repo", "tag_name"]),
+    "repo_archive": frozenset(["owner", "repo"]),
+    "repo_clone": frozenset(["owner", "repo", "target_dir"]),
+    "repo_create": frozenset(["description", "private", "repo"]),
+    "repo_delete": frozenset([]),
+    "repo_edit": frozenset(["add_topics", "description", "homepage", "owner", "remove_topics", "repo"]),
+    "repo_fork": frozenset(["owner", "repo"]),
+    "repo_list": frozenset(["limit", "owner"]),
+    "repo_rename": frozenset(["new_name", "owner", "repo"]),
+    "repo_set_topics": frozenset(["owner", "repo", "topics"]),
+    "repo_view": frozenset(["owner", "repo"]),
+    "search_code": frozenset(["limit", "pretty", "query"]),
+    "search_issues": frozenset(["include_prs", "limit", "owner", "query", "repo", "state"]),
+    "search_repos": frozenset(["limit", "query"]),
+    "search_repos_by_topic": frozenset(["limit", "owner", "query", "topic"]),
+    "search_repos_topic": frozenset(["limit", "owner", "query", "topic"]),
+    "secrets_delete": frozenset(["owner", "repo", "secret_name"]),
+    "secrets_list": frozenset(["owner", "repo"]),
+    "secrets_set": frozenset(["owner", "repo", "secret_name", "secret_value"]),
+    "show_repo": frozenset(["output_format", "owner", "repo"]),
+    "stars_history": frozenset(["limit", "owner", "query", "repo"]),
+    "stars_per_repo": frozenset(["owner", "repo"]),
+    "stars_summary": frozenset(["limit", "owner", "visibility"]),
+    "user_repos_full": frozenset(["limit", "owner", "visibility"]),
+    "workflow_cancel": frozenset(["owner", "repo", "run_id"]),
+    "workflow_disable": frozenset(["owner", "repo", "workflow_id"]),
+    "workflow_enable": frozenset(["owner", "repo", "workflow_id"]),
+    "workflow_list": frozenset(["owner", "repo"]),
+    "workflow_rerun": frozenset(["failed_job_id", "owner", "repo", "run_id"]),
+    "workflow_run": frozenset(["owner", "ref", "repo", "workflow_id"]),
+    "workflow_runs": frozenset(["limit", "owner", "repo", "workflow_id"]),
+    "workflow_view": frozenset(["owner", "repo", "run_id"]),
+}
+
+
+def derive_op_params(source_path: str | None = None) -> dict[str, frozenset[str]]:
+    """Re-derive OP_PARAMS from this file's AST (same walk as the generator).
+
+    Selects each `if operation == "x"` / `if operation in (...)` branch and
+    collects the impl params it reads (slug counts as owner+repo). Tests assert
+    OP_PARAMS == derive_op_params(): any new param read must be added to the
+    map first - never silently.
+    """
+    path = Path(source_path) if source_path else Path(__file__)
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    func = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == "_github_ops_impl"
+    )
+    paramset = {a.arg for a in func.args.args}
+
+    def op_names(test: ast.AST) -> list[str] | None:
+        if not (
+            isinstance(test, ast.Compare)
+            and isinstance(test.left, ast.Name)
+            and test.left.id == "operation"
+            and len(test.ops) == 1
+            and len(test.comparators) == 1
+        ):
+            return None
+        if isinstance(test.ops[0], ast.Eq) and isinstance(test.comparators[0], ast.Constant):
+            return [str(test.comparators[0].value)]
+        if isinstance(test.ops[0], ast.In) and isinstance(test.comparators[0], (ast.Tuple, ast.List)):
+            return [str(e.value) for e in test.comparators[0].elts if isinstance(e, ast.Constant)]
+        return None
+
+    usage: dict[str, set[str]] = {}
+
+    def visit(node: ast.AST, ops: frozenset[str]) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.If):
+                names = op_names(child.test)
+                here = frozenset(names) if names is not None else ops
+                for o in here:
+                    usage.setdefault(o, set())
+                for stmt in child.body:
+                    record(stmt, here)
+                for stmt in child.orelse:
+                    if isinstance(stmt, ast.If):
+                        visit(stmt, ops)
+                    else:
+                        record(stmt, ops)
+            else:
+                record(child, ops)
+
+    def record(node: ast.AST, ops: frozenset[str]) -> None:
+        if not ops:
+            return
+        for n in ast.walk(node):
+            if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load):
+                for o in ops:
+                    usage.setdefault(o, set()).add(n.id)
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.If):
+                visit(child, ops)
+
+    visit(func, frozenset())
+    out: dict[str, frozenset[str]] = {}
+    for op, names in usage.items():
+        names = set(names)
+        names.discard("operation")
+        if "slug" in names:
+            names.discard("slug")
+            names |= {"owner", "repo"}
+        out[op] = frozenset(sorted(names & paramset))
+    return out
+
+
+_IMPL_DEFAULTS: dict[str, Any] = {
+    k: v.default
+    for k, v in inspect.signature(_github_ops_impl).parameters.items()
+    if v.default is not inspect.Parameter.empty
+}
+
+
+def github_ops(operation: str, **kwargs: Any) -> dict[str, Any]:
+    """Portmanteau entry point. Flags ignored params instead of dropping them silently.
+
+    Any explicitly-passed, non-default parameter the operation does not read is
+    reported back in `ignored_params` with a human note - plausibly-correct
+    output with a clean bill of health is the failure this guards against.
+    """
+    result = _github_ops_impl(operation, **kwargs)
+    declared = OP_PARAMS.get(operation)
+    if declared is None:
+        return result
+    ignored = sorted(
+        k for k, v in kwargs.items() if k in _IMPL_DEFAULTS and k not in declared and v != _IMPL_DEFAULTS[k]
+    )
+    if ignored:
+        result["ignored_params"] = ignored
+        note = f"Ignored params not read by {operation}: {', '.join(ignored)}."
+        result["note"] = f"{result.get('note', '')} {note}".strip()
+    return result
