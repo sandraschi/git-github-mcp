@@ -1,7 +1,9 @@
 """github_ops portmanteau — validation without calling gh + discussions with mocked run_gh."""
 
+import ast
 import importlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -398,6 +400,30 @@ def test_graphql_ints_use_typed_flag(fake_gh: FakeGh) -> None:
     assert flat[idx + 1].startswith("first=")
     raw_vals = [flat[i + 1] for i, a in enumerate(flat[:-1]) if a == "-f" and not flat[i + 1].startswith("query=")]
     assert any(v.startswith("owner=") for v in raw_vals)
+
+
+def _func_params(path: Path, func: str) -> set[str]:
+    """Parameter names of a function, parsed via AST (no import side effects)."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == func:
+            pos = [a.arg for a in node.args.args] + [a.arg for a in node.args.kwonlyargs]
+            return set(pos) - {"self", "cls"}
+    raise AssertionError(f"{func} not found in {path}")
+
+
+def test_mcp_surface_covers_impl_params() -> None:
+    """Every github_ops impl param must exist on the MCP server wrapper.
+
+    Regression test: the `category` param existed in the impl but not on the
+    server surface, so discussion_create failed with a raw Pydantic validation
+    error instead of our formatted response. Surface superset is fine
+    (confirm/confirm_token are server-only gates).
+    """
+    root = Path(__file__).resolve().parent.parent / "src" / "git_github_mcp"
+    impl = _func_params(root / "tools" / "github_ops.py", "github_ops")
+    surface = _func_params(root / "server.py", "github_ops")
+    assert impl - {"operation"} <= surface, sorted(impl - {"operation"} - surface)
 
 
 # -- search ops: argv shape (regression for single-word query quoting) -------
