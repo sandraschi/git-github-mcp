@@ -84,6 +84,7 @@ def op_weekly_retro(
     since = (datetime.now(UTC) - timedelta(days=days)).strftime("%Y-%m-%d")
     merged_prs: list[dict[str, Any]] = []
     new_issues: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
 
     slice_repos = repos[:40]
     total = len(slice_repos)
@@ -92,32 +93,39 @@ def op_weekly_retro(
         if on_repo_progress:
             on_repo_progress(slug, index, total)
         q_prs = f"repo:{slug} is:pr is:merged merged:>{since}"
-        ok, out, _ = run_gh(
+        ok, out, err = run_gh(
             gh_search_args("prs", q_prs, ["--limit", "10", "--json", "number,title,url,mergedAt,author"]),
             timeout=60,
         )
-        if ok and out.strip():
+        if not ok:
+            errors.append({"slug": slug, "op": "prs", "error": err or "gh search failed"})
+        elif out.strip():
             try:
                 for row in json.loads(out):
                     if isinstance(row, dict):
                         row["repo_slug"] = slug
                         merged_prs.append(row)
             except json.JSONDecodeError:
-                pass
+                errors.append({"slug": slug, "op": "prs", "error": "invalid JSON from gh"})
         q_issues = f"repo:{slug} is:issue created:>{since}"
-        ok2, out2, _ = run_gh(
+        ok2, out2, err2 = run_gh(
             gh_search_args("issues", q_issues, ["--limit", "10", "--json", "number,title,url,createdAt,author"]),
             timeout=60,
         )
-        if ok2 and out2.strip():
+        if not ok2:
+            errors.append({"slug": slug, "op": "issues", "error": err2 or "gh search failed"})
+        elif out2.strip():
             try:
                 for row in json.loads(out2):
                     if isinstance(row, dict):
                         row["repo_slug"] = slug
                         new_issues.append(row)
             except json.JSONDecodeError:
-                pass
+                errors.append({"slug": slug, "op": "issues", "error": "invalid JSON from gh"})
 
+    message = f"Last {days}d: {len(merged_prs)} merged PRs, {len(new_issues)} new issues"
+    if errors:
+        message += f" ({len(errors)} repo query errors - see errors; counts may be incomplete)"
     return success_response(
         {
             "days": days,
@@ -126,9 +134,11 @@ def op_weekly_retro(
             "new_issue_count": len(new_issues),
             "merged_prs": merged_prs[:50],
             "new_issues": new_issues[:50],
+            "errors": errors,
+            "error_count": len(errors),
         },
         "weekly_retro",
-        message=f"Last {days}d: {len(merged_prs)} merged PRs, {len(new_issues)} new issues",
+        message=message,
     )
 
 
