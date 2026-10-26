@@ -5,6 +5,10 @@ from git_github_mcp.utils.github_format import (
     build_topic_repo_query,
     format_code_search_markdown,
     format_repo_card,
+    gh_search_args,
+    query_has_scope,
+    query_wants_prs,
+    split_search_query,
 )
 
 
@@ -94,3 +98,38 @@ def test_format_code_search_markdown_table() -> None:
     assert "|" in md
     assert "o/r" in md
     assert uniq == ["o/r"]
+
+
+# -- gh search argv building (regression: multi-qualifier queries were passed as
+#    one argv word, which gh quoted into a single phrase) ----------------------
+
+
+def test_split_search_query_qualifiers() -> None:
+    assert split_search_query("user:me updated:>=2026-10-23") == ["user:me", "updated:>=2026-10-23"]
+
+
+def test_split_search_query_keeps_quoted_phrase() -> None:
+    assert split_search_query('repo:o/r "fails on save" is:open') == ["repo:o/r", "fails on save", "is:open"]
+
+
+def test_split_search_query_unbalanced_quote_falls_back() -> None:
+    assert split_search_query('"oops is:open') == ['"oops', "is:open"]
+
+
+def test_split_search_query_empty() -> None:
+    assert split_search_query(None) == []
+    assert split_search_query("   ") == []
+
+
+def test_gh_search_args_flags_before_separator() -> None:
+    args = gh_search_args("issues", "user:me -label:bug", ["--limit", "5"])
+    assert args == ["search", "issues", "--limit", "5", "--", "user:me", "-label:bug"]
+
+
+def test_scope_and_pr_detection() -> None:
+    assert query_has_scope(["org:acme", "bug"])
+    assert query_has_scope(["repo:o/r"])
+    assert not query_has_scope(["bug", "is:open"])
+    assert query_wants_prs(["is:pr"])
+    assert query_wants_prs(["TYPE:PR"])
+    assert not query_wants_prs(["is:issue"])

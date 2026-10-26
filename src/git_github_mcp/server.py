@@ -531,6 +531,7 @@ async def github_ops(
     path_pattern: str | None = None,
     search_scope: str | None = None,
     pretty: bool = False,
+    include_prs: bool = False,
     project_number: int | None = None,
     package_type: str | None = None,
     package_name: str | None = None,
@@ -560,6 +561,10 @@ async def github_ops(
     PACKAGES:      package_list, package_view, package_delete
     GITINGEST:     gitingest_link, gitingest_convert_url, gitingest_help
     MISC:          auth_status, gist_list
+
+    Search queries take normal GitHub syntax with several qualifiers, e.g.
+    query='user:me updated:>=2026-10-01 -label:bug'. search_issues also scopes
+    by owner= (and repo=) and returns PRs with include_prs=True or is:pr in query.
 
     Non-blocking: subprocess runs in thread pool, never freezes MCP server.
     release_delete needs confirm=True + confirm_token (red-shelf gate).
@@ -628,6 +633,7 @@ async def github_ops(
         path_pattern=path_pattern,
         search_scope=search_scope,
         pretty=pretty,
+        include_prs=include_prs,
         project_number=project_number,
         package_type=package_type,
         package_name=package_name,
