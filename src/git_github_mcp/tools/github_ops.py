@@ -289,7 +289,8 @@ def _current_topics(slug: str) -> tuple[list[str] | None, str]:
             nodes = rt.get("nodes") or []
         elif isinstance(rt, list):
             nodes = rt
-    topics = [n.get("name") for n in nodes if isinstance(n, dict) and n.get("name")]
+    raw_names = [n.get("name") for n in nodes if isinstance(n, dict)]
+    topics = [str(t) for t in raw_names if t]
     # Fallback shape: {"nodes": [...]} at top level? keep empty rather than fail
     return topics, ""
 
