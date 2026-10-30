@@ -1,16 +1,18 @@
 """github_ops portmanteau — validation without calling gh + discussions with mocked run_gh."""
 
+import ast
 import importlib
 import json
+from pathlib import Path
 
 import pytest
 
 from git_github_mcp.utils.gh_cli import _no_prompt_env
 
-# NOTE: git_github_mcp.tools.__init__ re-exports the github_ops function,
+# NOTE: tools/github_ops.__init__ re-exports the github_ops function,
 # shadowing the submodule attribute — importlib gets the real module.
 ops_mod = importlib.import_module("git_github_mcp.tools.github_ops")
-from git_github_mcp.tools.github_ops import github_ops
+from git_github_mcp.tools.github_ops import ACTION_TYPE, OP_PARAMS, derive_op_params, github_ops
 
 
 def test_gh_env_scrubs_discovery_hijackers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -428,10 +430,11 @@ def _flags(args: list[str]) -> list[str]:
 
 
 def test_search_issues_splits_qualifiers(search_gh: SearchGh) -> None:
-    r = github_ops(operation="search_issues", query="user:sandraschi updated:>=2026-10-23")
+    r = github_ops(operation="search_issues", query="user:sandraschi updated:>=2026-01-01")
     assert r["success"] is True
     args = search_gh.calls[0]
-    assert _query_words(args) == ["user:sandraschi", "updated:>=2026-10-23"]
+    # state defaults to open and is always appended (the backend has no state flag)
+    assert _query_words(args) == ["user:sandraschi", "updated:>=2026-01-01", "is:open"]
     assert "--include-prs" not in args
 
 
@@ -454,7 +457,7 @@ def test_search_issues_owner_repo_uses_repo_flag(search_gh: SearchGh) -> None:
 def test_search_issues_owner_alone_is_enough(search_gh: SearchGh) -> None:
     r = github_ops(operation="search_issues", owner="o")
     assert r["success"] is True
-    assert _query_words(search_gh.calls[0]) == []
+    assert _query_words(search_gh.calls[0]) == ["is:open"]
 
 
 def test_search_issues_query_scope_wins_over_owner(search_gh: SearchGh) -> None:
@@ -483,3 +486,81 @@ def test_other_search_ops_split_query(search_gh: SearchGh) -> None:
         words = _query_words(args)
         assert len(words) == 2, args
         assert all(" " not in w for w in words), args
+
+
+# ── OP_PARAMS contract: no silent wrong answers ────────────────────────────
+
+
+def test_op_params_covers_all_operations() -> None:
+    assert set(OP_PARAMS) == set(ACTION_TYPE)
+
+
+def test_op_params_matches_ast_derivation() -> None:
+    assert OP_PARAMS == derive_op_params()
+
+
+def test_op_params_spot_check() -> None:
+    assert {"state", "label", "assignee", "limit", "owner", "repo"} <= set(OP_PARAMS["issue_list"])
+    assert "state" in OP_PARAMS["search_issues"]
+    assert "include_prs" in OP_PARAMS["search_issues"]
+    assert "owner" not in OP_PARAMS["gist_list"]
+    assert OP_PARAMS["repo_delete"] == frozenset()
+    assert {"answered_only", "category"} <= set(OP_PARAMS["discussion_list"])
+
+
+def _ast_defaults(path: Path, func: str) -> dict[str, str]:
+    """{param: formatted default} for one function, parsed without importing."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    node = next(n for n in ast.walk(tree) if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name == func)
+    out: dict[str, str] = {}
+    pos = node.args.posonlyargs + node.args.args
+    std = node.args.defaults
+    if std:
+        for a, d in zip(pos[len(pos) - len(std) :], std, strict=True):
+            out[a.arg] = ast.dump(d)
+    for a, d in zip(node.args.kwonlyargs, node.args.kw_defaults, strict=True):
+        if d is not None:
+            out[a.arg] = ast.dump(d)
+    return out
+
+
+def test_op_params_shared_server_defaults_match() -> None:
+    """MCP server forwards every param explicitly: a default mismatch would
+    flag every call. Shared params must agree exactly."""
+    base = Path(ops_mod.__file__).resolve().parent
+    impl_d = _ast_defaults(base / "github_ops.py", "_github_ops_impl")
+    srv_d = _ast_defaults(base.parent / "server.py", "github_ops")
+    shared = set(impl_d) & set(srv_d) - {"operation"}
+    assert shared, "no shared params - signature drift?"
+    mismatch = sorted(k for k in shared if impl_d[k] != srv_d[k])
+    assert not mismatch, f"server/impl default mismatch: {mismatch}"
+
+
+def test_ignored_params_flagged(search_gh: SearchGh) -> None:
+    r = github_ops(operation="issue_list", owner="o", repo="r", draft=True)
+    assert r["success"] is True
+    assert r.get("ignored_params") == ["draft"]
+    assert "draft" in r.get("note", "")
+
+
+def test_ignored_params_clean_call_has_no_key(search_gh: SearchGh) -> None:
+    r = github_ops(operation="issue_list", owner="o", repo="r")
+    assert r["success"] is True
+    assert "ignored_params" not in r
+
+
+def test_search_issues_state_honored(search_gh: SearchGh) -> None:
+    r = github_ops(operation="search_issues", owner="o", repo="r", query="bug", state="closed")
+    assert r["success"] is True
+    assert "is:closed" in _query_words(search_gh.calls[0])
+
+
+def test_search_issues_state_all_skips_filter(search_gh: SearchGh) -> None:
+    github_ops(operation="search_issues", owner="o", repo="r", query="bug", state="all")
+    assert not any(w.startswith("is:") for w in _query_words(search_gh.calls[0]))
+
+
+def test_search_issues_state_invalid() -> None:
+    r = github_ops(operation="search_issues", owner="o", repo="r", query="bug", state="bogus")
+    assert r["success"] is False
+    assert "open, closed, merged" in (r.get("error") or "")
