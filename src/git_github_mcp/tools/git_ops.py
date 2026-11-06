@@ -576,14 +576,14 @@ async def git_ops(
             ok, _, err = await _run_git_async(repo, ["add", "--", "."])
             if not ok:
                 return _err("add", err or "add . failed")
-            unstaged, staged = await _index_state(repo)
-            if unstaged is None or staged is None:
+            unstaged_paths, staged_paths = await _index_state(repo)
+            if unstaged_paths is None or staged_paths is None:
                 return _err("add", "add ran but the index could not be verified — run git status manually")
-            if unstaged:
-                left = sorted(unstaged)[:20]
+            if unstaged_paths:
+                left = sorted(unstaged_paths)[:20]
                 return _err(
                     "add",
-                    f"add reported success but {len(unstaged)} file(s) still have unstaged changes: {', '.join(left)}",
+                    f"add reported success but {len(unstaged_paths)} file(s) still have unstaged changes: {', '.join(left)}",
                     recovery_options=[
                         f"git_ops(operation='status', repo_path='{repo}') to inspect",
                         "Check .gitignore / skip-worktree bits on the listed files",
@@ -591,8 +591,8 @@ async def git_ops(
                 )
             return _ok(
                 "add",
-                {"staged": "all files", "staged_count": len(staged)},
-                message="All files staged" if staged else "Nothing to stage — worktree already clean",
+                {"staged": "all files", "staged_count": len(staged_paths)},
+                message="All files staged" if staged_paths else "Nothing to stage — worktree already clean",
                 next_steps=[f"git_ops(operation='commit', message='...', repo_path='{repo}')"],
             )
         if not files:
@@ -600,14 +600,14 @@ async def git_ops(
         ok, _, err = await _run_git_async(repo, ["add", "--", *files])
         if not ok:
             return _err("add", err or "add failed")
-        unstaged, staged = await _index_state(repo, files)
-        if unstaged is None or staged is None:
+        unstaged_paths, staged_paths = await _index_state(repo, files)
+        if unstaged_paths is None or staged_paths is None:
             return _err("add", "add ran but the index could not be verified — run git status manually")
-        if unstaged:
-            left = sorted(unstaged)
+        if unstaged_paths:
+            left = sorted(unstaged_paths)
             detail = f"add reported success but {len(left)} requested path(s) still differ from the index: {', '.join(left[:20])}"
-            if staged:
-                detail += f" (already staged in index: {', '.join(sorted(staged)[:20])})"
+            if staged_paths:
+                detail += f" (already staged in index: {', '.join(sorted(staged_paths)[:20])})"
             return _err(
                 "add",
                 detail,
@@ -616,8 +616,8 @@ async def git_ops(
                     "Verify repo_path points at the repo holding these files",
                 ],
             )
-        staged_now = sorted(staged)
-        already_clean = [f for f in files if f not in staged and f not in unstaged]
+        staged_now = sorted(staged_paths)
+        already_clean = [f for f in files if f not in staged_paths and f not in unstaged_paths]
         return _ok(
             "add",
             {"staged_files": staged_now, "count": len(staged_now), "already_clean": already_clean},

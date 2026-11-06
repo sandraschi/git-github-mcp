@@ -121,3 +121,52 @@ def test_local_dirty_fleet_repos_precedence(tmp_path: Path, monkeypatch) -> None
     assert res["result"]["dirty_count"] == 1
     assert res["result"]["dirty"][0]["id"] == "dirty-mcp"
     assert res["result"]["missing_paths"] == []
+
+
+def test_weekly_retro_surfaces_gh_failures(monkeypatch) -> None:
+    """Failing gh calls must show up as errors, not as zero merged PRs/issues."""
+    from git_github_mcp.services import fleet_orchestrator as fo
+
+    def fail_all(args: list[str], timeout: int = 60):
+        return False, "", "boom"
+
+    monkeypatch.setattr(fo, "run_gh", fail_all)
+    res = fo.op_weekly_retro(fleet_repos="o/r1\no/r2", use_registry=False)
+    assert res["success"] is True
+    assert res["result"]["merged_pr_count"] == 0
+    assert res["result"]["new_issue_count"] == 0
+    assert res["result"]["error_count"] == 4
+    assert len(res["result"]["errors"]) == 4
+    assert all("boom" in e["error"] for e in res["result"]["errors"])
+
+
+def test_weekly_retro_reports_nothing_on_all_success(monkeypatch, tmp_path: Path) -> None:
+    from git_github_mcp.services import fleet_orchestrator as fo
+
+    def ok_empty(args: list[str], timeout: int = 60):
+        return True, "[]", ""
+
+    monkeypatch.setattr(fo, "run_gh", ok_empty)
+    res = fo.op_weekly_retro(fleet_repos="o/r1", use_registry=False)
+    assert res["success"] is True
+    assert res["result"]["errors"] == []
+    assert res["result"]["error_count"] == 0
+
+
+def test_quarantine_report_surfaces_api_failure(monkeypatch, tmp_path: Path) -> None:
+    from git_github_mcp.services import fleet_catalog as fc
+
+    reg = tmp_path / "fleet-registry.json"
+    reg.write_text(
+        json.dumps({"fleet": [{"id": "dead-mcp", "status": "quarantined", "repo_path": str(tmp_path / "missing")}]}),
+        encoding="utf-8",
+    )
+
+    def fail_all(args: list[str], timeout: int = 60):
+        return False, "", "boom"
+
+    monkeypatch.setattr(fc, "run_gh", fail_all)
+    res = fc.op_quarantine_report(registry_path=str(reg), owner="o")
+    assert res["success"] is True
+    assert res["result"]["error_count"] == 1
+    assert res["result"]["errors"][0]["slug"] == "o/dead-mcp"

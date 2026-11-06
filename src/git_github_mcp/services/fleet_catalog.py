@@ -246,6 +246,7 @@ def op_quarantine_report(*, registry_path: str | None = None, owner: str = DEFAU
     entries = load_registry(Path(registry_path) if registry_path else DEFAULT_REGISTRY_PATH)
     quarantined = [r for r in entries if isinstance(r, dict) and str(r.get("status") or "").lower() == "quarantined"]
     report: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
     for row in quarantined:
         rid = str(row.get("id") or "")
         gh_repo = str(row.get("github_repo") or rid)
@@ -253,15 +254,18 @@ def op_quarantine_report(*, registry_path: str | None = None, owner: str = DEFAU
         open_prs = 0
         open_issues = 0
         last_push = None
-        ok, out, _ = run_gh(["api", f"repos/{slug}", "-q", "{pushedAt, openIssuesCount, openPullsCount, htmlUrl}"])
-        if ok and out.strip():
+        ok, out, err = run_gh(["api", f"repos/{slug}", "-q", "{pushedAt, openIssuesCount, openPullsCount, htmlUrl}"])
+        if not ok:
+            errors.append({"slug": slug, "error": err or "gh api failed"})
+        elif out.strip():
             try:
                 meta = json.loads(out) if out.strip().startswith("{") else {}
             except json.JSONDecodeError:
                 meta = {}
+                errors.append({"slug": slug, "error": "invalid JSON from gh api"})
             if isinstance(meta, dict):
                 open_issues = int(meta.get("openIssuesCount") or 0)
-                open_prs = int(meta.get("openPullsCount") or 0)
+                open_prs = int(meta.get("openPullCount") or 0)
                 last_push = meta.get("pushedAt")
         repo_path = Path(str(row.get("repo_path") or DEFAULT_REPOS_ROOT / rid))
         if repo_path.is_dir():
@@ -281,7 +285,8 @@ def op_quarantine_report(*, registry_path: str | None = None, owner: str = DEFAU
             }
         )
     return success_response(
-        {"count": len(report), "repos": report},
+        {"count": len(report), "repos": report, "errors": errors, "error_count": len(errors)},
         "quarantine_report",
-        message=f"{len(report)} quarantined hulls in registry",
+        message=f"{len(report)} quarantined hulls in registry"
+        + (f" ({len(errors)} meta fetch errors)" if errors else ""),
     )
