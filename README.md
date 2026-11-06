@@ -1,7 +1,8 @@
 # git-github-mcp
 
-Local git and GitHub operations for your AI agent — 12 MCP tools, a fleet
-maintainer suite, and a React dashboard. No PATH surgery, no auth wrestling.
+Local git and GitHub operations for your AI agent - 12 MCP tools, maintainer suite and React dashboard.
+
+No PATH surgery, no auth wrestling.
 
 ## What this wraps
 
